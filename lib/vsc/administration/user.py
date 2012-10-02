@@ -306,14 +306,19 @@ class MukUser(LdapUser):
         """
         super(MukUser, self).__init__(vsc_user_id)
 
-    def set_home():
+    def create_fileset(self,):
+        """
+        If the user does not have a fileset already, create one at the appropriate location.
+        """
+
+    def set_home(self,):
         """FIXME.
 
         - check the 'real_path_storage_type' and make the home symlink accordingly
         """
         pass
 
-    def set_quota():
+    def set_quota(self,):
         """FIXME.
 
         - set the quota for the user, fixed values. if more is required, go see a doctor, erm a project.
