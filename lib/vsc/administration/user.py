@@ -34,7 +34,7 @@ from vsc.gpfs.quota.mmfs_utils import set_gpfs_user_quota
 from vsc.ldap import NoSuchInstituteError, NoSuchUserError
 from vsc.ldap.user import LdapUser
 
-from vsc.administration.group import Group
+#from vsc.administration.group import GroupBase
 from vsc.administration.institute import Institute
 
 logger = fancylogger.getLogger(__name__)
