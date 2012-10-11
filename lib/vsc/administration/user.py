@@ -320,7 +320,7 @@ class MukUser(LdapUser):
 
         @returns: string representing the relative path for this user.
         """
-        path = os.path.join(['users', self.user_id[:-2], self.user_id)
+        path = os.path.join(['users', self.user_id[:-2], self.user_id])
         return path
 
     def create_scratch_fileset(self):
@@ -357,5 +357,24 @@ class MukUser(LdapUser):
         - set the quota for the user, fixed values. if more is required, go see a doctor, erm a project.
         """
         pass
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - othwerwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(MukUser, self).__setattr__('dry_run', value)
+
+
+
+
+
+
 
 
