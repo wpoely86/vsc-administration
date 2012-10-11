@@ -30,6 +30,8 @@ import os
 from lockfile.pidlockfile import PIDLockFile
 
 import vsc.fancylogger as fancylogger
+from vsc.filesystem.gpfs import GpfsOperations
+from vsc.filesystem.posix import PosixOperations
 from vsc.gpfs.quota.mmfs_utils import set_gpfs_user_quota
 from vsc.ldap import NoSuchInstituteError, NoSuchUserError
 from vsc.ldap.user import LdapUser
@@ -285,6 +287,7 @@ class MukUser(LdapUser):
     This class provides functionality for administrating users on the
     Tier 1 machine(s).
 
+    - Provide a fileset for the user on scratch ($VSC_SCRATCH)
     - Set up quota (scratch)
     - Symlink the user's home ($VSC_HOME) to the real home
         - AFM cached mount (GPFS) of the NFS path
@@ -299,17 +302,46 @@ class MukUser(LdapUser):
       deployed settings.
     """
 
-    def __init__(self, vsc_user_id):
+    def __init__(self, user_id):
         """Initialisation.
 
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(MukUser, self).__init__(vsc_user_id)
+        super(MukUser, self).__init__(user_id)
+        self.gpfs = GpfsOperation()
+        self.posix = PosixOperations()
 
-    def create_fileset(self,):
+        self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
+
+    def _scratch_path():
+        """Determines the path (relative to the scratch mount point)
+
+        For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV.
+
+        @returns: string representing the relative path for this user.
         """
-        If the user does not have a fileset already, create one at the appropriate location.
+        path = os.path.join(['users', self.user_id[:-2], self.user_id)
+        return path
+
+    def create_scratch_fileset(self):
+        """Create a fileset for the user on the scratch filesystem.
+
+        - creates the fileset if it does not already exist
+        - sets the (fixed) quota on this fileset
+        - no user quota on scratch! only per-fileset quota
         """
+        fileset_name = self.user_id
+        path = self._scratch_path
+
+        self.gpfs.list_filesets()
+
+        if not fileset_name in gpfs.gpfslocalfilesets:
+            self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
+            self.gpfs.make_fileset(path, fileset_name)
+        else:
+            self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
+
+        self.gpfs_fileset_quota(soft = self.user_scratch_quota, path)
 
     def set_home(self,):
         """FIXME.
