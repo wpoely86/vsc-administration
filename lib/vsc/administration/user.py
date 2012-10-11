@@ -341,6 +341,7 @@ class MukUser(LdapUser):
         else:
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
 
+        # FIXME: this is not going to work yet.
         self.gpfs_fileset_quota(soft = self.user_scratch_quota, path)
 
     def set_home(self,):
