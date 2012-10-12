@@ -334,7 +334,7 @@ class MukUser(LdapUser):
         self.gpfs.list_filesets()
 
         fileset_name = self.user_id
-        path = self._scratch_path
+        path = self._scratch_path()
 
         if not self.gpfs.get_fileset_info('scratch', fileset_name):
             self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
