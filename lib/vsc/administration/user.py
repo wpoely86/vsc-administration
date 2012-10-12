@@ -357,18 +357,23 @@ class MukUser(LdapUser):
         - has an AFM cache covering the real NFS mount
         - sits on scratch (as indicated by the LDAP attribute).
         """
+        try:
+            source = self.homeDirectory
+        except AttributeError, _:
+            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+
         target = None
-        if self.mukHomeOnScratch:
-            target = self._scratch_path()
-        else:
-            target = None
+        try:
+            if self.mukHomeOnScratch:
+                self.log.info("User %s has his home on Muk scratch" % (self.user_id))
+                target = self._scratch_path()
+        except AttributeError, _:
+            pass
+
+        if target is None:  # FIXME: find the NFS mount and the symlink to it or use the AFM cache for the NFS mount
+            pass
 
         if target:
-            try:
-                source = self.homeDirectory
-            except AttributeError, _:
-                self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
-
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
             self.posix.make_dir(base_home_dir_hierarchy)
             self.posix.make_symlink(target, source)
