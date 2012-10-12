@@ -308,19 +308,20 @@ class MukUser(LdapUser):
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
         super(MukUser, self).__init__(user_id)
-        self.gpfs = GpfsOperation()
+        self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
         self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
 
-    def _scratch_path():
+    def _scratch_path(self):
         """Determines the path (relative to the scratch mount point)
 
         For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV.
 
         @returns: string representing the relative path for this user.
         """
-        path = os.path.join(['users', self.user_id[:-2], self.user_id])
+        scratch = self.gpfs.get_filesystem_info('scratch')
+        path = os.path.join([scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id])
         return path
 
     def create_scratch_fileset(self):
@@ -330,26 +331,35 @@ class MukUser(LdapUser):
         - sets the (fixed) quota on this fileset
         - no user quota on scratch! only per-fileset quota
         """
+        self.gpfs.list_filesets()
+
         fileset_name = self.user_id
         path = self._scratch_path
 
-        self.gpfs.list_filesets()
-
-        if not fileset_name in gpfs.gpfslocalfilesets:
+        if not self.gpfs.get_fileset_info('scratch', fileset_name):
             self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
             self.gpfs.make_fileset(path, fileset_name)
         else:
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
 
         # FIXME: this is not going to work yet.
-        self.gpfs_fileset_quota(soft = self.user_scratch_quota, path)
+        self.gpfs_fileset_quota(self.user_scratch_quota, path)
 
-    def set_home(self,):
-        """FIXME.
+    def create_home_dir(self):
+        """Create the symlink to the real user's home dir that is
 
-        - check the 'real_path_storage_type' and make the home symlink accordingly
+        - mounted somewhere over NFS
+        - has an AFM cache covering the real NFS mount
+        - sits on scratch (as indicated by the LDAP attribute).
         """
-        pass
+        target = None
+        if self.mukHomeOnScratch:
+            target = self._scratch_path()
+        else:
+            target = None
+
+        if target:
+            pass
 
     def set_quota(self,):
         """FIXME.
