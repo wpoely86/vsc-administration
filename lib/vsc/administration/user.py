@@ -321,7 +321,7 @@ class MukUser(LdapUser):
         @returns: string representing the relative path for this user.
         """
         scratch = self.gpfs.get_filesystem_info('scratch')
-        path = os.path.join([scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id])
+        path = os.path.join(scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
         return path
 
     def create_scratch_fileset(self):
