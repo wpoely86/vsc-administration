@@ -30,6 +30,7 @@ import os
 from lockfile.pidlockfile import PIDLockFile
 
 import vsc.fancylogger as fancylogger
+from vsc.base import Muk
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
 from vsc.gpfs.quota.mmfs_utils import set_gpfs_user_quota
@@ -308,6 +309,9 @@ class MukUser(LdapUser):
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
         super(MukUser, self).__init__(user_id)
+
+        self.muk = Muk()
+
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
@@ -360,14 +364,14 @@ class MukUser(LdapUser):
             target = None
 
         if target:
-            pass
+            try:
+                source = self.homeDirectory
+            except AttributeError, _:
+                self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
-    def set_quota(self,):
-        """FIXME.
-
-        - set the quota for the user, fixed values. if more is required, go see a doctor, erm a project.
-        """
-        pass
+            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
+            self.posix.make_dir(base_home_dir_hierarchy)
+            self.posix.make_symlink(target, source)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
@@ -381,11 +385,3 @@ class MukUser(LdapUser):
             self.posix.dry_run = value
 
         super(MukUser, self).__setattr__(name, value)
-
-
-
-
-
-
-
-
