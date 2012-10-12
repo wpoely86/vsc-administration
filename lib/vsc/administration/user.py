@@ -379,7 +379,7 @@ class MukUser(LdapUser):
             self.gpfs.dry_run = value
             self.posix.dry_run = value
 
-        super(MukUser, self).__setattr__('dry_run', value)
+        super(MukUser, self).__setattr__(name, value)
 
 
 
