@@ -345,7 +345,7 @@ class MukUser(LdapUser):
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
 
         # FIXME: this is not going to work yet.
-        self.gpfs_fileset_quota(self.user_scratch_quota, path)
+        self.gpfs.gpfs_fileset_quota(self.user_scratch_quota, path)
 
     def create_home_dir(self):
         """Create the symlink to the real user's home dir that is
