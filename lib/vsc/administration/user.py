@@ -338,6 +338,8 @@ class MukUser(LdapUser):
 
         if not self.gpfs.get_fileset_info('scratch', fileset_name):
             self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
+            base_dir_hierarchy = os.dirname(path)
+            self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
