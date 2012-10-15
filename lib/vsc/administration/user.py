@@ -317,14 +317,14 @@ class MukUser(LdapUser):
 
         self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
 
-    def _scratch_path(self):
+    def user_scratch_path(self):
         """Determines the path (relative to the scratch mount point)
 
         For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV.
 
         @returns: string representing the relative path for this user.
         """
-        scratch = self.gpfs.get_filesystem_info('scratch')
+        scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
         path = os.path.join(scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
         return path
 
@@ -371,7 +371,7 @@ class MukUser(LdapUser):
             pass
 
         if target is None:  # FIXME: find the NFS mount and the symlink to it or use the AFM cache for the NFS mount
-            pass
+            target = self.muk.user_home_mount(self.user_id, self.institute)
 
         if target:
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
