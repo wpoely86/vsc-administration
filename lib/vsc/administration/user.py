@@ -35,6 +35,7 @@ from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
 from vsc.gpfs.quota.mmfs_utils import set_gpfs_user_quota
 from vsc.ldap import NoSuchInstituteError, NoSuchUserError
+from vsc.ldap.group import LdapGroup
 from vsc.ldap.user import LdapUser
 
 #from vsc.administration.group import GroupBase
@@ -320,7 +321,9 @@ class MukUser(LdapUser):
     def user_scratch_path(self):
         """Determines the path (relative to the scratch mount point)
 
-        For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV.
+        For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV. Note that the 'user' dir on scratch is
+        different, that is there to ensure the home dir symlink tree can be present on all nodes.
+
 
         @returns: string representing the relative path for this user.
         """
@@ -363,10 +366,12 @@ class MukUser(LdapUser):
             self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
         target = None
+        populate_home = False
         try:
             if self.mukHomeOnScratch:
                 self.log.info("User %s has his home on Muk scratch" % (self.user_id))
                 target = self._scratch_path()
+                populate_home = True
         except AttributeError, _:
             pass
 
@@ -375,8 +380,12 @@ class MukUser(LdapUser):
 
         if target:
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
+            # we should check that the real path (/user) sits on the GPFS, i.e., is a symlink to /gpfs/scratch/user
             self.posix.make_dir(base_home_dir_hierarchy)
             self.posix.make_symlink(target, source)
+
+        if populate_home:
+            self.posix.populate_home_dir(self.uidNumber, self.gidNumber, self.homeDirectory, self.pubkey)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
