@@ -318,12 +318,11 @@ class MukUser(LdapUser):
 
         self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
 
-    def user_scratch_path(self):
+    def _scratch_path(self):
         """Determines the path (relative to the scratch mount point)
 
         For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV. Note that the 'user' dir on scratch is
         different, that is there to ensure the home dir symlink tree can be present on all nodes.
-
 
         @returns: string representing the relative path for this user.
         """
