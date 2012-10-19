@@ -380,7 +380,9 @@ class MukUser(LdapUser):
         if target:
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
             # we should check that the real path (/user) sits on the GPFS, i.e., is a symlink to /gpfs/scratch/user
+            self.gpfs.ignorerealpathmismatch = True
             self.gpfs.make_dir(base_home_dir_hierarchy)
+            self.gpfs.ignorerealpathmismatch = False
             self.gpfs.make_symlink(target, source)
 
         if populate_home:
