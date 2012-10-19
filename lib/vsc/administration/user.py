@@ -385,7 +385,7 @@ class MukUser(LdapUser):
             self.gpfs.make_symlink(target, source)
 
         if populate_home:
-            self.gpfs.populate_home_dir(self.uidNumber, self.gidNumber, self.homeDirectory, self.pubkey)
+            self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), self.homeDirectory, self.pubkey)
 
         self.gpfs.ignorerealpathmismatch = False
 
