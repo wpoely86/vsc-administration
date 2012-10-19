@@ -377,16 +377,17 @@ class MukUser(LdapUser):
         if target is None:  # FIXME: find the NFS mount and the symlink to it or use the AFM cache for the NFS mount
             target = self.muk.user_home_mount(self.user_id, self.institute)
 
+        self.gpfs.ignorerealpathmismatch = True
         if target:
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
             # we should check that the real path (/user) sits on the GPFS, i.e., is a symlink to /gpfs/scratch/user
-            self.gpfs.ignorerealpathmismatch = True
             self.gpfs.make_dir(base_home_dir_hierarchy)
-            self.gpfs.ignorerealpathmismatch = False
             self.gpfs.make_symlink(target, source)
 
         if populate_home:
             self.gpfs.populate_home_dir(self.uidNumber, self.gidNumber, self.homeDirectory, self.pubkey)
+
+        self.gpfs.ignorerealpathmismatch = False
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
