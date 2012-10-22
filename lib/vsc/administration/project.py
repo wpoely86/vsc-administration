@@ -74,6 +74,8 @@ class MukProject(LdapProject):
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.project_id))
 
         self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
+        moderator = MukUser(self.moderator)
+        self.gpfs.chown(os.path.join(path, fileset_name), moderator.uidNumber, self.gidNumber) # FIXME: the gidNumber prolly comes from elsewhere
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:

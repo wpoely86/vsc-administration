@@ -352,6 +352,22 @@ class MukUser(LdapUser):
 
         self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
 
+        # We will always populate the scratch directory of the user as if it's his home directory
+        # In this way, if the user moves to home on scratch, everything will be up to date and in place.
+
+
+    def populate_scratch_fallback(self):
+        """The scratch fileset is populated with the
+
+        - ssh keys,
+        - a clean .bashrc script,
+        - a clean .bash_profile.
+
+        The user can then always log in to the scratch, should the synchronisation fail to detect
+        a valid NFS mount point and avoid setting home on Muk.
+        """
+        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
+
     def create_home_dir(self):
         """Create the symlink to the real user's home dir that is
 
@@ -365,16 +381,18 @@ class MukUser(LdapUser):
             self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
         target = None
-        populate_home = False
         try:
             if self.mukHomeOnScratch:
                 self.log.info("User %s has his home on Muk scratch" % (self.user_id))
                 target = self._scratch_path()
-                populate_home = True
+            elif self.mukHomeOnAFM:
+                self.log.info("User %s has his home on Muk AFM" % (self.user_id))
+                target = self.muk.user_afm_home_mount(self.user_id, self.institute)
         except AttributeError, _:
             pass
 
-        if target is None:  # FIXME: find the NFS mount and the symlink to it or use the AFM cache for the NFS mount
+        if target is None:
+            # This is the default case
             target = self.muk.user_home_mount(self.user_id, self.institute)
 
         self.gpfs.ignorerealpathmismatch = True
@@ -383,9 +401,6 @@ class MukUser(LdapUser):
             # we should check that the real path (/user) sits on the GPFS, i.e., is a symlink to /gpfs/scratch/user
             self.gpfs.make_dir(base_home_dir_hierarchy)
             self.gpfs.make_symlink(target, source)
-
-        if populate_home:
-            self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), self.homeDirectory, self.pubkey)
 
         self.gpfs.ignorerealpathmismatch = False
 
