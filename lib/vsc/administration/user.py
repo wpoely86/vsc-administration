@@ -355,7 +355,6 @@ class MukUser(LdapUser):
         # We will always populate the scratch directory of the user as if it's his home directory
         # In this way, if the user moves to home on scratch, everything will be up to date and in place.
 
-
     def populate_scratch_fallback(self):
         """The scratch fileset is populated with the
 
@@ -366,6 +365,7 @@ class MukUser(LdapUser):
         The user can then always log in to the scratch, should the synchronisation fail to detect
         a valid NFS mount point and avoid setting home on Muk.
         """
+        path = self._scratch_path()
         self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
 
     def create_home_dir(self):
