@@ -41,6 +41,8 @@ class VscUser(VscLdapUser):
 
     - add a user to the VSC LDAP
     - set up the user's directories
+    - FIXME: This should be revamped once we decide on the central location for the
+      user information (e.g., LDAP or a real DB, for example, the django backend.)
     """
 
     # lock attributes on a class basis (should be reachable from static and class methods
@@ -89,7 +91,7 @@ class VscUser(VscLdapUser):
     def modify_status(self, status):
         """Modify the status from the user."""
 
-        #FIXME: Should be in the LdapUser superclass
+        #FIXME: Should be in the VscLdapUser superclass
         self.status  # force load
         self.status = status
 
@@ -201,7 +203,7 @@ class VscUser(VscLdapUser):
 
         # FIXME: there should be a better way to do this.
         if data_quota is not None:
-            # FIXME: use the LdapUser super instance for these.
+            # FIXME: use the VscLdapUser super instance for these.
             self.ldap_query.user_modify(self.cn, {'dataQuota': data_quota})
             self.data_quota = data_quota
         if scratch_quota is not None:
@@ -281,7 +283,7 @@ class VscUser(VscLdapUser):
         return ''.join(['vsc', str(id)])
 
 
-class MukUser(LdapUser):
+class MukUser(VscLdapUser):
     """A VSC user who is allowed to execute on the Tier 1 machine(s).
 
     This class provides functionality for administrating users on the
