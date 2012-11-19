@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 ##
 #
+# Copyright 2009-2012 Ghent University
+# Copyright 2009-2012 Stijn De Weirdt
 # Copyright 2012 Andy Georges
 #
 # This file is part of the tools originally by the HPC team of
@@ -16,71 +18,73 @@ Original Perl code by Stijn De Weirdt.
 The following actions are available for users:
 - add: Add a user. Requires: institute, gecos, mail address, public key
 - modify_quota: Change the personal quota for a user (data and scratch only)
-
-
-@author Andy Georges
-
-@created Apr 23, 2012
 """
-
-__author__ = 'ageorges'
-__date__ = 'Apr 24, 2012'
 
 import os
 from lockfile.pidlockfile import PIDLockFile
 
 import vsc.fancylogger as fancylogger
-from vsc.base import Muk
+from vsc.config.base import VSC, Muk
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.gpfs.quota.mmfs_utils import set_gpfs_user_quota
+from vsc.ldap.filter import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchInstituteError, NoSuchUserError
-from vsc.ldap.group import LdapGroup
-from vsc.ldap.user import LdapUser
+from vsc.ldap.entities import VscLdapUser
 
-#from vsc.administration.group import GroupBase
 from vsc.administration.institute import Institute
 
-logger = fancylogger.getLogger(__name__)
+log = fancylogger.getLogger(__name__)
 
 
-class VscUser(LdapUser):
+class VscUser(VscLdapUser):
     """Classs representing a user in the VSC administrative library.
-
-    This is a VSC user with full capabilities. Intended to be used on a machine that has write access to _all_ LDAP
-    attributes.
 
     - add a user to the VSC LDAP
     - set up the user's directories
-
     """
-    def __init__(self, vsc_user_id):
-        super(VscUser, self).__init__(vsc_user_id)
 
-        self.USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (self.__class__.__name__)
-        self.lockfile = PIDLockFile(self.USER_LOCKFILE_NAME)
+    # lock attributes on a class basis (should be reachable from static and class methods
+    USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
+    LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    @staticmethod
-    def load(self, login, institute):
-        """Loads a user with given institute and institute login.
+    def __init__(self, user_id):
+        super(VscUser, self).__init__(user_id)
 
-        @type login: string representing the login name of the user at his institute
-        @type institute: string representing the institute
+    @classmethod
+    def lock(cls):
+        """Take a global lock to avoid other instances from messing things up."""
+        cls.LOCKFILE.acquire()
+
+    @classmethod
+    def unlock(cls):
+        """Release the global lock."""
+        cls.LOCKFILE.release()
+
+    @classmethod
+    def load(cls, login, institute):
+        """Instantiate a user for the given (institute, login) pair.
+
+        @type login: string
+        @type institute: string
+
+        @param login: the user's login at the home institute
+        @param institute: the user's home institute name
 
         @raise NoSuchInstituteError, NoSuchUserError
+
+        @return: a VscUser instance or None if no such user exists
         """
-        if not institute in self.ldap_query.ldap.vsc.institutes:
-            self.logger.error("Institute %s does not exist in the VSC." % (institute))
-            raise NoSuchInstituteError(institute)
+        if not institute in VSC.institutes:
+            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
 
-        user_ldap_info = self.ldap.user_search(login, institute)
+        login_filter = LoginFilter(login)
+        institute_filter = InstituteFilter(institute)
 
-        if user_ldap_info is None:
-            self.logger.error("There is no user in the HPC LDAP who matches login=%s and institute=%s." % (login, institute))
-            raise NoSuchUserError(login)
-
-        user = LdapUser(user_ldap_info['cn'])
-        return user
+        result = cls.lookup(login_filter & institute_filter)
+        if len(result) > 0:
+            return result[0]
+        else:
+            return None
 
     def modify_status(self, status):
         """Modify the status from the user."""
@@ -89,16 +93,16 @@ class VscUser(LdapUser):
         self.status  # force load
         self.status = status
 
-    @staticmethod
-    def add(login, institute_name, gecos, mail_address, key):
-        """Add a user to the VSC LDAP.
+    @classmethod
+    def add(cls, login, institute, gecos, mail_address, key):
+        """Add a user to the LDAP.
 
         This method performs multiple actions:
             - it adds an entry for the user in the people LDAP subtree
             - it adds an entry for the corresponding group in the LDAP groups subtree
 
         @type login: string representing the login name of the user in the institute
-        @type institute_name: string representing the institute
+        @type institute: string representing the institute
         @type gecos: string representing the user's name
         @type mail_address: string representing the user's email address
         @type key: string representing the user's public ssh key
@@ -108,74 +112,66 @@ class VscUser(LdapUser):
         @raise: NoSuchInstituteError if the institute does not exist.
         @raise: FIXME: should raise an error if the user already exists in the LDAP
         """
-        # check if the institute is valid
+        vsc = VSC()
+        if not institute in vsc.institutes:
+            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
+
         user = VscUser(None)  # placeholder, but defines the LdapQuery instance
 
-        # FIXME: this is simply fugly
-        if not institute_name in user.ldap.ldap.vsc.institutes:
-            logger.error("Institute %s does not exist in the VSC" % (institute_name))
-            raise NoSuchInstituteError(institute_name)
-
-        institute = Institute(institute_name)
-
         try:
-            user.lockfile.acquire()
+            VscUser.lock()
             # Check if the user is already active on the VSC. We assume no two people
             # carry the same login in a single institute.
-            user_ldap_info = user.ldap.user_search(login, institute_name)
-            if user_ldap_info is not None:
-                user.logger.warning("User %s (%s, %s) already exists in the HPC LDAP." %
-                                    (user_ldap_info['cn'], login, institute_name))
-                user.__fill_from_ldap_info(user_ldap_info)
-                user.lockfile.release()
+            user = VscUser.load(login, institute)
+            if not user is None:
+                log.raiseException("User %s@%s already exists in LDAP" % (login, institute))
 
-            user.logger.info("%s.add: did not find user %s@%s to add, proceeding" % (user.__class__.__name__, login, institute_name))
+            log.info("VscUser.add: did not find user %s@%s to add, proceeding" % (user.__class__.__name__, login, institute))
 
             # Determine VSC-specific attributes to set in the LDAP.
-            u_id = institute.get_next_member_uid()  # numerical ID
-            g_id = u_id  # each user gets a group with the same numerical ID
-            u_login = user.__generate_name(u_id)
-            vsc = user.ldap.ldap.vsc
-            pathnames = vsc.user_pathnames(str(u_id), institute_name)  # the canonical pathnames for the user in his institute (home, data, scratch)
+            user_id = Institute(institute).get_next_member_uid()  # numerical ID
+            group_id = user_id  # each user gets a group with the same numerical ID
+            user_name = VscUser.__generate_name(user_id)
+            group_name = user_name  # group name for this user is the same
+            pathnames = vsc.user_pathnames(str(user_id), institute)  # the canonical pathnames for the user in his institute (home, data, scratch)
 
             attributes = {
                 'objectClass': ['top', 'posixAccount', 'vscuser'],
-                'cn': u_login,
-                'uid': u_login,
-                'uidNumber': str(u_id),
-                'gidNumber': str(g_id),
+                'cn': user_name,
+                'uid': user_name,
+                'uidNumber': str(user_id),
+                'gidNumber': str(group_id),
                 'researchField': 'unknown',
                 'mailList': ['hpc-announce@lists.ugent.be'],  # obligatory
                 'homeDirectory': pathnames['home'],
                 'dataDirectory': pathnames['data'],
                 'scratchDirectory': pathnames['scratch'],
-                'institute': institute_name,
+                'institute': institute,
                 'instituteLogin': login,
                 'gecos': gecos,
                 'mail': mail_address,
                 'pubkey': key,
                 'loginShell': vsc.user_shell,
-                'homeQuota': str(vsc.user_quota_home),
-                'dataQuota': str(vsc.user_quota_data),
-                'scratchQuota': str(vsc.user_quota_default_scratch),
-                'status': vsc.defaults['new_user_status']
+                'homeQuota': str(vsc.user_quota_home),  # default
+                'dataQuota': str(vsc.user_quota_data),  # default
+                'scratchQuota': str(vsc.user_quota_default_scratch),  # default
+                'status': vsc.defaults['new_user_status']  # indicatesd progress through scripts
             }
 
-            user.logger.info("Adding user [%s] with attributes %s" % (u_login, attributes))
-            user.vsc_user_id = u_login  # fixing placeholder
+            log.info("Adding user [%s] with attributes %s" % (user_name, attributes))
+            user.vsc_user_id = user_name  # fixing placeholder
             super(VscUser, user).add(attributes)
 
             # each user has a corresponding group
-            group = Group(institute_name)
-            group.add(group_name=u_login, moderator_name=u_login)
-            group.add_member(member_uid=u_login)
-            institute_group_all = Group(institute_name).load('%sall' % (institute_name))
-            institute_group_all.add_member(member_uid=u_login)
-            user.lockfile.release()
+            group = GroupBase(group_name)
+            group.add(group_name=group_name, moderator_name=user_name)
+            group.add_member(member_uid=user_name)
+            institute_group_all = Group(institute).load('%sall' % (institute))
+            institute_group_all.add_member(member_uid=user_name)
+            VscUser.unlock()
             return user
         finally:
-            if user.lockfile.is_locked():
-                user.lockfile.release()
+            VscUser.unlock()
         return None
 
     def post_add(self, user, institute, gecos, mail_address):
@@ -201,7 +197,7 @@ class VscUser(LdapUser):
         if not user:
             raise NoSuchUserError(self.cn)
 
-        logger.info("Changing quota for user %s to %d [data] and %d [scratch]" % (user, data_quota, scratch_quota))
+        log.info("Changing quota for user %s to %d [data] and %d [scratch]" % (user, data_quota, scratch_quota))
 
         # FIXME: there should be a better way to do this.
         if data_quota is not None:
@@ -266,13 +262,15 @@ class VscUser(LdapUser):
 
     def set_quota(self):
         ## set the quota for the user
-        set_gpfs_user_quota(self.user_id, self.homeDirectory, self.homeQuota)
-        set_gpfs_user_quota(self.user_id, self.dataDirectory, self.dataQuota)
-        set_gpfs_user_quota(self.user_id, self.scratchDirectory, self.scratchQuota)
+        #set_gpfs_user_quota(self.user_id, self.homeDirectory, self.homeQuota)
+        #set_gpfs_user_quota(self.user_id, self.dataDirectory, self.dataQuota)
+        #set_gpfs_user_quota(self.user_id, self.scratchDirectory, self.scratchQuota)
 
         ## FIXME: what about gold?
+        pass
 
-    def __generate_name(self, numerical_user_id):
+    @classmethod
+    def __generate_name(cls, numerical_user_id):
         """Generate a name for a VSC user based on the numerical VSC user ID.
 
         @type numerical_user_id: integer representing a numeric user ID on the VSC

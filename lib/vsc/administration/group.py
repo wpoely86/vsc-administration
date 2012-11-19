@@ -12,14 +12,7 @@
 """
 This file contains the utilities for dealing with VOs on the VSC.
 Original Perl code by Stijn De Weirdt
-
-@author Andy Georges
-
-@created Apr 24, 2012
 """
-
-__author__ = 'ageorges'
-__date__ = 'Apr 26, 2012'
 
 ## STUFF TO PAY ATTENTION TO
 ##
@@ -28,70 +21,95 @@ __date__ = 'Apr 26, 2012'
 from lockfile.pidlockfile import PIDLockFile
 
 import vsc.fancylogger as fancylogger
-from vsc.ldap import *
 
 from vsc.administration.institute import Institute
-from vsc.ldap.utils import LdapQuery
-from vsc.ldap.group import LdapGroup
+from vsc.config.base import VSC
+from vsc.ldap.query import VscLdapQuery
+from vsc.ldap.entities import VscLdapGroup
 
 logger = fancylogger.getLogger(__name__)
 
 
-class GroupBase(LdapGroup):
+class Group(VscLdapGroup):
     """Class representing a group in the VSC administration library.
+
+    All groups have the PosixGroup, vscgroup object classes.
+
+    This is a general base class for any group type we have in the VSC:
+        - User groups corresponding to single users in the people subtree
+        - VO groups corresponding to a VO in the VO subtree
+        - Project groups corresponding a project in the projects subtree
     """
-    def __init__(self, vsc_group_id):
+    lockfile = PIDLockFile("/tmp/lock.%s.pid" % ('vsc.administration.group.Group'))
+
+    def __init__(self, group_id):
         """Initialisation
 
-        @type vsc_group_id: string representing the VSC group ID in the HPC LDAP database. The group data is loaded
+        @type group_id: string representing the VSC group ID in the HPC LDAP database. The group data is loaded
                             lazily, when first required as per the LdapGroup functionality.
         """
-        super(GroupBase, self).__init__(vsc_group_id)
+        super(Group, self).__init__(group_id)
 
-        # FIXME: unsure if needed
-        self.GROUP_LOCKFILE_NAME = "/tmp/lock.%s.pid" % (self.__class__.__name__)
-        self.lockfile = PIDLockFile(self.GROUP_LOCKFILE_NAME)
+    @classmethod
+    def lock(cls):
+        """Take a global lock to avoid other instances from messing things up."""
+        cls.LOCKFILE.acquire()
 
-    @staticmethod
-    def add(self, group_name, moderator_name):
+    @classmethod
+    def unlock(cls):
+        """Release the global lock."""
+        cls.LOCKFILE.release()
+
+    @classmethod
+    def add(cls, institute, group_name, moderator_name):
         """Add a group to the LDAP database.
 
         @type group_name: string representing the name of a group in the LDAP database.
         @type moderator_name: name of the moderator in the VSC
 
-        @returns:
+        @returns: the newly added group.
         """
-        group = self.ldap_query.group_filter_search("(&(cn=%s) (institute=%s))" % (group_name, self.institute.institute_name))
-        if group:
-            ## FIXME: should we load the group data here?
-            self.logger.error("%s.add: trying to add group %s that already exists" % (self.__class__.__name__, group_name))
-            raise GroupAlreadyExistsError(group_name)
+        vsc = VSC()
+        if not institute in vsc.institutes:
+            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
 
-        group_number = self.get_next_group_id(institute=self.institute.institute_name)
+        try:
+            cls.lock()
 
-        vsc = self.ldap_query.ldap.vsc
-        attributes = {
-            'objectclass': ['top', 'posixGroup', 'vscgroup'],
-            'cn': group_name,
-            'gidNumber': str(group_number),
-            'institute': self.institute.institute_name,
-            'moderator': moderator_name,
-            'status': vsc.defaults['new_user_status']
-        }
+            cn_filter = CnFilter(group_name)
+            groups = LdapQuery(VscConfiguration()).group_filter_search(cn_filter)
 
-        self.ldap_query.group_add(cn=group_name, attributes=attributes)
-        self.__setup(attributes)
-        return self
+            if len(groups) > 0:
+                log.raiseException("Group %s already exists" % (group_name))
+
+            group = VscGroup(None)
+
+            #FIXME: this should preferably come from a more reliable source, such as the accounts DB
+            group_number = cls.get_next_group_id(institute)
+
+            attributes = {
+                'objectclass': ['top', 'posixGroup', 'vscgroup'],
+                'cn': group_name,                                   # posixGroup
+                'gidNumber': str(group_number),                     # posixGroup
+                'institute': institute,                             # vscgroup
+                'moderator': moderator_name,                        # vscgroup
+                'status': vsc.defaults['new_user_status']           # vscgroup
+            }
+
+            group.add(attributes)
+            return group
+        finally:
+            cls.unlock()
 
     def add_member(self, member_uid):
         """Add a member to a group.
 
-        @type member_uid: the user id of the user on the VSC
+        @type member_uid: the user id of the user on the VSC (i.e., vscXYZUV)
 
         @returns: The user_id if the user was added. None otherwise.
         """
-        if not self.exists:
-            return None
+
+        self.lock()
 
         # check if the user already belongs to this group
         # FIXME: should this throw an error? It is not really an error, but we should have some indication upstack.
@@ -127,7 +145,8 @@ class GroupBase(LdapGroup):
         else:
             return None
 
-    def get_next_group_id(self, institute="vsc"):
+    @classmethod
+    def get_next_group_id(cls, institute):
         """Determine the next available group ID for a user at the given institute.
 
         This function needs to acquire a global lock, we cannot risk two groups

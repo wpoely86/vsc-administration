@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 ##
 #
+# Copyright 2009-2012 Ghent University
+# Copyright 2009-2012 Stijn De Weirdt
 # Copyright 2012 Andy Georges
 #
 # This file is part of the tools originally by the HPC team of
@@ -22,16 +24,7 @@ The following functionality is available for institutes:
 - get_default_vo_admin_info: get the admin information for the default VO
 - get_external_default_vo_admin_info: get the admin information for a default VO
                                       from an external institute
-TODO:
-
-
-@author Andy Georges
-
-@created Apr 24, 2012
 """
-
-__author__ = 'ageorges'
-__date__ = 'Apr 24, 2012'
 
 ## STUFF TO PAY ATTENTION TO
 ##
@@ -40,7 +33,6 @@ __date__ = 'Apr 24, 2012'
 from lockfile.pidlockfile import PIDLockFile
 import vsc.fancylogger as fancylogger
 
-from vsc.ldap import *
 from vsc.ldap.utils import LdapQuery
 
 logger = fancylogger.getLogger(__name__)
@@ -51,21 +43,33 @@ class Institute(object):
 
     FIXME: Maybe requires a layer in between to avoid using LdapQuery directly?
     """
+    LOCKFILE_NAME = "/tmp/lock.%s.pid" % (__name__)
+    LOCKFILE = PIDLockFile(Institute.LOCKFILE_NAME)
+
     def __init__(self, institute_name):
         self.logger = fancylogger.getLogger(self.__class__.__name__)
         self.ldap_query = LdapQuery()
-        self.LOCKFILE_NAME = "/tmp/lock.%s.pid" % (self.__class__.__name__)
-        self.lockfile = PIDLockFile(self.LOCKFILE_NAME)
 
         if not institute_name in self.ldap_query.ldap.vsc.institutes:
             self.logger.error("Failed to initialise Intitute instance with institute = %s" % (institute_name))
             raise NoSuchInstituteError(institute_name)
         self.institute_name = institute_name
 
+    @classmethod
+    def lock(cls):
+        pass
+
+    @classmethod
+    def unlock(cls):
+        pass
+
     def rebuild_default_vo(self):
         """Rebuild the default VO for the given institute.
 
-        This has the side effect of creating a default VO if none exist.
+        The default VO holds the users that are not assigned to any other VO, since a user cannot be a member of
+        more than one VO at the same time.
+
+        This has the side effect of creating a default VO if none exists.
 
         @raise InstituteDoesNotExistError, CreateVoError
         """
@@ -203,22 +207,28 @@ class Institute(object):
 
         @returns: integer representing a VAC member user ID.
         """
-        self.lockfile.acquire()
-        vsc = self.ldap_query.ldap.vsc
-        users = self.ldap_query.user_filter_search( filter="(institute=%s)" % (self.institute_name)
-                                                  , attributes=['uid', 'uidNumber'])
-        if users is None:
+        self.__class__.lock()
+
+        vsc = VSC()
+
+        institute_filter = InstituteFilter(self.institute_name)
+
+        # stay low-level, no need to create higher-level structures
+        institute_users = self.ldap_query.user_filter_search(institute_filter, attributes=['uid', 'uidNumber'])
+
+        if institute_users is None:
             current_max = vsc.user_uid_institute_map[self.institute_name]
         else:
-            current_max = max([int(user['uidNumber']) for user in users])
+            current_max = max([int(user['uidNumber']) for user in institute_users])
 
+        # this should take multiple ranges into account
         maximum_uid = vsc.user_uid_institute_map[self.institute_name][0] + vsc.user_uid_range
         new_uid = current_max + 1
         if new_uid > maximum_uid:
             self.lockfile.release()
             raise NoAvailableUserId(new_uid, maximum_uid)
 
-        self.lockfile.release()
+        self.__class__.unlock()
         return new_uid
 
     def get_admin_info(self, institute):

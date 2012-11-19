@@ -15,13 +15,12 @@ This file provides utilities to set up projects on the VSC clusters.
 import os
 
 import vsc.fancylogger as fancylogger
-from vsc.base import Muk
+from vsc.config.base import Muk
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.ldap.project import LdapProject
+from vsc.ldap.entities import VscLdapProject
 
-
-class MukProject(LdapProject):
+class MukProject(VscLdapProject):
     """Project that will be run on Muk.
 
     - Check if the project has scratch requirements

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 ##
 #
+# Copyright 2012 Ghent University
+# Copyright 2009-2012 Stijn De Weirdt
 # Copyright 2012 Andy Georges
 #
 # This file is part of the tools originally by the HPC team of
@@ -12,14 +14,7 @@
 """
 This file contains the utilities for dealing with VOs on the VSC.
 Original Perl code by Stijn De Weirdt
-
-@author Andy Georges
-
-@created Apr 24, 2012
 """
-
-__author__ = 'ageorges'
-__date__ = 'Apr 24, 2012'
 
 ## STUFF TO PAY ATTENTION TO
 ##
@@ -28,21 +23,50 @@ __date__ = 'Apr 24, 2012'
 import re
 from lockfile.pidlockfile import PIDLockFile
 
-import vsc.fancylogger as fancylogger
-from vsc.ldap import *
+from vsc import fancylogger
+from vsc.ldap.vo import LdapVo
 
-from vsc.administration.group import Group
 from vsc.administration.institute import Institute
+from vsc.administration.user import VscUser
 
 logger = fancylogger.getLogger(__name__)
 
-class Vo(Group):
+VO_PREFIX = 'gvo'
+DEFAULT_VO = 'gvo000012'
+INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
+
+
+class VscVo(LdapVo):
+    """Class representing a VO in the VSC.
+
+    A VO is a special kind of group, identified mainly by its name.
+    """
+
+    def __init__(self, vo_id):
+        """Initialise"""
+        super(VscVo, self).__init__(vo_id)
+        self.log = fancylogger.getLogger(self.__class__.__name__)
+
+    def _lock(self):
+        """Take a global lock (on a file), to avoid other instances
+        ruining things :-)
+        """
+        pass
+
+    def members(self):
+        """Return a list with all the VO members in it."""
+        return [VscUser(m) for m in self.memberUid]
+
+
+class VoOld(object):
     """Class representing a VO in the VSC administrative library.
 
     A VO is a special kind of group.
+
+    #FIXME: needs rewrite
     """
     def __init__(self, institute_name):
-        super(Vo, self).__init__(institute_name)
+        super(VoOld, self).__init__(institute_name)
         self.logger = fancylogger.getLogger(self.__class__.__name__)
         self.USER_LOCKFILE_NAME = "/tmp/lock.%s.pid" % (self.__class__.__name__)
         self.lockfile = PIDLockFile(self.USER_LOCKFILE_NAME)
@@ -50,6 +74,8 @@ class Vo(Group):
         self.description = None
         self.fairshare = None
         self.members = None
+
+
 
     def __setup(self, ldap_attributes):
         """Fill in the instance values from a retrieved VO.
