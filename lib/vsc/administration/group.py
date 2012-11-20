@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 ##
 #
+# Copyright 2012 Ghent University
 # Copyright 2012 Andy Georges
 #
 # This file is part of the tools originally by the HPC team of

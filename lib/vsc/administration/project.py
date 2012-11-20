@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 ##
 #
+# Copyright 2012 Ghent University
 # Copyright 2012 Andy Georges
 #
 # This file is part of the tools originally by the HPC team of
@@ -15,10 +16,12 @@ This file provides utilities to set up projects on the VSC clusters.
 import os
 
 import vsc.fancylogger as fancylogger
+
 from vsc.config.base import Muk
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
 from vsc.ldap.entities import VscLdapProject
+
 
 class MukProject(VscLdapProject):
     """Project that will be run on Muk.
