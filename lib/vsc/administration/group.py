@@ -25,7 +25,7 @@ import vsc.fancylogger as fancylogger
 
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC
-from vsc.ldap.query import VscLdapQuery
+from vsc.ldap.utils import LdapQuery
 from vsc.ldap.entities import VscLdapGroup
 
 logger = fancylogger.getLogger(__name__)
