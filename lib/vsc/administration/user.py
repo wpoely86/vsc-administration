@@ -27,8 +27,8 @@ import vsc.fancylogger as fancylogger
 from vsc.config.base import VSC, Muk
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.ldap.filter import InstituteFilter, LoginFilter
-from vsc.ldap import NoSuchInstituteError, NoSuchUserError
+from vsc.ldap.filters import InstituteFilter, LoginFilter
+from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
 
 from vsc.administration.institute import Institute
@@ -46,8 +46,8 @@ class VscUser(VscLdapUser):
     """
 
     # lock attributes on a class basis (should be reachable from static and class methods
-    USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
-    LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
+    #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
+    #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
     def __init__(self, user_id):
         super(VscUser, self).__init__(user_id)
@@ -317,6 +317,7 @@ class MukUser(VscLdapUser):
         self.posix = PosixOperations()
 
         self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
+        self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
     def _scratch_path(self):
         """Determines the path (relative to the scratch mount point)
@@ -326,8 +327,7 @@ class MukUser(VscLdapUser):
 
         @returns: string representing the relative path for this user.
         """
-        scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
-        path = os.path.join(scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
+        path = os.path.join(self.scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
         return path
 
     def create_scratch_fileset(self):
@@ -342,7 +342,7 @@ class MukUser(VscLdapUser):
         fileset_name = self.user_id
         path = self._scratch_path()
 
-        if not self.gpfs.get_fileset_info('scratch', fileset_name):
+        if not self.gpfs.get_fileset_info(self.muk.scratch_name, fileset_name):
             self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)

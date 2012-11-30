@@ -43,8 +43,8 @@ class Institute(object):
 
     FIXME: Maybe requires a layer in between to avoid using LdapQuery directly?
     """
-    LOCKFILE_NAME = "/tmp/lock.%s.pid" % (__name__)
-    LOCKFILE = PIDLockFile(Institute.LOCKFILE_NAME)
+    #LOCKFILE_NAME = "/tmp/lock.%s.pid" % (__name__)
+    #LOCKFILE = PIDLockFile(Institute.LOCKFILE_NAME)
 
     def __init__(self, institute_name):
         self.logger = fancylogger.getLogger(self.__class__.__name__)
