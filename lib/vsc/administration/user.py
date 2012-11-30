@@ -25,6 +25,7 @@ from lockfile.pidlockfile import PIDLockFile
 
 import vsc.fancylogger as fancylogger
 from vsc.config.base import VSC, Muk
+from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
 from vsc.ldap.filters import InstituteFilter, LoginFilter
@@ -313,6 +314,7 @@ class MukUser(VscLdapUser):
 
         self.muk = Muk()
 
+        self.ext = ExtOperations()
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
@@ -377,6 +379,7 @@ class MukUser(VscLdapUser):
         """
         try:
             source = self.homeDirectory
+            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         except AttributeError, _:
             self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
@@ -391,17 +394,14 @@ class MukUser(VscLdapUser):
         except AttributeError, _:
             pass
 
+
         if target is None:
             # This is the default case
-            target = self.muk.user_home_mount(self.user_id, self.institute)
+            target = self.muk.user_nfs_home_mount(self.user_id, self.institute)
 
         self.gpfs.ignorerealpathmismatch = True
-        if target:
-            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
-            # we should check that the real path (/user) sits on the GPFS, i.e., is a symlink to /gpfs/scratch/user
-            self.gpfs.make_dir(base_home_dir_hierarchy)
-            self.gpfs.make_symlink(target, source)
-
+        self.gpfs.make_dir(base_home_dir_hierarchy)
+        self.gpfs.make_symlink(target, source)
         self.gpfs.ignorerealpathmismatch = False
 
     def __setattr__(self, name, value):
