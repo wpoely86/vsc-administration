@@ -23,7 +23,7 @@ The following actions are available for users:
 import os
 from lockfile.pidlockfile import PIDLockFile
 
-import vsc.fancylogger as fancylogger
+from vsc import fancylogger
 from vsc.config.base import VSC, Muk
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations

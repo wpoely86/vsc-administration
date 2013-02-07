@@ -25,7 +25,7 @@ import logging
 import os
 
 from lockfile.pidlockfile import PIDLockFile
-import vsc.fancylogger as fancylogger
+from vsc import fancylogger
 from vsc.util.mail import VscMail
 
 from vsc.administration.group import Group

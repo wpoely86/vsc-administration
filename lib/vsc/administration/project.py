@@ -15,7 +15,7 @@ This file provides utilities to set up projects on the VSC clusters.
 """
 import os
 
-import vsc.fancylogger as fancylogger
+from vsc import fancylogger
 
 from vsc.config.base import Muk
 from vsc.filesystem.gpfs import GpfsOperations
