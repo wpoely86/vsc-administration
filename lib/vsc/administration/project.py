@@ -44,12 +44,12 @@ class MukProject(VscLdapProject):
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-    def scratch_path(self):
+    def _scratch_path(self):
         """Determines the path (relative to the scratch mount point)
 
-        For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV.
+        For a project with ID projectXYZUV this becomes projects/projectXYZ/projectYZUV.
 
-        @returns: string representing the relative path for this user.
+        @returns: string representing the relative path for this project.
         """
         scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
         path = os.path.join(scratch['defaultMountPoint'], 'projects', self.project_id[:-2], self.project_id)
@@ -60,7 +60,7 @@ class MukProject(VscLdapProject):
 
         - creates the fileset if it does not already exist
         - sets the quota on this fileset
-        - no user quota on scratch! only per-fileset quota
+        - only per-fileset quota
         """
         self.gpfs.list_filesets()
 
@@ -75,9 +75,9 @@ class MukProject(VscLdapProject):
         else:
             self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.project_id))
 
-        self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
+        self.gpfs.set_fileset_quota(self.scratchQuota, path, fileset_name)
         moderator = MukUser(self.moderator)
-        self.gpfs.chown(os.path.join(path, fileset_name), moderator.uidNumber, self.gidNumber) # FIXME: the gidNumber prolly comes from elsewhere
+        self.gpfs.chown(os.path.join(path, fileset_name), int(moderator.uidNumber), int(self.gidNumber)) # FIXME: the gidNumber prolly comes from elsewhere
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
