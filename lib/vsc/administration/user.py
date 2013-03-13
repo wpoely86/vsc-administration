@@ -58,6 +58,10 @@ class VscUser(VscLdapUser):
     def __init__(self, user_id):
         super(VscUser, self).__init__(user_id)
 
+    def pickle_path(self):
+        """Provide the location where to store pickle files for this user."""
+        return self.homeDirectory
+
     @classmethod
     def lock(cls):
         """Take a global lock to avoid other instances from messing things up."""
@@ -325,6 +329,9 @@ class MukUser(VscLdapUser):
 
         self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
+
+    def pickle_path(self):
+        return self._scratch_path()
 
     def _scratch_path(self):
         """Determines the path (relative to the scratch mount point)
