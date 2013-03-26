@@ -29,6 +29,7 @@ import os
 from lockfile.pidlockfile import PIDLockFile
 
 from vsc import fancylogger
+from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
@@ -36,8 +37,8 @@ from vsc.filesystem.posix import PosixOperations
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
+from vsc.utils.fs_store import store_pickle_data_at_user_home, store_pickle_data_at_user
 
-from vsc.administration.institute import Institute
 
 log = fancylogger.getLogger(__name__)
 
@@ -431,6 +432,11 @@ class MukUser(VscLdapUser):
 
 
 cluster_user_pickle_location_map = {
-    'tier2': VscUser,
+    'gengar': VscUser,
     'muk': MukUser
+}
+
+cluster_user_pickle_store_map = {
+    'gengar': store_pickle_data_at_user_home,
+    'muk': store_pickle_data_at_user
 }
