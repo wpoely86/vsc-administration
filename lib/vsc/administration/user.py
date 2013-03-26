@@ -428,3 +428,9 @@ class MukUser(VscLdapUser):
             self.posix.dry_run = value
 
         super(MukUser, self).__setattr__(name, value)
+
+
+cluster_user_pickle_location_map = {
+    'tier2': VscUser,
+    'muk': MukUser
+}
