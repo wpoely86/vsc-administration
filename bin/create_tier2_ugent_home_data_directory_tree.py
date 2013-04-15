@@ -25,23 +25,22 @@ import os
 import stat
 import sys
 
-from vsc import fancylogger
 from vsc.filesystem.gpfs import GpfsOperations
-from vsc.ldap.filters import CnFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.ldap.configuration import LumaConfiguration
-from vsc.administration.user import VscUser
+from vsc.ldap.configuration import VscConfiguration
 from vsc.config.base import CentralStorage
+from vsc.utils import fancylogger
+
 
 log = fancylogger.getLogger('create_directory_trees_tier2_home_data')
-
+fancylogger.setLogLevelDebug()
 
 def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
     """Set up the filesets and directories such that user, vo directories and friends can be created."""
 
     # Create the basic user fileset
     user_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], 'users')
-    if not 'user' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+    if not 'users' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(user_fileset_path, 'users')
         os.chmod(user_fileset_path,
                  stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
@@ -51,7 +50,7 @@ def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
     if vo_support:
         # Create the basic vo fileset
         vo_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], 'vos')
-        if not 'virtualorg' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+        if not 'vos' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, 'vos')
             os.chmod(vo_fileset_path,
                     stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
@@ -61,27 +60,22 @@ def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
 
 def main(args):
 
-    l = LdapQuery(LumaConfiguration())  # initialise
+    l = LdapQuery(VscConfiguration())  # initialise
     storage_settings = CentralStorage()
 
     gpfs = GpfsOperations()
-    gpfs.list_filessystems()
+    gpfs.list_filesystems()
     gpfs.list_filesets()
     home = gpfs.get_filesystem_info(storage_settings.home_name)
     data = gpfs.get_filesystem_info(storage_settings.data_name)
-    apps = gpfs.get_filesystem_info(storage_settings.apps_name)
+    #apps = gpfs.get_filesystem_info(storage_settings.apps_name)
 
     set_up_filesystem(gpfs, home, storage_settings.home_name)
-    set_up_filesystem(gpfs, data, storage_settings.data_name)
+    set_up_filesystem(gpfs, data, storage_settings.data_name, vo_support=True)
 
-    # If users are to log in, there should be a symlink to the GPFS directory hierarchy
-    if not os.path.lexists('/user'):
-        os.symlink(user_fileset_path, '/user')
-
-    # If the apps are to be reachable in a similar vein as on the Tier-2, we need a symlink
-    # from the FS root to the real fileset path
-    if not os.path.lexists('/apps'):
-        os.symlink(apps_fileset_path, '/apps')
+    # for now
+    set_up_filesystem(gpfs, home, storage_settings.home_name)
+    set_up_filesystem(gpfs, data, storage_settings.data_name, vo_support=True)
 
     # Examples
     # for a single user:
