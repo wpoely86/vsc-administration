@@ -26,11 +26,10 @@ The following actions are available for users:
 """
 
 import os
-from lockfile.pidlockfile import PIDLockFile
 
 from vsc import fancylogger
 from vsc.administration.institute import Institute
-from vsc.config.base import VSC, Muk
+from vsc.config.base import VSC, Muk, CentralStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -58,6 +57,9 @@ class VscUser(VscLdapUser):
 
     def __init__(self, user_id):
         super(VscUser, self).__init__(user_id)
+
+        self.storage = CentralStorage()
+        self.gpfs = GpfsOperations()  # Only used when needed
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user."""
@@ -99,13 +101,6 @@ class VscUser(VscLdapUser):
         else:
             return None
 
-    def modify_status(self, status):
-        """Modify the status from the user."""
-
-        #FIXME: Should be in the VscLdapUser superclass
-        self.status  # force load
-        self.status = status
-
     @classmethod
     def add(cls, login, institute, gecos, mail_address, key):
         """Add a user to the LDAP.
@@ -124,6 +119,8 @@ class VscUser(VscLdapUser):
 
         @raise: NoSuchInstituteError if the institute does not exist.
         @raise: FIXME: should raise an error if the user already exists in the LDAP
+
+        FIXME: Since we have the data in the django DB, we can pass it along here and use this for synchronising the LDAP.
         """
         vsc = VSC()
         if not institute in vsc.institutes:
@@ -187,17 +184,6 @@ class VscUser(VscLdapUser):
             VscUser.unlock()
         return None
 
-    def post_add(self, user, institute, gecos, mail_address):
-        """Do some post processing of the user, depending on his institute.
-
-        @type user
-        @type institute
-        @type gecos
-        @type mail_address
-        """
-        if institute == "gent":
-            self.__post_add_gent(user, institute, gecos, mail_address)
-
     def modify_quota(self, data_quota=None, scratch_quota=None):
         """Modify the data or scratch quota for a given user.
 
@@ -221,77 +207,85 @@ class VscUser(VscLdapUser):
             self.ldap_query.user_modify(self.cn, {'scratchQuota': scratch_quota})
             self.scratch_quota = scratch_quota
 
-    def __post_add_gent(self, user, institute, gecos, mail_address):
-        """Do some post-processing for added users if they belong to the gent institute.
+    def _home_path(self):
+        """Return the path to the home dir."""
 
-        @type user
-        @type institute
-        @type gecos
-        @type mail_address
-        """
-        pass
-        #FIXME: this generates output, so we'll do this afterwards
+        home = self.gpfs.get_filesystem_info(self.storage.home_name)
+        path = os.path.join(home['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
 
-    def set_home(self):
+        return path
+
+    def _data_path(self):
+        """Return the path to the data dir."""
+
+        data = self.gpfs.get_filesystem_info(self.storage.data_name)
+        path = os.path.join(data['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
+
+        return path
+
+    def create_home_dir(self):
         """Create all required files in the (future) user's home directory.
 
-        Note that:
-        - we can do this as root
-        - we need to use the numerical IDs from the LDAP database, since the
-        user as such does not necessarily exist on the machine where we are
-        running this.
+        Requires to be run on a system where the appropriate GPFS is mounted.
 
-        TODO:
-        - check for errors and clean up if required!
         """
-        ## Create directories
-        os.mkdir(os.path.join(self.homeDirectory, '.ssh'), mode=0700)
-        os.mkdir(self.dataDirectory, mode=0700)
-        os.mkdir(self.scratchDirectory, mode=0700)
+        try:
+            path = self._home_path()
+            self._create_user_dir(path, 1024 * int(self.homeQuota))
+        except:
+            self.log.exception("Could not create home dir for user %s" % (self.user_id))
 
-        ## SSH keys
-        fp = open(os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'), 'w')
-        for key in self.pubkey:
-            fp.write(key + "\n")
-        fp.close()
-        os.chmod(os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'), 0644)
+    def create_data_dir(self):
+        """Create the user's directory on the HPC data filesystem."""
+        try:
+            path = self._data_path()
+            self._create_user_dir(path, 1024 * int(self.dataQuota))
+        except:
+            self.log.exception("Could not create data dir for user %s at %s" % (self.user_id))
 
-        ## bash shizzle
-        open(os.path.join(self.homeDirectory, '.bashrc')).close()
-        fp = open(os.path.join(self.homeDirectory), '.bash_profile')
-        fp.write('if [ -f ~/.bashrc ]; then\n . ~/.bashrc\nfi\n')
-        fp.close()
+    def _create_user_dir(self, path, quota=None):
+        """Create a user owned directory on the GPFS."""
+        self.gpfs.make_dir(path)
+        self.gpfs.chmod(0700, path)
+        self.gpfs.chown(path, self.uidNumber, self.gidNumber)
 
-        # when we added a user, we also added groups in the LDAP database with the
-        # same name. So, given that these groups exist, we can change group
-        # ownership for all created files and directories to this group
-        for f in [os.path.join(self.homeDirectory, '.ssh'),
-                  self.data_directory,
-                  self.scratch_directory,
-                  os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'),
-                  os.path.join(self.homeDirectory, '.bashrc'),
-                  os.path.join(self.homeDirectory, '.bash_profile')]:
-            os.chown(f, self.user_id, self.group_id)
+        if quota:
+            self.gpfs.set_user_quota(quota, int(self.uidNumber), path)
 
-    def set_quota(self):
-        ## set the quota for the user
-        #set_gpfs_user_quota(self.user_id, self.homeDirectory, self.homeQuota)
-        #set_gpfs_user_quota(self.user_id, self.dataDirectory, self.dataQuota)
-        #set_gpfs_user_quota(self.user_id, self.scratchDirectory, self.scratchQuota)
+    def set_home_quota(self):
+        """Set USR quota on the home FS in the user fileset."""
+        path = self._home_path()
 
-        ## FIXME: what about gold?
-        pass
+        # LDAP information is expressed in KiB, GPFS wants bytes.
+        self.gpfs.set_user_quota(1024*int(self.homeQuota), int(self.uidNumber), path)
 
-    @classmethod
-    def __generate_name(cls, numerical_user_id):
-        """Generate a name for a VSC user based on the numerical VSC user ID.
+    def set_data_quota(self):
+        """Set USR quota on the data FS in the user fileset."""
+        path = self._data_path()
 
-        @type numerical_user_id: integer representing a numeric user ID on the VSC
+        # LDAP information is expressed in KiB, GPFS wants bytes.
+        self.gpfs.set_user_quota(1024*int(self.dataQuota), int(self.uidNumber), path)
 
-        @returns: name of the user on the VSC as a string
+    def populate_home_dir(self):
+        """Store the required files in the user's home directory.
+
+        Does not overwrite files that may contain user defined content.
         """
-        id = numerical_user_id % 100000  # retain last 5 digits
-        return ''.join(['vsc', str(id)])
+        path = self._home_path()
+        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - othwerwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscUser, self).__setattr__(name, value)
 
 
 class MukUser(VscLdapUser):
