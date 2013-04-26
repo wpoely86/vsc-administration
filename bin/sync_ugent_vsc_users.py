@@ -26,24 +26,26 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
 # --------------------------------------------------------------------
+import copy
 import logging
 import os
 import sys
 
 # --------------------------------------------------------------------
 from vsc import fancylogger
-from vsc.administration.group import Group
-from vsc.administration.user import MukUser
-from vsc.config.base import Muk
-from vsc.ldap.configuration import LumaConfiguration
-from vsc.ldap.entities import VscLdapUser, VscLdapGroup
-from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter, NewerThanFilter
+from vsc.administration.user import VscUser
+from vsc.administration.vo import VscVo, INSTITUTE_VOS
+from vsc.config.base import CentralStorage, VSC
+from vsc.ldap.configuration import VscConfiguration
+from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.ldap.timestamp import convert_timestamp, write_timestamp
 from vsc.utils.generaloption import simple_option
 from vsc.utils.lock import lock_or_bork, release_or_bork
+from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
 from vsc.utils.pickle_files import TimestampPickle
+from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
 NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.pickle'
 NAGIOS_HEADER = 'sync_muk_users'
@@ -51,7 +53,7 @@ NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = '/var/run/sync_ugent_users.timestamp'
 SYNC_UGENT_USERS_LOGFILE = '/var/log/sync_ugent_users.log'
-SYNC_UGENT_USERS_LOCKFILE = '/gpfs/scratch/user/sync_ugent_users.lock'
+SYNC_UGENT_USERS_LOCKFILE = '/var/run/sync_ugent_users.lock'
 
 fancylogger.logToFile(SYNC_UGENT_USERS_LOGFILE)
 fancylogger.setLogLevel(logging.DEBUG)
@@ -59,33 +61,7 @@ fancylogger.setLogLevel(logging.DEBUG)
 logger = fancylogger.getLogger(name='sync_vsc_ugent_users')
 
 
-def process_institute(options, institute, users_filter, timestamp_filter):
-
-    muk = Muk()  # Singleton class, so no biggie
-    changed_users = MukUser.lookup(timestamp_filter & users_filter & InstituteFilter(institute))
-    logger.info("Processing the following users from {institute}: {users}".format(institute=institute,
-                                                                                  users=map(lambda u: u.user_id, changed_users)))
-
-    try:
-        nfs_location = muk.nfs_link_pathnames[institute]['home']
-        logger.info("Checking link to NFS mount at %s" % (nfs_location))
-	os.stat(nfs_location)
-        try:
-            error_users = process(options, changed_users)
-        except:
-            logger.error("Oops")
-            pass
-    except:
-        logger.error("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
-        error_users = changed_users
-
-    fail_usercount = len(error_users)
-    ok_usercount = len(changed_users) - fail_usercount
-
-    return (ok_usercount, fail_usercount)
-
-
-def process_users(options, users):
+def process_users(options, users, storage):
     """
     Process the users.
 
@@ -99,9 +75,13 @@ def process_users(options, users):
             user.dry_run = True
         try:
             user.create_home_dir()
+            user.set_home_quota()
             user.populate_home_dir()
 
             user.create_data_dir()
+            user.set_data_quota()
+            # At this point, the user's data quota are still wrong, since we upped them to work around the
+            # fileset mess-up on the old gengar shared storage. We need to fix these once deployed.
         except:
             logger.exception("Cannot process user %s" % (user.user_id))
             error_users.append(user)
@@ -109,32 +89,28 @@ def process_users(options, users):
     return error_users
 
 
-def process_vos(options, vos):
-    pass
+def process_vos(options, vos, storage):
+    """Process the virtual organisations.
 
-
-def process(options, users):
-    """
-    Actually do the tasks for a changed or new user:
-
-    - created the user's fileset
-    - set the quota
-    - create the home directory as a link to the user's fileset
+    - make the fileset per VO
+    - set the quota for the complete fileset
+    - set the quota on a per-user basis for all VO members
     """
 
-    error_users = []
-    for user in users:
-        if options.dry_run:
-            user.dry_run = True
+    listm = Monoid([], lambda xs, ys: xs + ys)
+    error_vos = MonoidDict(listm)
+
+    for vo in vos:
         try:
-            user.create_scratch_fileset()
-            user.populate_scratch_fallback()
-            user.create_home_dir()
-        except:
-            logger.exception("Cannot process user %s" % (user.user_id))
-            error_users.append(user)
+            vo.status # force LDAP attribute load
+            data_path = vo._data_path()
+            vo.create_data_fileset()
+            vo.set_data_quota()
 
-    return error_users
+            for user in vo.memberUid:
+                vo.set_member_data_quota(VscUser(user))  # half of the VO quota
+        except:
+            logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
 
 
 def main(argv):
@@ -160,18 +136,23 @@ def main(argv):
                                      opts.options.nagios_check_filename,
                                      opts.options.nagios_check_interval_threshold)
 
-    if options.nagios:
+    if opts.options.nagios:
         logger.debug("Producing Nagios report and exiting.")
         nagios_reporter.report_and_exit()
         sys.exit(0)  # not reached
 
     logger.info("Starting synchronisation of UGent users.")
 
+    lockfile = TimestampedPidLockfile(SYNC_UGENT_USERS_LOCKFILE)
     lock_or_bork(lockfile, nagios_reporter)
 
     try:
-        LdapQuery(LumaConfiguration())  # Initialise LDAP binding
-        vsc =Vsc()
+        LdapQuery(VscConfiguration())  # Initialise LDAP binding
+        vsc =VSC()
+        storage = CentralStorage()
+        backup_storage = copy.deepcopy(storage)
+        backup_storage.home_name = "backup%s" % (storage.home_name)
+        backup_storage.data_name = "backup%s" % (storage.data_name)
 
         last_timestamp = "20090101000000Z" # read_timestamp(SYNC_TIMESTAMP_FILENAME) or "20090101000000Z"
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
@@ -180,42 +161,30 @@ def main(argv):
         logger.info("Filter for looking up new UGent users = %s" % (timestamp_filter))
 
         ugent_users_filter = InstituteFilter("gent")  # FIXME: this should preferably be placed in a constant
-        ugent_users = VscLdapUser.lookup(ugent_users_filter)
+        ugent_users = VscUser.lookup(ugent_users_filter)
 
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-        process_users(ugent_users)
+        process_users(opts.options, ugent_users, storage)
 
-        ugent_vo_filter = InsituteFilter("gent") & CnFilter("gvo*")
-        ugent_vos = VscLdapGroup.lookup(ugent_vo_filter)
+        ugent_vo_filter = InstituteFilter("gent") & CnFilter("gvo*")
+        ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in INSTITUTE_VOS]
 
-        process_vos(ugent_vos)
+        process_vos(opts.options, ugent_vos, storage)
 
     except Exception, err:
-        logger.error("Fail during ugent users synchronisation: {err}".format(err=err))
+        logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
-                              NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_MUK_USERS_LOGFILE)))
+                              NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_UGENT_USERS_LOGFILE)))
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    if len([us for us in [antwerpen_users_fail, brussel_users_fail, gent_users_fail, leuven_users_fail] if us > 0]):
-        result = NagiosResult("several users were not synched",
-                              a = antwerpen_users_ok, a_critical = antwerpen_users_fail,
-                              b = brussel_users_ok, b_critical = brussel_users_fail,
-                              g = gent_users_ok, g_critical = gent_users_fail,
-                              l = leuven_users_ok, l_critical = leuven_users_fail)
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
-    else:
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[0])
-        result = NagiosResult("muk users synchronised",
-                              a = antwerpen_users_ok, a_critical = antwerpen_users_fail,
-                              b = brussel_users_ok, b_critical = brussel_users_fail,
-                              g = gent_users_ok, g_critical = gent_users_fail,
-                              l = leuven_users_ok, l_critical = leuven_users_fail)
-        nagios_reporter.cache(NAGIOS_EXIT_OK, result)
+    write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[0])
+    result = NagiosResult("UGent users synchronised")
+    nagios_reporter.cache(NAGIOS_EXIT_OK, result)
 
     lockfile.release()
-    logger.info("Finished synchronisation of the Muk users from the LDAP with the filesystem.")
+    logger.info("Finished synchronisation of the UGent VSC users from the LDAP with the filesystem.")
 
 
 if __name__ == '__main__':
