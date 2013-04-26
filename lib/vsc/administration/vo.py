@@ -23,18 +23,17 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 
-## STUFF TO PAY ATTENTION TO
-##
-## LDAP: use the right one, since there are three: VSC, UGent, and replicas on the masters
-
+import os
 import re
+
 from lockfile.pidlockfile import PIDLockFile
 
 from vsc import fancylogger
-from vsc.ldap.vo import LdapVo
-
 from vsc.administration.institute import Institute
 from vsc.administration.user import VscUser
+from vsc.config.base import VSC, Muk, CentralStorage
+from vsc.filesystem.gpfs import GpfsOperations
+from vsc.ldap.entities import VscLdapGroup
 
 logger = fancylogger.getLogger(__name__)
 
@@ -43,16 +42,24 @@ DEFAULT_VO = 'gvo000012'
 INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
 
 
-class VscVo(LdapVo):
+class VscVo(VscLdapGroup):
     """Class representing a VO in the VSC.
 
     A VO is a special kind of group, identified mainly by its name.
     """
 
-    def __init__(self, vo_id):
+    def __init__(self, vo_id, storage=None):
         """Initialise"""
         super(VscVo, self).__init__(vo_id)
-        self.log = fancylogger.getLogger(self.__class__.__name__)
+
+        # Normally, we could use the group_id, but since we're in VO, we should use the right terms
+        self.vo_id = vo_id
+        self.vsc = VSC()
+
+        if not storage:
+            self.storage = CentralStorage()
+
+        self.gpfs = GpfsOperations()
 
     def _lock(self):
         """Take a global lock (on a file), to avoid other instances
@@ -63,6 +70,117 @@ class VscVo(LdapVo):
     def members(self):
         """Return a list with all the VO members in it."""
         return [VscUser(m) for m in self.memberUid]
+
+    def _data_path(self):
+        """Return the path to the VO data fileset on GPFS"""
+        data = self.gpfs.get_filesystem_info(self.storage.data_name)
+        return os.path.join(data['defaultMountPoint'], 'vos', self.vo_id[:-2], self.vo_id)
+
+    def _scratch_path(self):
+        """Return the path to the VO data fileset on GPFS"""
+        scratch = self.gpfs.get_filesystem_info(self.storage.scratch_name)
+        return os.path.join(scratch['defaultMountPoint'], 'vos', self.vo_id[:-2], self.vo_id)
+
+    def _create_fileset(self, filesystem_name, path, quota=True):
+        """Create a fileset for the VO on the data filesystem.
+
+        - creates the fileset if it does not already exist
+        - sets the (fixed) quota on this fileset for the VO
+        """
+        self.gpfs.list_filesets()
+        fileset_name = self.vo_id
+
+        if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
+            self.log.info("Creating new fileset on %s scratch with name %s and path %s" % (filesystem_name, fileset_name, path))
+            base_dir_hierarchy = os.path.dirname(path)
+            self.gpfs.make_dir(base_dir_hierarchy)
+            self.gpfs.make_fileset(path, fileset_name)
+        else:
+            self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
+
+        self.gpfs.chmod(0700, path)
+        self.gpfs.chown(int(self.gidNumber), int(self.gidNumber), path)
+
+    def create_data_fileset(self):
+        """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        try:
+            path = self._data_path()
+            self._create_fileset(self.storage.data_name, path, self.dataQuota)
+        except AttributeError, err:
+            self.log.exception("No data_name attribute in the storage instance %s" % (self.storage))
+
+    def create_scratch_fileset(self):
+        """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        try:
+            path = self._scratch_path()
+            self._create_fileset(self.storage.scratch_name, path, self.dataQuota)
+        except AttributeError, err:
+            self.log.exception("No scratch_name attribute in the storage instance %s" % (self.storage))
+
+    def _create_vo_dir(self, path, quota=None):
+        """Create a user owned directory on the GPFS."""
+        self.gpfs.make_dir(path)
+
+
+    def _set_quota(self, path_function, quota):
+        """Set FILESET quota on the FS for the VO fileset.
+
+        @type quota: int
+
+        @param quota: soft quota limit expressed in KiB
+        """
+        try:
+            path = path_function()
+            quota *= 1024
+            soft = int(quota * self.vsc.quota_soft_fraction)
+
+            # LDAP information is expressed in KiB, GPFS wants bytes.
+            self.gpfs.set_fileset_quota(soft, path, self.vo_id, quota)
+            self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
+        except AttributeError, err:
+            self.log.exception("No such attribute in the storage instance %s" % (self.storage))
+
+    def set_data_quota(self):
+        """Set FILESET quota on the data FS for the VO fileset."""
+        self._set_quota(self._data_path, int(self.dataQuota))
+
+    def set_scratch_quota(self):
+        """Set FILESET quota on the scratch FS for the VO fileset."""
+        self._set_quota(self._scratch_path, int(self.scratchQuota))
+
+    def _set_member_quota(self, path_function, member, quota):
+        """Set USER quota on the FS for the VO fileset
+
+        @type member: VscUser instance
+        """
+        try:
+            path = path_function()
+            soft = int(quota * self.vsc.quota_soft_fraction)
+            self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
+        except AttributeError, err:
+            self.log.exception("No such attribute in the storage instance %s" % (self.storage))
+
+    def set_member_data_quota(self, member):
+        """Set the quota on the data FS for the member in the VO fileset.
+
+        @type member: VscUser instance
+
+        The user can have up to half of the VO quota.
+        FIXME: This should probably be some variable in a config setting instance
+        """
+        quota = int(self.dataQuota) / 2 * 1024  # expressed in bytes
+        self._set_member_quota(self._data_path, member, quota)
+
+    def set_member_scratch_quota(self, member):
+        """Set the quota on the scratch FS for the member in the VO fileset.
+
+        @type member: VscUser instance
+
+        The user can have up to half of the VO quota.
+        FIXME: This should probably be some variable in a config setting instance
+        """
+        quota = int(self.dataQuota) / 2 * 1024
+        self._set_member_quota(self._scratch_path, member, quota)
 
 
 class VoOld(object):
@@ -81,8 +199,6 @@ class VoOld(object):
         self.description = None
         self.fairshare = None
         self.members = None
-
-
 
     def __setup(self, ldap_attributes):
         """Fill in the instance values from a retrieved VO.
