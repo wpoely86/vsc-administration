@@ -27,24 +27,24 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 
 # --------------------------------------------------------------------
 import copy
+import json
 import logging
-import os
 import sys
+import time
 
 # --------------------------------------------------------------------
 from vsc import fancylogger
 from vsc.administration.user import VscUser
-from vsc.administration.vo import VscVo, INSTITUTE_VOS
+from vsc.administration.vo import VscVo
 from vsc.config.base import CentralStorage, VSC
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.ldap.timestamp import convert_timestamp, write_timestamp
+from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils.generaloption import simple_option
 from vsc.utils.lock import lock_or_bork, release_or_bork
 from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
-from vsc.utils.pickle_files import TimestampPickle
 from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
 NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.pickle'
@@ -113,7 +113,7 @@ def process_vos(options, vos, storage):
             logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
 
 
-def main(argv):
+def main():
     """
     Main script.
     - build the filter
@@ -154,21 +154,26 @@ def main(argv):
         backup_storage.home_name = "backup%s" % (storage.home_name)
         backup_storage.data_name = "backup%s" % (storage.data_name)
 
-        last_timestamp = "20090101000000Z" # read_timestamp(SYNC_TIMESTAMP_FILENAME) or "20090101000000Z"
+        try:
+            last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
+        except:
+            logger.exception("Something broke reading the timestamp")
+            last_timestamp = "200901010000Z"
+
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
 
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.info("Filter for looking up new UGent users = %s" % (timestamp_filter))
 
-        ugent_users_filter = InstituteFilter("gent")  # FIXME: this should preferably be placed in a constant
+        ugent_users_filter = InstituteFilter("gent") & timestamp_filter  # FIXME: this should preferably be placed in a constant
         ugent_users = VscUser.lookup(ugent_users_filter)
 
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
         process_users(opts.options, ugent_users, storage)
 
-        ugent_vo_filter = InstituteFilter("gent") & CnFilter("gvo*")
-        ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in INSTITUTE_VOS]
+        ugent_vo_filter = InstituteFilter("gent") & CnFilter("gvo*") & timestamp_filter
+        ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
 
         process_vos(opts.options, ugent_vos, storage)
 
@@ -179,13 +184,17 @@ def main(argv):
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[0])
-    result = NagiosResult("UGent users synchronised")
-    nagios_reporter.cache(NAGIOS_EXIT_OK, result)
+    try:
+        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp())
+        nagios_reporter.cache(NAGIOS_EXIT_OK, NagiosResult("UGent users synchronised"))
+    except:
+        logger.exception("Something broke writing the timestamp")
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING, NagiosResult("Users synchronised - timestamp not stored correctly"))
+    finally:
+        release_or_bork(lockfile)
 
-    lockfile.release()
     logger.info("Finished synchronisation of the UGent VSC users from the LDAP with the filesystem.")
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
