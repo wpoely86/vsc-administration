@@ -58,8 +58,11 @@ class VscUser(VscLdapUser):
     def __init__(self, user_id):
         super(VscUser, self).__init__(user_id)
 
+        self.vsc = VSC()
+
         self.storage = CentralStorage()
         self.gpfs = GpfsOperations()  # Only used when needed
+        self.posix = PosixOperations()
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user."""
@@ -227,11 +230,11 @@ class VscUser(VscLdapUser):
         """Create all required files in the (future) user's home directory.
 
         Requires to be run on a system where the appropriate GPFS is mounted.
-
+        Always set the quota.
         """
         try:
             path = self._home_path()
-            self._create_user_dir(path, 1024 * int(self.homeQuota))
+            self._create_user_dir(path)
         except:
             self.log.exception("Could not create home dir for user %s" % (self.user_id))
 
@@ -239,32 +242,38 @@ class VscUser(VscLdapUser):
         """Create the user's directory on the HPC data filesystem."""
         try:
             path = self._data_path()
-            self._create_user_dir(path, 1024 * int(self.dataQuota))
+            self._create_user_dir(path)
         except:
             self.log.exception("Could not create data dir for user %s at %s" % (self.user_id))
 
-    def _create_user_dir(self, path, quota=None):
+    def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
         self.gpfs.chmod(0700, path)
-        self.gpfs.chown(path, self.uidNumber, self.gidNumber)
+        self.gpfs.chown(int(self.uidNumber), int(self.gidNumber), path)
 
-        if quota:
-            self.gpfs.set_user_quota(quota, int(self.uidNumber), path)
+    def _set_quota(self, quota, path):
+        """Set quota on the target path.
+
+        @type quota: int
+        @type path: path into a GPFS mount
+        """
+        quota *= 1024
+        soft = int(self.vsc.quota_soft_fraction * quota)
+
+        # LDAP information is expressed in KiB, GPFS wants bytes.
+        self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota)
+        self.gpfs.set_user_grace(path, self.vsc.user_storage_grace_time)  # 7 days
 
     def set_home_quota(self):
         """Set USR quota on the home FS in the user fileset."""
         path = self._home_path()
-
-        # LDAP information is expressed in KiB, GPFS wants bytes.
-        self.gpfs.set_user_quota(1024*int(self.homeQuota), int(self.uidNumber), path)
+        self._set_quota(int(self.homeQuota), path)
 
     def set_data_quota(self):
         """Set USR quota on the data FS in the user fileset."""
         path = self._data_path()
-
-        # LDAP information is expressed in KiB, GPFS wants bytes.
-        self.gpfs.set_user_quota(1024*int(self.dataQuota), int(self.uidNumber), path)
+        self._set_quota(int(self.dataQuota), path)
 
     def populate_home_dir(self):
         """Store the required files in the user's home directory.
