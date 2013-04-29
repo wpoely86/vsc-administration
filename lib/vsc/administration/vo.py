@@ -189,11 +189,11 @@ class VscVo(VscLdapGroup):
 
     def _set_member_symlink(self, member, origin, target):
         """Create a symlink for this user from origin to target"""
-            try:
-                self.posix.remove_obj(origin)
-                self.posix.make_symlink(target, origin)
-            except PosixOperationError, err:
-                self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
+        try:
+            self.posix.remove_obj(origin)
+            self.posix.make_symlink(target, origin)
+        except PosixOperationError, err:
+            self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
