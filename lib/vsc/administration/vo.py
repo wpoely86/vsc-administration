@@ -121,7 +121,6 @@ class VscVo(VscLdapGroup):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-
     def _set_quota(self, path_function, quota):
         """Set FILESET quota on the FS for the VO fileset.
 
@@ -142,11 +141,17 @@ class VscVo(VscLdapGroup):
 
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
-        self._set_quota(self._data_path, int(self.dataQuota))
+        if self.dataQuota:
+            self._set_quota(self._data_path, int(self.dataQuota))
+        else:
+            self._set_quota(self._data_path, 0)
 
     def set_scratch_quota(self):
         """Set FILESET quota on the scratch FS for the VO fileset."""
-        self._set_quota(self._scratch_path, int(self.scratchQuota))
+        if self.scratchQuota:
+            self._set_quota(self._scratch_path, int(self.scratchQuota))
+        else:
+            self._set_quota(self._scratch_path, 0)
 
     def _set_member_quota(self, path_function, member, quota):
         """Set USER quota on the FS for the VO fileset
@@ -181,6 +186,29 @@ class VscVo(VscLdapGroup):
         """
         quota = int(self.dataQuota) / 2 * 1024
         self._set_member_quota(self._scratch_path, member, quota)
+
+    def _set_member_symlink(self, member, origin, target):
+        """Create a symlink for this user from origin to target"""
+            try:
+                self.posix.remove_obj(origin)
+                self.posix.make_symlink(target, origin)
+            except PosixOperationError, err:
+                self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
+
+    def set_member_data_symlink(self, member):
+        """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
+        if member.dataMoved:
+            origin = member.dataDirectory
+            target = os.path.join(self.dataDirectory, member.user_id)
+            self._set_member_symlink(member, origin, target)
+
+    def set_member_scratch_symlink(self, member):
+        """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
+        if member.scratchMoved:
+            origin = member.scratchDirectory
+            target = os.path.join(self.scratchDirectory, member.user_id)
+            self._set_member_symlink(member, origin, target)
+
 
 
 class VoOld(object):
