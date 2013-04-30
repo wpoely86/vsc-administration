@@ -25,12 +25,10 @@ For each (active) user, the following tasks are done:
 The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
-# --------------------------------------------------------------------
 import copy
 import logging
 import sys
 
-# --------------------------------------------------------------------
 from vsc import fancylogger
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
@@ -125,8 +123,8 @@ def main():
     options = {
         'dry-run': ('do not make any updates whatsoever', None, 'store_true', False),
         'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
-        'nagios_check_filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
-        'nagios_check_interval_threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
+        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
     }
 
     opts = simple_option(options)
