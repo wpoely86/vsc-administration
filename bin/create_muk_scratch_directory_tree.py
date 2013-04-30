@@ -98,9 +98,7 @@ def main(args):
         if not project_fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
             gpfs.make_fileset(project_fileset_path, project_fileset_name)
 
-        os.chmod(project_fileset_path,
-             stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-             stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP)
+        gpfs.chmod(0755, project_fileset_path)
         os.chown(project_fileset_path, int(owner['uidNumber']), int(group['gidNumber']))
 
 	    project_quota = 70 * 1024 * 1024 * 1024 * 1024
