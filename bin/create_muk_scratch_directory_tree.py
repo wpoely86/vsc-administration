@@ -50,30 +50,21 @@ def main(args):
     user_fileset_path = os.path.join(scratch['defaultMountPoint'], 'user')
     if not 'user' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(user_fileset_path, 'user')
-        os.chmod(user_fileset_path,
-                 stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-                 stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP |
-                 stat.S_IROTH | stat.S_IXOTH)
+        gpfs.chmod(0755, user_fileset_path)
 
     # Create the applications fileset that will be used for storing apps and tools
     # that can be used by the users on muk
     apps_fileset_path = os.path.join(scratch['defaultMountPoint'], 'apps')
     if not 'apps' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(apps_fileset_path, 'apps')
-        os.chmod(apps_fileset_path,
-                 stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-                 stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP |
-                 stat.S_IROTH | stat.S_IXOTH)
+        gpfs.chmod(0755, apps_fileset_path)
 
     # Create the projects fileset that will be used to store the directory
     # hierarchy for all project spaces on muk scratch
     projects_fileset_path = os.path.join(scratch['defaultMountPoint'], 'projects')
     if not 'projects' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(projects_fileset_path, 'projects')
-        os.chmod(projects_fileset_path,
-                 stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-                 stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP |
-                 stat.S_IROTH | stat.S_IXOTH)
+        gpfs.chmod(0755, projects_fileset_path)
 
     # If users are to log in, there should be a symlink to the GPFS directory hierarchy
     if not os.path.lexists('/user'):
@@ -100,7 +91,7 @@ def main(args):
         except:
             continue
         owner = l.user_filter_search(CnFilter(group['moderator'][0]))[0]
-        
+
         project_fileset_name = pilot_projects[institute]
         project_fileset_path = os.path.join(scratch['defaultMountPoint'], 'projects', project_fileset_name)
 
@@ -112,8 +103,7 @@ def main(args):
              stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP)
         os.chown(project_fileset_path, int(owner['uidNumber']), int(group['gidNumber']))
 
-	project_quota = 70 * 1024 * 1024 * 1024 * 1024
-
+	    project_quota = 70 * 1024 * 1024 * 1024 * 1024
         gpfs.set_fileset_quota(project_quota, project_fileset_path, project_fileset_name)
 
     # Exmaples
