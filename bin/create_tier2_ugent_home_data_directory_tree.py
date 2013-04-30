@@ -42,20 +42,14 @@ def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
     user_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], 'users')
     if not 'users' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(user_fileset_path, 'users')
-        os.chmod(user_fileset_path,
-                 stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-                 stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP |
-                 stat.S_IROTH | stat.S_IXOTH)
+        gpfs.chmod(0755, user_fileset_path)
 
     if vo_support:
         # Create the basic vo fileset
         vo_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], 'vos')
         if not 'vos' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, 'vos')
-            os.chmod(vo_fileset_path,
-                    stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR |
-                    stat.S_IRGRP | stat.S_IWGRP | stat.S_IXGRP |
-                    stat.S_IROTH | stat.S_IXOTH)
+            gpfs.chmod(0755, vo_fileset_path)
 
 
 def main(args):
