@@ -27,10 +27,8 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 
 # --------------------------------------------------------------------
 import copy
-import json
 import logging
 import sys
-import time
 
 # --------------------------------------------------------------------
 from vsc import fancylogger
@@ -109,6 +107,7 @@ def process_vos(options, vos, storage):
 
             for user in vo.memberUid:
                 vo.set_member_data_quota(VscUser(user))  # half of the VO quota
+                vo.set_member_data_symlink(VscUser(user))
         except:
             logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
 
