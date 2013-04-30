@@ -18,14 +18,12 @@ For these, the home and other shizzle should be set up.
 @author Andy Georges
 """
 
-# --------------------------------------------------------------------
 import logging
 import os
 import sys
 from lockfile import FileLock, AlreadyLocked
 from optparse import OptionParser
 
-# --------------------------------------------------------------------
 from vsc import fancylogger
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
