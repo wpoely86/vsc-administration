@@ -32,7 +32,7 @@ from vsc import fancylogger
 from vsc.administration.institute import Institute
 from vsc.administration.user import VscUser
 from vsc.config.base import VSC, Muk, CentralStorage
-from vsc.filesystem.gpfs import GpfsOperations
+from vsc.filesystem.gpfs import GpfsOperations, PosixOperations, PosixOperationError
 from vsc.ldap.entities import VscLdapGroup
 
 logger = fancylogger.getLogger(__name__)
@@ -60,6 +60,7 @@ class VscVo(VscLdapGroup):
             self.storage = CentralStorage()
 
         self.gpfs = GpfsOperations()
+        self.posix = PosixOperations()
 
     def _lock(self):
         """Take a global lock (on a file), to avoid other instances
@@ -173,7 +174,10 @@ class VscVo(VscLdapGroup):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        quota = int(self.dataQuota) / 2 * 1024  # expressed in bytes
+        if self.dataQuota:
+            quota = int(self.dataQuota) / 2 * 1024  # expressed in bytes
+        else:
+            quota = 0
         self._set_member_quota(self._data_path, member, quota)
 
     def set_member_scratch_quota(self, member):
@@ -184,29 +188,38 @@ class VscVo(VscLdapGroup):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        quota = int(self.dataQuota) / 2 * 1024
+        if self.scratchQuota
+            quota = int(self.dataQuota or 0) / 2 * 1024
+        else:
+            quota = 0
         self._set_member_quota(self._scratch_path, member, quota)
 
     def _set_member_symlink(self, member, origin, target):
         """Create a symlink for this user from origin to target"""
         try:
-            self.posix.remove_obj(origin)
-            self.posix.make_symlink(target, origin)
+            self.gpfs.make_dir(target)
+            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+            if not self.gpfs.is_symlink(origin):
+                self.gpfs.remove_obj(origin)
+                self.gpfs.make_symlink(target, origin)
+            self.gpfs.ignorerealpathmismatch = True
+            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), origin)
+            self.gpfs.ignorerealpathmismatch = False
         except PosixOperationError, err:
             self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
         if member.dataMoved:
-            origin = member.dataDirectory
-            target = os.path.join(self.dataDirectory, member.user_id)
+            origin = member._data_path()
+            target = os.path.join(self._data_path(), member.user_id)
             self._set_member_symlink(member, origin, target)
 
     def set_member_scratch_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
         if member.scratchMoved:
-            origin = member.scratchDirectory
-            target = os.path.join(self.scratchDirectory, member.user_id)
+            origin = member._scratch_path()
+            target = os.path.join(self._scratch_path(), member.user_id)
             self._set_member_symlink(member, origin, target)
 
 
