@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 ##
 #
-# Copyright 2012 Ghent University
-# Copyright 2012 Andy Georges
+# Copyright 2012-2013 Ghent University
 #
 # This file is part of the tools originally by the HPC team of
 # Ghent University (http://ugent.be/hpc).
@@ -15,6 +14,8 @@ This script checks the users entries in the LDAP that have changed since a given
 and that are in the muk autogroup.
 
 For these, the home and other shizzle should be set up.
+
+@author Andy Georges
 """
 
 # --------------------------------------------------------------------
@@ -55,7 +56,7 @@ def process_institute(options, institute, users_filter, timestamp_filter):
     muk = Muk()  # Singleton class, so no biggie
     changed_users = MukUser.lookup(timestamp_filter & users_filter & InstituteFilter(institute))
     logger.info("Processing the following users from {institute}: {users}".format(institute=institute,
-                                                                                  users=map(lambda u: u.user_id, changed_users)))
+                users=map(lambda u: u.user_id, changed_users)))
 
     try:
         nfs_location = muk.nfs_link_pathnames[institute]['home']
@@ -64,10 +65,10 @@ def process_institute(options, institute, users_filter, timestamp_filter):
         try:
             error_users = process(options, changed_users)
         except:
-            logger.error("Oops")
+            logger.exception("Something went wrong processing users from %s" % (insitute))
             pass
     except:
-        logger.error("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
+        logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
         error_users = changed_users
 
     fail_usercount = len(error_users)
@@ -145,11 +146,11 @@ def main(argv):
         lockfile.acquire(timeout=60)
         logger.info("Lock acquired.")
     except AlreadyLocked, _:
-        logger.error("Cannot acquire lock, bailing.")
+        logger.exception("Cannot acquire lock, bailing.")
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, NagiosResult("Cannot acquire lock on {lockfile}. Bailing.".format(lockfile=SYNC_MUK_USERS_LOCKFILE)))
         sys.exit(NAGIOS_EXIT_CRITICAL)
     except Exception, err:
-        logger.error("Oops. {error}".format(error=err))
+        logger.exception("Oops.")
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
 
@@ -180,13 +181,13 @@ def main(argv):
 
         muk_users_filter = LdapFilter.from_list(lambda x, y: x | y, [CnFilter(u.user_id) for u in muk_users])
 
-	(antwerpen_users_ok, antwerpen_users_fail) = process_institute(options, 'antwerpen', muk_users_filter, timestamp_filter)
-	(brussel_users_ok, brussel_users_fail) = process_institute(options, 'brussel', muk_users_filter, timestamp_filter)
-	(gent_users_ok, gent_users_fail) = process_institute(options, 'gent', muk_users_filter, timestamp_filter)
-	(leuven_users_ok, leuven_users_fail) = process_institute(options, 'leuven', muk_users_filter, timestamp_filter)
+        (antwerpen_users_ok, antwerpen_users_fail) = process_institute(options, 'antwerpen', muk_users_filter, timestamp_filter)
+        (brussel_users_ok, brussel_users_fail) = process_institute(options, 'brussel', muk_users_filter, timestamp_filter)
+        (gent_users_ok, gent_users_fail) = process_institute(options, 'gent', muk_users_filter, timestamp_filter)
+        (leuven_users_ok, leuven_users_fail) = process_institute(options, 'leuven', muk_users_filter, timestamp_filter)
 
     except Exception, err:
-        logger.error("Fail during muk users synchronisation: {err}".format(err=err))
+        logger.exception("Fail during muk users synchronisation: {err}".format(err=err))
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
                               NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_MUK_USERS_LOGFILE)))
         lockfile.release()

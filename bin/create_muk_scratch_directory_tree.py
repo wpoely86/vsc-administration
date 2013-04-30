@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 ##
 #
-# Copyright 2012 Ghent University
-# Copyright 2012 Andy Georges
+# Copyright 2012-2013 Ghent University
 #
 # This file is part of the tools originally by the HPC team of
 # Ghent University (http://ugent.be/hpc).
@@ -19,6 +18,8 @@ Sets up the baseline directory structure we need to have on muk.
 - creates symlinks to these if they do not yet exist (on the node where the script is being run
     - /user -> /gpfs/scratch/user
     - /apps -> /gpfs/scratch/apps
+
+@author Andy Georges
 """
 
 import os
