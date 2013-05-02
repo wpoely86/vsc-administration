@@ -72,7 +72,8 @@ def process_institute(options, institute, users_filter, timestamp_filter):
     fail_usercount = len(error_users)
     ok_usercount = len(changed_users) - fail_usercount
 
-    return (ok_usercount, fail_usercount)
+    return { 'ok': ok_usercount,
+             'fail': fail_usercount}
 
 
 def process(options, users):
@@ -98,10 +99,17 @@ def process(options, users):
 
     return error_users
 
-def force_nfs_mounts():
-    os.stat('/nfsmuk/user/home/gent')
-    os.stat('/nfsmuk/user/antwerpen')
-    os.stat('/nfsmuk/user/leuven')
+def force_nfs_mounts(muk):
+
+    nfs_mounts = []
+    for institute in vsc.institutes:
+        try:
+            os.stat(muk.nfs_link_pathnames[institute]['home'])
+            nfs_mounts.append(institute)
+        except:
+            logger.exception("Cannot stat %s, not adding institute" % muk.nfs_link_pathnames[institute]['home'])
+
+    return nfs_mounts
 
 
 def main(argv):
@@ -153,7 +161,7 @@ def main(argv):
 
 
     try:
-        force_nfs_mounts()
+        nfs_mounts = force_nfs_mounts()
 
         logger.info("Forced NFS mounts")
 
@@ -179,10 +187,8 @@ def main(argv):
 
         muk_users_filter = LdapFilter.from_list(lambda x, y: x | y, [CnFilter(u.user_id) for u in muk_users])
 
-        (antwerpen_users_ok, antwerpen_users_fail) = process_institute(options, 'antwerpen', muk_users_filter, timestamp_filter)
-        (brussel_users_ok, brussel_users_fail) = process_institute(options, 'brussel', muk_users_filter, timestamp_filter)
-        (gent_users_ok, gent_users_fail) = process_institute(options, 'gent', muk_users_filter, timestamp_filter)
-        (leuven_users_ok, leuven_users_fail) = process_institute(options, 'leuven', muk_users_filter, timestamp_filter)
+        for institute in nfs_mounts:
+            user_ok[institute] = process_institute(options, institute, muk_users_filter, timestamp_filter)
 
     except Exception, err:
         logger.exception("Fail during muk users synchronisation: {err}".format(err=err))
@@ -193,18 +199,18 @@ def main(argv):
 
     if len([us for us in [antwerpen_users_fail, brussel_users_fail, gent_users_fail, leuven_users_fail] if us > 0]):
         result = NagiosResult("several users were not synched",
-                              a = antwerpen_users_ok, a_critical = antwerpen_users_fail,
-                              b = brussel_users_ok, b_critical = brussel_users_fail,
-                              g = gent_users_ok, g_critical = gent_users_fail,
-                              l = leuven_users_ok, l_critical = leuven_users_fail)
+                              a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
+                              b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
+                              g = users_ok['gent'][ok], g_critical = users_ok['gent'][fail],
+                              l = users_ok['leuven'][ok], l_critical = users_ok['leuven'][fail])
         nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
     else:
         write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[0])
         result = NagiosResult("muk users synchronised",
-                              a = antwerpen_users_ok, a_critical = antwerpen_users_fail,
-                              b = brussel_users_ok, b_critical = brussel_users_fail,
-                              g = gent_users_ok, g_critical = gent_users_fail,
-                              l = leuven_users_ok, l_critical = leuven_users_fail)
+                              a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
+                              b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
+                              g = users_ok['gent'][ok], g_critical = users_ok['gent'][fail],
+                              l = users_ok['leuven'][ok], l_critical = users_ok['leuven'][fail])
         nagios_reporter.cache(NAGIOS_EXIT_OK, result)
 
     lockfile.release()
