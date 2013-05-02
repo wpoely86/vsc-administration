@@ -66,6 +66,7 @@ def process_users(options, users, storage):
     - make their data directory
     """
     error_users = []
+    ok_users = []
     for user in users:
         if options.dry_run:
             user.dry_run = True
@@ -78,11 +79,12 @@ def process_users(options, users, storage):
             user.set_data_quota()
             # At this point, the user's data quota are still wrong, since we upped them to work around the
             # fileset mess-up on the old gengar shared storage. We need to fix these once deployed.
+            ok_users.append(user)
         except:
             logger.exception("Cannot process user %s" % (user.user_id))
             error_users.append(user)
 
-    return error_users
+    return (ok_users, error_users)
 
 
 def process_vos(options, vos, storage):
@@ -94,20 +96,27 @@ def process_vos(options, vos, storage):
     """
 
     listm = Monoid([], lambda xs, ys: xs + ys)
-    error_vos = MonoidDict(listm)
+    ok_vos = MonoidDict(copy.deepcopy(listm))
+    error_vos = MonoidDict(copy.deepcopy(listm))
 
     for vo in vos:
         try:
             vo.status # force LDAP attribute load
-            data_path = vo._data_path()
             vo.create_data_fileset()
             vo.set_data_quota()
 
             for user in vo.memberUid:
-                vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                vo.set_member_data_symlink(VscUser(user))
+                try:
+                    vo.set_member_data_quota(VscUser(user))  # half of the VO quota
+                    vo.set_member_data_symlink(VscUser(user))
+                    ok_vos[vo.vo_id] = user
+                except:
+                    logger.exception("Failure at setting up the member %s VO %s data" % (user.user_id, vo.vo_id))
+                    error_vos[vo.vo_id] = user
         except:
             logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
+
+    return (ok_vos, error_vos)
 
 
 def main():
@@ -145,7 +154,7 @@ def main():
 
     try:
         LdapQuery(VscConfiguration())  # Initialise LDAP binding
-        vsc =VSC()
+        vsc = VSC()
         storage = CentralStorage()
         backup_storage = copy.deepcopy(storage)
         backup_storage.home_name = "backup%s" % (storage.home_name)
@@ -167,12 +176,12 @@ def main():
 
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-        process_users(opts.options, ugent_users, storage)
+        (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
 
         ugent_vo_filter = InstituteFilter("gent") & CnFilter("gvo*") & timestamp_filter
         ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
 
-        process_vos(opts.options, ugent_vos, storage)
+        (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
@@ -181,14 +190,21 @@ def main():
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
+    result = NagiosResult("UGent users synchronised",
+                          users_ok=len(users_ok),
+                          users_critical=len(users_critical),
+                          vos_ok=len(vos_ok),
+                          vos_critical=len(vos_critical))
     try:
         write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp())
-        nagios_reporter.cache(NAGIOS_EXIT_OK, NagiosResult("UGent users synchronised"))
+        nagios_reporter.cache(NAGIOS_EXIT_OK, result)
     except:
         logger.exception("Something broke writing the timestamp")
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING, NagiosResult("Users synchronised - timestamp not stored correctly"))
+        result.message = "UGent users synchronised, filestamp not written"
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
     finally:
-        release_or_bork(lockfile)
+        result.message = "UGent users synchronised, lock release failed"
+        release_or_bork(lockfile, nagios_reporter, result)
 
     logger.info("Finished synchronisation of the UGent VSC users from the LDAP with the filesystem.")
 
