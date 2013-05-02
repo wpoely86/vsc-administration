@@ -20,7 +20,7 @@ For each (active) user, the following tasks are done:
     - create the basic directories and scripts if they do not yet exist (.ssh, .bashrc, ...)
     - drop the user's public keys in the appropriate location
     - chmod the files to the correct value
-    - chown the files (only changes things upopn first invocation and new files)
+    - chown the files (only changes things upon first invocation and new files)
 
 The script should result in an idempotent execution, to ensure nothing breaks.
 """
