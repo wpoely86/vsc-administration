@@ -108,10 +108,10 @@ def process_vos(options, vos, storage):
                 try:
                     vo.set_member_data_quota(VscUser(user))  # half of the VO quota
                     vo.set_member_data_symlink(VscUser(user))
-                    ok_vos[vo.vo_id] = user
+                    ok_vos[vo.vo_id] = [user]
                 except:
-                    logger.exception("Failure at setting up the member %s VO %s data" % (user.user_id, vo.vo_id))
-                    error_vos[vo.vo_id] = user
+                    logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                    error_vos[vo.vo_id] = [user]
         except:
             logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
 
@@ -195,7 +195,8 @@ def main():
                           vos_ok=len(vos_ok),
                           vos_critical=len(vos_critical))
     try:
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp())
+        (timestamp, ldap_timestamp) = convert_timestamp()
+        write_timestamp(SYNC_TIMESTAMP_FILENAME, timestamp)
         nagios_reporter.cache(NAGIOS_EXIT_OK, result)
     except:
         logger.exception("Something broke writing the timestamp")
