@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 ##
 #
-# Copyright 2013 Ghent University
+# Copyright 2013-2013 Ghent University
 #
 # This file is part of the tools originally by the HPC team of
 # Ghent University (http://ugent.be/hpc).
