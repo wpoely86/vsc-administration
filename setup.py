@@ -46,6 +46,7 @@ PACKAGE = {
         'vsc-ldap >= 0.90',
         'vsc-ldap-extension >= 0.90',
         'vsc-config >= 0.90',
+        'vsc-filesystems >= 0.6',
         'lockfile >= 0.9.1',
     ],
     'provides': ['python-vsc-administration = 0.3'],
