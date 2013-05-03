@@ -188,7 +188,7 @@ class VscVo(VscLdapGroup):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if self.scratchQuota
+        if self.scratchQuota:
             quota = int(self.dataQuota or 0) / 2 * 1024
         else:
             quota = 0
