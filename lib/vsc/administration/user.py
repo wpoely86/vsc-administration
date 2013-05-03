@@ -287,7 +287,7 @@ class VscUser(VscLdapUser):
         """Override the setting of an attribute:
 
         - dry_run: set this here and in the gpfs and posix instance fields.
-        - othwerwise, call super's __setattr__()
+        - otherwise, call super's __setattr__()
         """
 
         if name == 'dry_run':
