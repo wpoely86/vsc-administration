@@ -221,7 +221,7 @@ class VscUser(VscLdapUser):
         if mount_point == "login":
             mount_path = self.storage[storage]['user'].login_mount_point
         elif mount_point == "gpfs":
-            mount_path = self.storage[storage]['user'.gpfs_mount_point
+            mount_path = self.storage[storage]['user'].gpfs_mount_point
 
         return os.path.join(mount_path, template[0], template[1](self.user_id))
 
