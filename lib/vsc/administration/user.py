@@ -55,11 +55,16 @@ class VscUser(VscLdapUser):
     #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
     #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    def __init__(self, user_id):
+    def __init__(self, user_id, storage=None):
         super(VscUser, self).__init__(user_id)
 
         self.vsc = VSC()
-        self.storage = VscStorage()
+
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
