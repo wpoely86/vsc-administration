@@ -57,7 +57,9 @@ class VscVo(VscLdapGroup):
         self.vsc = VSC()
 
         if not storage:
-            self.storage = CentralStorage()
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
 
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
@@ -72,15 +74,28 @@ class VscVo(VscLdapGroup):
         """Return a list with all the VO members in it."""
         return [VscUser(m) for m in self.memberUid]
 
-    def _data_path(self):
-        """Return the path to the VO data fileset on GPFS"""
-        data = self.gpfs.get_filesystem_info(self.storage.data_name)
-        return os.path.join(data['defaultMountPoint'], 'vos', self.vo_id[:-2], self.vo_id)
+    def _get_path(self, storage, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage."""
 
-    def _scratch_path(self):
+        template = self.storage.path_templates[storage]
+        if mount_point == "login":
+            mount_path = self.storage[storage]['vo'].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage]['vo'].gpfs_mount_point
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+    def _data_path(self, mount_point="gpfs"):
         """Return the path to the VO data fileset on GPFS"""
-        scratch = self.gpfs.get_filesystem_info(self.storage.scratch_name)
-        return os.path.join(scratch['defaultMountPoint'], 'vos', self.vo_id[:-2], self.vo_id)
+        return self._get_path('VSC_DATA', mount_point)
+
+    def _scratch_path(self, storage, mount_point="gpfs"):
+        """Return the path to the VO scratch fileset on GPFS.
+
+        @type storage: string
+        @param storage: name of the storage we are looking at.
+        """
+        return self._get_path(storage, mount_point)
 
     def _create_fileset(self, filesystem_name, path, quota=True):
         """Create a fileset for the VO on the data filesystem.
