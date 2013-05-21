@@ -29,7 +29,7 @@ import os
 
 from vsc import fancylogger
 from vsc.administration.institute import Institute
-from vsc.config.base import VSC, Muk, CentralStorage
+from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -59,8 +59,7 @@ class VscUser(VscLdapUser):
         super(VscUser, self).__init__(user_id)
 
         self.vsc = VSC()
-
-        self.storage = CentralStorage()
+        self.storage = VscStorage()
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
@@ -210,21 +209,27 @@ class VscUser(VscLdapUser):
             self.ldap_query.user_modify(self.cn, {'scratchQuota': scratch_quota})
             self.scratch_quota = scratch_quota
 
-    def _home_path(self):
+    def _get_path(self, storage, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage."""
+
+        template = self.storage.user_path_templates[storage]
+        if mount_point == "login":
+            mount_path = self.storage[storage].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage].gpfs_mount_point
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+
+    def _home_path(self, mount_point="gpfs"):
         """Return the path to the home dir."""
 
-        home = self.gpfs.get_filesystem_info(self.storage.home_name)
-        path = os.path.join(home['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
+        return self._get_path('VSC_HOME', mount_point)
 
-        return path
-
-    def _data_path(self):
+    def _data_path(self, mount_point="gpfs"):
         """Return the path to the data dir."""
 
-        data = self.gpfs.get_filesystem_info(self.storage.data_name)
-        path = os.path.join(data['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
-
-        return path
+        return self._get_path('VSC_DATA', mount_point)
 
     def create_home_dir(self):
         """Create all required files in the (future) user's home directory.
@@ -239,7 +244,9 @@ class VscUser(VscLdapUser):
             self.log.exception("Could not create home dir for user %s" % (self.user_id))
 
     def create_data_dir(self):
-        """Create the user's directory on the HPC data filesystem."""
+        """Create the user's directory on the HPC data filesystem.
+
+        Required to be run on a system where the appropriate GPFS is mounted."""
         try:
             path = self._data_path()
             self._create_user_dir(path)
