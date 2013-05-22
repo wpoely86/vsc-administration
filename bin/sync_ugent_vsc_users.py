@@ -76,8 +76,7 @@ def process_users(options, users, storage):
 
             user.create_data_dir()
             user.set_data_quota()
-            # At this point, the user's data quota are still wrong, since we upped them to work around the
-            # fileset mess-up on the old gengar shared storage. We need to fix these once deployed.
+
             ok_users.append(user)
         except:
             logger.exception("Cannot process user %s" % (user.user_id))

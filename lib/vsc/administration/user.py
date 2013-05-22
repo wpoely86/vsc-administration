@@ -256,7 +256,7 @@ class VscUser(VscLdapUser):
             path = self._data_path()
             self._create_user_dir(path)
         except:
-            self.log.exception("Could not create data dir for user %s at %s" % (self.user_id))
+            self.log.exception("Could not create data dir for user %s at %s" % (self.user_id, path))
 
     def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""
@@ -272,6 +272,8 @@ class VscUser(VscLdapUser):
         """
         quota *= 1024
         soft = int(self.vsc.quota_soft_fraction * quota)
+
+        self.log.info("Setting quota on %s to %d" % (path, quota))
 
         # LDAP information is expressed in KiB, GPFS wants bytes.
         self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota)
