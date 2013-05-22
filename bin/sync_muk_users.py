@@ -35,7 +35,7 @@ from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestam
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
 from vsc.utils.pickle_files import TimestampPickle
 
-NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.pickle'
+NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.nagios.json.gz'
 NAGIOS_HEADER = 'sync_muk_users'
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
@@ -205,7 +205,7 @@ def main(argv):
                               l = users_ok['leuven'][ok], l_critical = users_ok['leuven'][fail])
         nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
     else:
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[0])
+        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[1])
         result = NagiosResult("muk users synchronised",
                               a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
                               b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
