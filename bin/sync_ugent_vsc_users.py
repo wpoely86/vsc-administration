@@ -42,7 +42,7 @@ from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
 from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
-NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.pickle'
+NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_ugent_users.nagios.json.gz'
 NAGIOS_HEADER = 'sync_muk_users'
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
