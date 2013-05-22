@@ -217,7 +217,7 @@ class VscUser(VscLdapUser):
     def _get_path(self, storage, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage."""
 
-        template = self.storage.user_path_templates[storage]
+        template = self.storage.path_templates[storage]
         if mount_point == "login":
             mount_path = self.storage[storage]['user'].login_mount_point
         elif mount_point == "gpfs":
