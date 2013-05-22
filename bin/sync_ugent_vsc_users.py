@@ -31,7 +31,7 @@ import sys
 from vsc import fancylogger
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
-from vsc.config.base import CentralStorage, VSC
+from vsc.config.base import VscStorage, VSC
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
@@ -133,6 +133,7 @@ def main():
         'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
         'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
         'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
     }
 
     opts = simple_option(options)
@@ -154,10 +155,7 @@ def main():
     try:
         LdapQuery(VscConfiguration())  # Initialise LDAP binding
         vsc = VSC()
-        storage = CentralStorage()
-        backup_storage = copy.deepcopy(storage)
-        backup_storage.home_name = "backup%s" % (storage.home_name)
-        backup_storage.data_name = "backup%s" % (storage.data_name)
+        storage = VscStorage()
 
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
