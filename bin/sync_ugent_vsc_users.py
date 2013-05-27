@@ -25,7 +25,6 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
 import copy
-import logging
 import sys
 
 from vsc import fancylogger
@@ -42,18 +41,18 @@ from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
 from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
-NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_ugent_users.nagios.json.gz'
-NAGIOS_HEADER = 'sync_muk_users'
+NAGIOS_HEADER = 'sync_ugent_users'
+NAGIOS_CHECK_FILENAME = "/var/log/pickles/%s.nagios.json.gz" % (NAGIOS_HEADER
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
-SYNC_TIMESTAMP_FILENAME = '/var/run/sync_ugent_users.timestamp'
-SYNC_UGENT_USERS_LOGFILE = '/var/log/sync_ugent_users.log'
-SYNC_UGENT_USERS_LOCKFILE = '/var/run/sync_ugent_users.lock'
+SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
+SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
+SYNC_UGENT_USERS_LOCKFILE = "/var/run/%s.lock" % (NAGIOS_HEADER)
 
 fancylogger.logToFile(SYNC_UGENT_USERS_LOGFILE)
-fancylogger.setLogLevel(logging.DEBUG)
+fancylogger.setLogLevelInfo()
 
-logger = fancylogger.getLogger(name='sync_vsc_ugent_users')
+logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
 def notify_user_directory_created(user, dry_run=False):
@@ -97,6 +96,8 @@ def process_users(options, users, storage):
             user.create_data_dir()
             user.set_data_quota()
 
+            notify_user_directory_created(user, opts.options.dry_run)
+
             ok_users.append(user)
         except:
             logger.exception("Cannot process user %s" % (user.user_id))
@@ -132,7 +133,7 @@ def process_vos(options, vos, storage):
                     logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
                     error_vos[vo.vo_id] = [user]
         except:
-            logger.exception("Oops. Something went wrong setting up the VO on the filesystem")
+            logger.exception("Something went wrong setting up the VO %s on the storage" % (vo.vo_id, storage))
 
     return (ok_vos, error_vos)
 
