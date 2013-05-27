@@ -11,20 +11,12 @@
 # the Free Software Foundation v2.
 ##
 """
-Sets up the baseline directory structure we need to have on muk.
+Sets up the basic structure on the UGent home and data storage
 
-- a user fileset
-- an apps fileset
-- creates symlinks to these if they do not yet exist (on the node where the script is being run
-    - /user -> /gpfs/scratch/user
-    - /apps -> /gpfs/scratch/apps
-
-@author Andy Georges
+@author: Andy Georges
 """
 
 import os
-import stat
-import sys
 
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.ldap.utils import LdapQuery
@@ -44,6 +36,7 @@ def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
     if not 'users' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(user_fileset_path, 'users')
         gpfs.chmod(0755, user_fileset_path)
+        log.info("Fileset users created and linked at %s" % (user_fileset_path))
 
     if vo_support:
         # Create the basic vo fileset
@@ -51,11 +44,12 @@ def set_up_filesystem(gpfs, filesystem_info, filesystem_name, vo_support=False):
         if not 'vos' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, 'vos')
             gpfs.chmod(0755, vo_fileset_path)
+            log.info("Fileset vos created and linked at %s" % (vo_fileset_path))
 
 
-def main(args):
+def main():
 
-    l = LdapQuery(VscConfiguration())  # initialise
+    LdapQuery(VscConfiguration())  # initialise
     storage_settings = CentralStorage()
 
     gpfs = GpfsOperations()
@@ -72,19 +66,6 @@ def main(args):
     set_up_filesystem(gpfs, home, storage_settings.home_name)
     set_up_filesystem(gpfs, data, storage_settings.data_name, vo_support=True)
 
-    # Examples
-    # for a single user:
-    #u = MukUser('vsc40075')  # ageorges
-    #u.create_scratch_fileset()
-    #u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
-    #u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
-
-    # for an UGent user with regular home on the gengar storage, NFS mounted
-    #u = MukUser('vsc40528')  # lmunoz
-    #u.create_scratch_fileset()
-    #u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
-    #u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
-
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
