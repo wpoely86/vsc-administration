@@ -118,19 +118,15 @@ def main():
         gpfs.set_fileset_quota(project_quota, project_fileset_path, project_fileset_name)
 
 
-def add_
-    # Exmaples
-    # for a single user:
-    #u = MukUser('vsc40075')  # ageorges
-    #u.create_scratch_fileset()
-    #u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
-    #u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
+def add_example_users():
+    """Usage example on how to add a user.
 
-    # for an UGent user with regular home on the gengar storage, NFS mounted
-    #u = MukUser('vsc40528')  # lmunoz
-    #u.create_scratch_fileset()
-    #u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
-    #u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
+    This creates paths and filesets for an UGent user with regular home on the gengar storage, NFS mounted
+    """
+    u = MukUser('vsc40075')  # ageorges
+    u.create_scratch_fileset()
+    u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
+    u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
 
 
 if __name__ == '__main__':
