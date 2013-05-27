@@ -222,6 +222,8 @@ class VscUser(VscLdapUser):
             mount_path = self.storage[storage].login_mount_point
         elif mount_point == "gpfs":
             mount_path = self.storage[storage].gpfs_mount_point
+        else:
+            self.log.raiseException("mount_point is not login or gpfs", Exception)
 
         return os.path.join(mount_path, template[0], template[1](self.user_id))
 
@@ -246,7 +248,7 @@ class VscUser(VscLdapUser):
             path = self._home_path()
             self._create_user_dir(path)
         except:
-            self.log.exception("Could not create home dir for user %s" % (self.user_id))
+            self.log.raiseException("Could not create home dir for user %s" % (self.user_id))
 
     def create_data_dir(self):
         """Create the user's directory on the HPC data filesystem.
@@ -256,7 +258,7 @@ class VscUser(VscLdapUser):
             path = self._data_path()
             self._create_user_dir(path)
         except:
-            self.log.exception("Could not create data dir for user %s at %s" % (self.user_id, path))
+            self.log.raiseException("Could not create data dir for user %s at %s" % (self.user_id, path))
 
     def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""

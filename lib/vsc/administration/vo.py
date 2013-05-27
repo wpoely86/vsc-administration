@@ -82,6 +82,8 @@ class VscVo(VscLdapGroup):
             mount_path = self.storage[storage].login_mount_point
         elif mount_point == "gpfs":
             mount_path = self.storage[storage].gpfs_mount_point
+        else:
+            self.log.raiseException("mount_point is not login or gpfs", Exception)
 
         return os.path.join(mount_path, template[0], template[1](self.vo_id))
 
@@ -107,7 +109,9 @@ class VscVo(VscLdapGroup):
         fileset_name = self.vo_id
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
-            self.log.info("Creating new fileset on %s scratch with name %s and path %s" % (filesystem_name, fileset_name, path))
+            self.log.info("Creating new fileset on %s scratch with name %s and path %s" % (filesystem_name,
+                                                                                           fileset_name,
+                                                                                           path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
