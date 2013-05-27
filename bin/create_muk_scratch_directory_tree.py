@@ -23,8 +23,6 @@ Sets up the baseline directory structure we need to have on muk.
 """
 
 import os
-import stat
-import sys
 
 from vsc import fancylogger
 from vsc.filesystem.gpfs import GpfsOperations
@@ -37,7 +35,8 @@ from vsc.config.base import Muk
 log = fancylogger.getLogger('create_directory_trees_muk')
 
 
-def main(args):
+def main():
+    """Main."""
 
     l = LdapQuery(LumaConfiguration())  # initialise
     muk = Muk()
@@ -102,7 +101,7 @@ def main(args):
         gpfs.chmod(0755, project_fileset_path)
         os.chown(project_fileset_path, int(owner['uidNumber']), int(group['gidNumber']))
 
-	    project_quota = 70 * 1024 * 1024 * 1024 * 1024
+        project_quota = 70 * 1024 * 1024 * 1024 * 1024
         gpfs.set_fileset_quota(project_quota, project_fileset_path, project_fileset_name)
 
     # Exmaples
@@ -120,4 +119,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
