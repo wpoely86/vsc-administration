@@ -18,43 +18,41 @@ For these, the home and other shizzle should be set up.
 @author Andy Georges
 """
 
-import logging
 import os
 import sys
 from lockfile import FileLock, AlreadyLocked
-from optparse import OptionParser
 
-from vsc import fancylogger
+from vsc.utils import fancylogger
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
 from vsc.config.base import Muk
 from vsc.ldap.configuration import LumaConfiguration
-from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter, NewerThanFilter
+from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.ldap.timestamp import convert_timestamp, write_timestamp
+from vsc.utils.generaloption import simple_option
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
-from vsc.utils.pickle_files import TimestampPickle
 
-NAGIOS_CHECK_FILENAME = '/var/log/pickles/sync_muk_users.nagios.json.gz'
 NAGIOS_HEADER = 'sync_muk_users'
+NAGIOS_CHECK_FILENAME = "/var/log/pickles/%s.nagios.json.gz" % (NAGIOS_HEADER)
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
-SYNC_TIMESTAMP_FILENAME = '/var/run/sync_muk_users.timestamp'
-SYNC_MUK_USERS_LOGFILE = '/var/log/sync_muk_users.log'
-SYNC_MUK_USERS_LOCKFILE = '/gpfs/scratch/user/sync_muk_users.lock'
+SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
+SYNC_MUK_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
+SYNC_MUK_USERS_LOCKFILE = "/gpfs/scratch/user/%s.lock" % (NAGIOS_HEADER)
 
 fancylogger.logToFile(SYNC_MUK_USERS_LOGFILE)
-fancylogger.setLogLevel(logging.DEBUG)
+fancylogger.setLogLevelInfo()
 
 logger = fancylogger.getLogger(name='sync_muk_users')
 
 
-def process_institute(options, institute, users_filter, timestamp_filter):
+def process_institute(options, institute, users_filter):
 
     muk = Muk()  # Singleton class, so no biggie
-    changed_users = MukUser.lookup(timestamp_filter & users_filter & InstituteFilter(institute))
+    changed_users = MukUser.lookup(users_filter & InstituteFilter(institute))
     logger.info("Processing the following users from {institute}: {users}".format(institute=institute,
-                users=map(lambda u: u.user_id, changed_users)))
+                users=[u.user_id for u in changed_users]))
 
     try:
         nfs_location = muk.nfs_link_pathnames[institute]['home']
@@ -63,8 +61,7 @@ def process_institute(options, institute, users_filter, timestamp_filter):
         try:
             error_users = process(options, changed_users)
         except:
-            logger.exception("Something went wrong processing users from %s" % (insitute))
-            pass
+            logger.exception("Something went wrong processing users from %s" % (institute))
     except:
         logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
         error_users = changed_users
@@ -73,7 +70,8 @@ def process_institute(options, institute, users_filter, timestamp_filter):
     ok_usercount = len(changed_users) - fail_usercount
 
     return { 'ok': ok_usercount,
-             'fail': fail_usercount}
+             'fail': fail_usercount
+           }
 
 
 def process(options, users):
@@ -102,7 +100,7 @@ def process(options, users):
 def force_nfs_mounts(muk):
 
     nfs_mounts = []
-    for institute in vsc.institutes:
+    for institute in muk.institutes:
         try:
             os.stat(muk.nfs_link_pathnames[institute]['home'])
             nfs_mounts.append(institute)
@@ -112,7 +110,7 @@ def force_nfs_mounts(muk):
     return nfs_mounts
 
 
-def main(argv):
+def main():
     """
     Main script.
     - loads the previous timestamp
@@ -123,24 +121,18 @@ def main(argv):
     - write the nagios check file
     """
 
-    parser = OptionParser()
-    parser.add_option("-d", "--dry-run", dest="dry_run", default=False, action="store_true",
-                      help="Do not make any updates whatsoever.")
-    parser.add_option("", "--debug", dest="debug", default=False, action="store_true",
-                      help="Enable debug output to log.")
-    parser.add_option("-n", "--nagios", dest="nagios", default=False, action="store_true",
-                      help="Print out the nagios result message and exit accordingly.")
+    options = {
+        'dry-run': ("Do not make any updates whatsoever", None, "store_true", False),
+        'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
+        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
+        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
+    }
 
-    (options, args) = parser.parse_args(argv)
-
-    if options.debug:
-        fancylogger.setLogLevel(logging.DEBUG)
-    else:
-        fancylogger.setLogLevel(logging.INFO)
+    opts = simple_option(options)
 
     nagios_reporter = NagiosReporter(NAGIOS_HEADER, NAGIOS_CHECK_FILENAME, NAGIOS_CHECK_INTERVAL_THRESHOLD)
 
-    if options.nagios:
+    if opts.options.nagios:
         nagios_reporter.report_and_exit()
         sys.exit(0)  # not reached
 
@@ -151,53 +143,47 @@ def main(argv):
         lockfile = FileLock(SYNC_MUK_USERS_LOCKFILE)
         lockfile.acquire(timeout=60)
         logger.info("Lock acquired.")
-    except AlreadyLocked, _:
+    except AlreadyLocked:
         logger.exception("Cannot acquire lock, bailing.")
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, NagiosResult("Cannot acquire lock on {lockfile}. Bailing.".format(lockfile=SYNC_MUK_USERS_LOCKFILE)))
         sys.exit(NAGIOS_EXIT_CRITICAL)
-    except Exception, err:
-        logger.exception("Oops.")
+    except Exception:
+        logger.exception("Failed taking the lock on {lockfile}".format(lockfile=SYNC_MUK_USERS_LOCKFILE))
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
 
     try:
-        nfs_mounts = force_nfs_mounts()
-
+        muk = Muk()
+        nfs_mounts = force_nfs_mounts(muk)
         logger.info("Forced NFS mounts")
 
         LdapQuery(LumaConfiguration())  # Initialise LDAP binding
-        muk = Muk()
 
-        last_timestamp = "20090101000000Z" # read_timestamp(SYNC_TIMESTAMP_FILENAME) or "20090101000000Z"
-        logger.info("Last recorded timestamp was %s" % (last_timestamp))
-
-        timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
-        logger.info("Filter for looking up new Muk users = %s" % (timestamp_filter))
-
-        muk_group_filter = CnFilter("gt1_mukallusers")  # FIXME: this should preferably be placed in a constant
+        muk_group_filter = CnFilter(muk.muk_users_group)
         try:
             muk_group = Group.lookup(muk_group_filter)[0]
             logger.info("Muk group = %s" % (muk_group.memberUid))
-        except IndexError, _:
-            logger.error("Could not find a group with cn mukusers. Cannot proceed synchronisation")
-            raise
+        except IndexError:
+            logger.raiseException("Could not find a group with cn %s. Cannot proceed synchronisation" % muk.muk_user_group)
 
-        muk_users = [MukUser(id) for id in muk_group.memberUid]
+        muk_users = [MukUser(user_id) for user_id in muk_group.memberUid]
         logger.debug("Found the following Muk users: {users}".format(users=muk_group.memberUid))
 
         muk_users_filter = LdapFilter.from_list(lambda x, y: x | y, [CnFilter(u.user_id) for u in muk_users])
 
+        users_ok = {}
         for institute in nfs_mounts:
-            user_ok[institute] = process_institute(options, institute, muk_users_filter, timestamp_filter)
+            users_ok[institute] = process_institute(options, institute, muk_users_filter)
 
-    except Exception, err:
-        logger.exception("Fail during muk users synchronisation: {err}".format(err=err))
+    except Exception:
+        logger.exception("Fail during muk users synchronisation")
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
-                              NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_MUK_USERS_LOGFILE)))
+                              NagiosResult("Script failed, check log file ({logfile})".format(
+                                  logfile=SYNC_MUK_USERS_LOGFILE)))
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    if len([us for us in [antwerpen_users_fail, brussel_users_fail, gent_users_fail, leuven_users_fail] if us > 0]):
+    if any([len(us) > 0 for us in [antwerpen_users_fail, brussel_users_fail, gent_users_fail, leuven_users_fail]]):
         result = NagiosResult("several users were not synched",
                               a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
                               b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
@@ -218,4 +204,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
