@@ -30,7 +30,7 @@ import sys
 from vsc import fancylogger
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
-from vsc.config.base import VscStorage, VSC
+from vsc.config.base import GENT, VscStorage, VSC
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
@@ -97,7 +97,7 @@ def process_users(options, users, storage):
             user.create_data_dir()
             user.set_data_quota()
 
-            notify_user_directory_created(user, opts.options.dry_run)
+            notify_user_directory_created(user, options.dry_run)
 
             ok_users.append(user)
         except:
@@ -152,8 +152,10 @@ def main():
     options = {
         'dry-run': ('do not make any updates whatsoever', None, 'store_true', False),
         'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
-        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
-        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store',
+                                  NAGIOS_CHECK_FILENAME),
+        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store',
+                                            NAGIOS_CHECK_INTERVAL_THRESHOLD),
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
     }
 
@@ -181,7 +183,7 @@ def main():
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except:
-            logger.exception("Something broke reading the timestamp")
+            logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
 
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
@@ -189,14 +191,14 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.info("Filter for looking up new UGent users = %s" % (timestamp_filter))
 
-        ugent_users_filter = InstituteFilter("gent") & timestamp_filter  # FIXME: this should preferably be placed in a constant
+        ugent_users_filter = InstituteFilter(GENT) & timestamp_filter
         ugent_users = VscUser.lookup(ugent_users_filter)
 
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
         (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
 
-        ugent_vo_filter = InstituteFilter("gent") & CnFilter("gvo*") & timestamp_filter
+        ugent_vo_filter = InstituteFilter(GENT) & CnFilter("gvo*") & timestamp_filter
         ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
 
         (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
