@@ -56,6 +56,26 @@ fancylogger.setLogLevel(logging.DEBUG)
 logger = fancylogger.getLogger(name='sync_vsc_ugent_users')
 
 
+def notify_user_directory_created(user, dry_run=False):
+    """Make sure the rest of the subsystems know the user status has changed.
+
+    Currently, this is tailored to our LDAP-based setup.
+    - if the LDAP state is new:
+        change the state to notify
+    - otherwise, the user account already was active in the past, and we simply have an idempotent script.
+    """
+
+    if dry_run:
+        logger.info("User %s has LDAP status %s. Dry-run so not cganging anything" % (user.user_id, user.status))
+        return
+
+    if user.status == 'new':
+        user.status = 'notify'
+        logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
+    else:
+        logger.info("User %s has LDAP status %s, not changing to notfy" % (user.user_id, user.status))
+
+
 def process_users(options, users, storage):
     """
     Process the users.
