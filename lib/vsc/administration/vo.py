@@ -24,15 +24,11 @@ Original Perl code by Stijn De Weirdt
 """
 
 import os
-import re
-
-from lockfile.pidlockfile import PIDLockFile
 
 from vsc import fancylogger
-from vsc.administration.institute import Institute
 from vsc.administration.user import VscUser
 from vsc.config.base import VSC, VscStorage
-from vsc.filesystem.gpfs import GpfsOperations, PosixOperations, PosixOperationError
+from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
 from vsc.ldap.entities import VscLdapGroup
 
 logger = fancylogger.getLogger(__name__)
@@ -83,7 +79,7 @@ class VscVo(VscLdapGroup):
         elif mount_point == "gpfs":
             mount_path = self.storage[storage].gpfs_mount_point
         else:
-            self.log.raiseException("mount_point is not login or gpfs", Exception)
+            self.log.raiseException("mount_point is not login or gpfs")
 
         return os.path.join(mount_path, template[0], template[1](self.vo_id))
 
@@ -127,9 +123,9 @@ class VscVo(VscLdapGroup):
             path = self._data_path()
             self._create_fileset(self.storage['VSC_DATA'].filesystem, path)
         except AttributeError:
-            self.log.exception("Trying to access non-existant attribute in the storage instance")
+            self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
-            self.log.exception("Trying to access non-existant field in the storage dictionary")
+            self.log.exception("Trying to access non-existent field 'VSC_DATA' in the storage dictionary")
 
     def create_scratch_fileset(self, storage):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -137,9 +133,9 @@ class VscVo(VscLdapGroup):
             path = self._scratch_path(storage)
             self._create_fileset(self.storage[storage].filesystem, path, self.dataQuota)
         except AttributeError:
-            self.log.exception("Trying to access non-existant attribute in the storage instance")
+            self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
-            self.log.exception("Trying to access non-existant field in the storage dictionary")
+            self.log.exception("Trying to access non-existent field %s in the storage dictionary" % (storage))
 
     def _create_vo_dir(self, path):
         """Create a user owned directory on the GPFS."""
@@ -160,8 +156,8 @@ class VscVo(VscLdapGroup):
             # LDAP information is expressed in KiB, GPFS wants bytes.
             self.gpfs.set_fileset_quota(soft, path, self.vo_id, quota)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
-        except AttributeError:
-            self.log.exception("No such attribute in the storage instance %s" % (self.storage))
+        except GpfsOperationError:
+            self.log.raiseException("Unable to set quota on path %s" % (path))
 
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
@@ -186,8 +182,8 @@ class VscVo(VscLdapGroup):
             path = path_function()
             soft = int(quota * self.vsc.quota_soft_fraction)
             self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
-        except AttributeError, err:
-            self.log.exception("No such attribute in the storage instance %s" % (self.storage))
+        except GpfsOperationError:
+            self.log.raiseException("Unable to set USR quota for member %s on path %s" % (member.user_id, path))
 
     def set_member_data_quota(self, member):
         """Set the quota on the data FS for the member in the VO fileset.
