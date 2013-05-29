@@ -55,7 +55,7 @@ fancylogger.setLogLevelInfo()
 logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
-def notify_user_directory_created(user, dry_run=False):
+def notify_user_directory_created(user, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -65,7 +65,7 @@ def notify_user_directory_created(user, dry_run=False):
     """
 
     if dry_run:
-        logger.info("User %s has LDAP status %s. Dry-run so not cganging anything" % (user.user_id, user.status))
+        logger.info("User %s has LDAP status %s. Dry-run so not changing anything" % (user.user_id, user.status))
         return
 
     if user.status == 'new':
@@ -191,10 +191,13 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.info("Filter for looking up new UGent users = %s" % (timestamp_filter))
 
-        ugent_users_filter = InstituteFilter(GENT) & timestamp_filter
-        ugent_users = VscUser.lookup(ugent_users_filter)
+        ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
+        logger.debug("Using the following LDAP filter" % (ugent_users_filter))
 
+        ugent_users = VscUser.lookup(ugent_users_filter)
+        logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
+
 
         (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
 
