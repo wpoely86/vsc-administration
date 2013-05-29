@@ -211,9 +211,9 @@ def main():
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
     result = NagiosResult("UGent users synchronised",
-                          users_ok=len(users_ok),
+                          users=len(users_ok),
                           users_critical=len(users_critical),
-                          vos_ok=len(vos_ok),
+                          vos=len(vos_ok),
                           vos_critical=len(vos_critical))
     try:
         (timestamp, ldap_timestamp) = convert_timestamp()
