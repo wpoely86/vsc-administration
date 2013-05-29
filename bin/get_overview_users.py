@@ -99,7 +99,6 @@ def main():
     users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in
              [ugent_status(opts, l, u.ugentid)]]
 
-
     addm = Monoid(0, lambda x, y: x+y)
 
     student_type = (False, True)
