@@ -24,6 +24,7 @@ from vsc.ldap.configuration import VscConfiguration, UGentLdapConfiguration
 from vsc.ldap.filters import InstituteFilter, CnFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.utils.generaloption import simple_option
+from vsc.utils.missing import Monoid, MonoidDict
 
 
 User = namedtuple('User',[
@@ -51,15 +52,14 @@ def get_ugent_id(opts, ldap, vscuid):
     """Retrieve the UGent ID from the HPC LDAP."""
 
     ldap_filter = InstituteFilter(GENT) & CnFilter(vscuid)
-
     attrs = ['instituteLogin']
 
-    ugentid = ""
-    for entry in ldap.user_filter_search(ldap_filter, attrs):
-        ugentid = entry['instituteLogin']
-    if ugentid == "":
-        opts.log.warning("No LDAP info for %s. Wrong vsc ID?" % vscuid)
-    return ugentid
+    users = ldap.user_filter_search(ldap_filter, attrs)
+    if users:
+        return users[0]['instituteLogin']
+    else:
+        opts.log.warning("No user found with VSC ID (cn) %s" % (vscuid))
+        return None
 
 
 def ugent_status(opts, ldap_query, ugentid):
@@ -99,21 +99,20 @@ def main():
     users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in
              [ugent_status(opts, l, u.ugentid)]]
 
+
+    addm = Monoid(0, lambda x, y: x+y)
+
+    student_type = (False, True)
+    employee_type = (True, False)
+    both_type = (True, True)
+    none_type = (False, False)
+
+    user_types = MonoidDict(addm)
+    active_user_types = MonoidDict(addm)
+    inactive_user_types = MonoidDict(addm)
+
     active_users = 0
-    employees = 0
-    student = 0
-    student_employee = 0
-    notstudent_nor_employee = 0
-
-    employees_active = 0
-    student_active = 0
-    student_employee_active = 0
-    notstudent_nor_employee_active = 0
-
-    employees_inactive = 0
-    student_inactive = 0
-    student_employee_inactive = 0
-    notstudent_nor_employee_inactive = 0
+    inactive_users = 0
 
     print "-----------------------------------------------------------------"
     print "   vscID -  UGentID - Active - Employee - Student"
@@ -121,55 +120,36 @@ def main():
 
     for user in users:
         print "%8s - %8s - %6s - %8s - %7s" % (user.vscid, user.ugentid, user.active, user.employee, user.student)
+
+        user_type = (user.employee, user.student)
+        user_types[user_type] = 1
+
         if user.active:
-            active_users = active_users + 1
+            active_users += 1
+            active_user_types[user_type] = 1
+        else:
+            inactive_users += 1
+            inactive_user_types[user_type] = 1
 
-        if user.employee and not user.student:
-            employees = employees + 1
-            if user.active:
-                employees_active = employees_active + 1
-            else:
-                employees_inactive = employees_inactive + 1
-
-        if not user.employee and user.student:
-            student = student + 1
-            if user.active:
-                student_active = student_active + 1
-            else:
-                student_inactive = student_inactive + 1
-
-        if not user.employee and not user.student:
-            notstudent_nor_employee = notstudent_nor_employee + 1
-            if user.active:
-                notstudent_nor_employee_active = notstudent_nor_employee_active + 1
-            else:
-                notstudent_nor_employee_inactive = notstudent_nor_employee_inactive + 1
-
-        if user.employee and user.student:
-            student_employee = student_employee + 1
-            if user.active:
-                student_employee_active = student_employee_active + 1
-            else:
-                student_employee_inactive = student_employee_inactive + 1
     print "-----------------------------------------------------------------"
     print "number of users: %s" % len(users)
-    print "number of active users: %s" % active_users
-    print "number of inactive users: %s" % (len(users) - active_users)
+    print "number of active users: %d" % (active_users)
+    print "number of inactive users: %d" % (inactive_users)
     print ""
-    print "number of (only) students: %s" % student
-    print "number of (only) employees: %s" % employees
-    print "number of people who are both employee as student: %s" % student_employee
-    print "number of people who are neither: %s" % notstudent_nor_employee
+    print "number of (only) students: %d" % (user_types[student_type])
+    print "number of (only) employees: %d" % (user_types[employee_type])
+    print "number of people who are both employee as student: %d" % (user_types[both_type])
+    print "number of people who are neither: %d" % (user_types[none_type])
     print ""
-    print "number of active students: %s" % student_active
-    print "number of active employees: %s" % employees_active
-    print "number of active people who are both employee as student: %s" % student_employee_active
-    print "number of active people who are neither: %s" % notstudent_nor_employee_active
+    print "number of active students: %d" % (active_user_types[student_type])
+    print "number of active employees: %d" % (active_user_types[employee_type])
+    print "number of active people who are both employee as student: %d" % (active_user_types[both_type])
+    print "number of active people who are neither: %d" % (active_user_types[none_type])
     print ""
-    print "number of inactive students: %s" % student_inactive
-    print "number of inactive employees: %s" % employees_inactive
-    print "number of inactive people who are both employee as student: %s" % student_employee_inactive
-    print "number of inactive people who are neither: %s" % notstudent_nor_employee_inactive
+    print "number of inactive students: %d" % (inactive_user_types[student_type])
+    print "number of inactive employees: %d" % (inactive_user_types[employee_type])
+    print "number of inactive people who are both employee as student: %d" % (inactive_user_types[both_type])
+    print "number of inactive people who are neither: %d" % (inactive_user_types[none_type])
     print ""
     print "-----------------------------------------------------------------"
 
