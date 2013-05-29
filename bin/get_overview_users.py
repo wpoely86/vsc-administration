@@ -16,14 +16,15 @@ This script produces an overview of the HPC users.
 @author: Wouter Depypere
 """
 
-import sys
 from collections import namedtuple
 
 from vsc.config.base import GENT
 from vsc.pg import cCol
 from vsc.ldap.configuration import VscConfiguration, UGentLdapConfiguration
+from vsc.ldap.filters import InstituteFilter, CnFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.utils.generaloption import simple_option
+
 
 User = namedtuple('User',[
     'vscid',
@@ -34,75 +35,69 @@ User = namedtuple('User',[
 ])
 
 
-def getAllDBusers(opts):
+def get_hpc_collector_users(opts):
     """Get the users from UGent in the HPC collector database."""
     c = cCol()
-    c.debug = opts.debug
+    c.debug = opts.options.debug
     users = c.getlist("member", "uid, inst, active")
+
+    opts.log.debug("Found the following users in the HPC collector DB")
+    opts.log.debug("%s" % (users))
 
     return [User(vscid=u[0], ugentid=None, active=u[2], employee=None, student=None) for u in users if u[1] == GENT]
 
 
-def getUGentID(vscuid):
-    hpcldap = LdapQuery(VscConfiguration())
-    filter = '(&(institute=gent)(uid=%s))' % vscuid
+def get_ugent_id(opts, ldap, vscuid):
+    """Retrieve the UGent ID from the HPC LDAP."""
+
+    ldap_filter = InstituteFilter(GENT) & CnFilter(vscuid)
+
     attrs = ['instituteLogin']
 
     ugentid = ""
-    for entry in hpcldap.user_filter_search(filter, attrs):
+    for entry in ldap.user_filter_search(ldap_filter, attrs):
         ugentid = entry['instituteLogin']
     if ugentid == "":
-        print "No LDAP info for %s. Wrong vsc ID?" % vscuid
-        sys.exit(2)
+        opts.log.warning("No LDAP info for %s. Wrong vsc ID?" % vscuid)
     return ugentid
 
 
-def getUGentSubcs(ugentid):
-    ugentldap = ugent_ldap.ugent_ldap()
-    ugentldap.connectUgentLdap()
-    ugentldap.bindUgentLdap()
+def ugent_status(opts, ldap_query, ugentid):
+    """Check the UGent object classes for this users and return a tuple."""
+    ldap_filter = LdapFilter("uid=%s" % (ugentid))
 
-    attrs = ['objectClass', ]
-    base = 'ou=people,dc=ugent,dc=be'
-    filter = '(uid=%s)' % ugentid
-    res = ugentldap.searchUgentLdap(base, filter, attrs)
+    users = ldap_query.user_filter_search(ldap_filter, ['objectClass'])
 
-    employee = None
-    student = None
-
-    if (len(res) > 0) and (len(res[0]) > 0) and (len(res[0][1]) > 0):
-        objectClasses = res[0][1]['objectClass']
-        if objectClasses.count('ugentEmployee') > 0:
-            employee = True
-        if objectClasses.count('ugentStudent') > 0:
-            student = True
-
-    return employee, student
+    if users:
+        objectClasses = users[0]['objectClass']
+        employee = objectClasses.count('ugentEmployee') > 0
+        student = objectClasses.count('ugentStudent') > 0
+        opts.log.debug("User with UGent ID %s is employee: %s, student: %s" % (ugentid, employee, student))
+        return (employee, student)
+    else:
+        return (False, False)
 
 
-def addAllUGID(users):
-    updated_list = []
-    for UGuser in users:
-        UGuser.ugentid = getUGentID(UGuser.vscid)
-        updated_list.append(UGuser)
-    return updated_list
+class HpcLdapQuery(LdapQuery):
+    pass
 
 
-def addEmplStudent(users):
-    updated_list = []
-    for UGuser in users:
-        UGuser.employee, UGuser.student = getUGentSubcs(UGuser.ugentid)
-        updated_list.append(UGuser)
-    return updated_list
+class UGentLdapQuery(LdapQuery):
+    pass
 
 
 def main():
 
     opts = simple_option({})  # provides debug and logging
 
-    users = getAllDBusers(opts)
-    users = addAllUGID(opts, users)
-    users = addEmplStudent(opts, users)
+    l = HpcLdapQuery(VscConfiguration())  # Initialise the LDAP connection
+
+    users = get_hpc_collector_users(opts)
+    users = [u._replace(ugentid=get_ugent_id(opts, l, u.vscid)) for u in users]
+
+    l = UGentLdapQuery(UGentLdapConfiguration("collector"))  # Initialise the LDAP connection
+    users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in
+             [ugent_status(opts, l, u.ugentid)]]
 
     active_users = 0
     employees = 0
@@ -121,11 +116,11 @@ def main():
     notstudent_nor_employee_inactive = 0
 
     print "-----------------------------------------------------------------"
-    print "vscID - UGentID - Active - Employee - Student"
+    print "   vscID -  UGentID - Active - Employee - Student"
     print "-----------------------------------------------------------------"
 
     for user in users:
-        print user
+        print "%8s - %8s - %6s - %8s - %7s" % (user.vscid, user.ugentid, user.active, user.employee, user.student)
         if user.active:
             active_users = active_users + 1
 
