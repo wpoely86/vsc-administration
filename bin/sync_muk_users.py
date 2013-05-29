@@ -44,7 +44,7 @@ SYNC_MUK_USERS_LOCKFILE = "/gpfs/scratch/user/%s.lock" % (NAGIOS_HEADER)
 fancylogger.logToFile(SYNC_MUK_USERS_LOGFILE)
 fancylogger.setLogLevelInfo()
 
-logger = fancylogger.getLogger(name='sync_muk_users')
+logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
 def process_institute(options, institute, users_filter):
@@ -183,21 +183,26 @@ def main():
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    if any([len(us) > 0 for us in [antwerpen_users_fail, brussel_users_fail, gent_users_fail, leuven_users_fail]]):
-        result = NagiosResult("several users were not synched",
-                              a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
-                              b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
-                              g = users_ok['gent'][ok], g_critical = users_ok['gent'][fail],
-                              l = users_ok['leuven'][ok], l_critical = users_ok['leuven'][fail])
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
+    result_dict = {
+        'a': users_ok['antwerpen']['ok'],
+        'b': users_ok['brussel']['ok'],
+        'g': users_ok['gent']['ok'],
+        'l': users_ok['leuven']['ok'],
+        'a_critical': users_ok['antwerpen']['fail'],
+        'b_critical': users_ok['brussel']['fail'],
+        'g_critical': users_ok['gent']['fail'],
+        'l_critical': users_ok['leuven']['fail']
+    }
+
+    if any([result_dict[i + '_critical'] for i in ['a', 'b', 'g', 'l']]):
+        result = NagiosResult("several users were not synched", result_dict)
+        exit_value = NAGIOS_EXIT_WARNING
     else:
         write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[1])
-        result = NagiosResult("muk users synchronised",
-                              a = users_ok['antwerpen'][ok], a_critical = users_ok['antwerpen'][fail],
-                              b = users_ok['brussel'][ok], b_critical = users_ok['brussel'][fail],
-                              g = users_ok['gent'][ok], g_critical = users_ok['gent'][fail],
-                              l = users_ok['leuven'][ok], l_critical = users_ok['leuven'][fail])
-        nagios_reporter.cache(NAGIOS_EXIT_OK, result)
+        result = NagiosResult("muk users synchronised", result_dict)
+        exit_value = NAGIOS_EXIT_OK
+
+    nagios_reporter.cache(exit_value, result)
 
     lockfile.release()
     logger.info("Finished synchronisation of the Muk users from the LDAP with the filesystem.")
