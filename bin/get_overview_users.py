@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 ##
 #
 # Copyright 2012-2013 Ghent University
@@ -113,12 +113,12 @@ def main():
     active_users = 0
     inactive_users = 0
 
-    print "-----------------------------------------------------------------"
-    print "   vscID -  UGentID - Active - Employee - Student"
-    print "-----------------------------------------------------------------"
+    output = ["-" * 65]
+    output += ["%8s - %8s - %6s - %8s - %7s" % ("vscID", "UGentID", "Active", "Employee", "Student")]
+    output += ["-" * 65]
 
     for user in users:
-        print "%8s - %8s - %6s - %8s - %7s" % (user.vscid, user.ugentid, user.active, user.employee, user.student)
+        output += ["%8s - %8s - %6s - %8s - %7s" % (user.vscid, user.ugentid, user.active, user.employee, user.student)]
 
         user_type = (user.employee, user.student)
         user_types[user_type] = 1
@@ -130,27 +130,30 @@ def main():
             inactive_users += 1
             inactive_user_types[user_type] = 1
 
-    print "-----------------------------------------------------------------"
-    print "number of users: %s" % len(users)
-    print "number of active users: %d" % (active_users)
-    print "number of inactive users: %d" % (inactive_users)
-    print ""
-    print "number of (only) students: %d" % (user_types[student_type])
-    print "number of (only) employees: %d" % (user_types[employee_type])
-    print "number of people who are both employee as student: %d" % (user_types[both_type])
-    print "number of people who are neither: %d" % (user_types[none_type])
-    print ""
-    print "number of active students: %d" % (active_user_types[student_type])
-    print "number of active employees: %d" % (active_user_types[employee_type])
-    print "number of active people who are both employee as student: %d" % (active_user_types[both_type])
-    print "number of active people who are neither: %d" % (active_user_types[none_type])
-    print ""
-    print "number of inactive students: %d" % (inactive_user_types[student_type])
-    print "number of inactive employees: %d" % (inactive_user_types[employee_type])
-    print "number of inactive people who are both employee as student: %d" % (inactive_user_types[both_type])
-    print "number of inactive people who are neither: %d" % (inactive_user_types[none_type])
-    print ""
-    print "-----------------------------------------------------------------"
+    output += ["-" * 65]
+
+    template = "number of %s: %d"
+    output += [template % ("users", len(users))]
+    output += [template % ("active users", active_users)]
+    output += [template % ("inactive users", inactive_users)]
+    output += [""]
+    output += [template % ("(only) students", user_types[student_type])]
+    output += [template % ("(only) employees", user_types[employee_type])]
+    output += [template % ("people who are both employee as student", user_types[both_type])]
+    output += [template % ("people who are neither", user_types[none_type])]
+    output += [""]
+    output += [template % ("active students", active_user_types[student_type])]
+    output += [template % ("active employees", active_user_types[employee_type])]
+    output += [template % ("active people who are both employee as student", active_user_types[both_type])]
+    output += [template % ("active people who are neither", active_user_types[none_type])]
+    output += [""]
+    output += [template % ("inactive students", inactive_user_types[student_type])]
+    output += [template % ("inactive employees", inactive_user_types[employee_type])]
+    output += [template % ("inactive people who are both employee as student", inactive_user_types[both_type])]
+    output += [template % ("inactive people who are neither", inactive_user_types[none_type])]
+    output += ["-" * 65]
+
+    print "\n".join(output)
 
 if __name__ == '__main__':
     main()
