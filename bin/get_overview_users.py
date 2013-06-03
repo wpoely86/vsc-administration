@@ -42,8 +42,7 @@ def get_hpc_collector_users(opts):
     c.debug = opts.options.debug
     users = c.getlist("member", "uid, inst, active")
 
-    opts.log.debug("Found the following users in the HPC collector DB")
-    opts.log.debug("%s" % (users))
+    opts.log.debug("Found the following users in the HPC collector DB: %s" % (users))
 
     return [User(vscid=u[0], ugentid=None, active=u[2], employee=None, student=None) for u in users if u[1] == GENT]
 
