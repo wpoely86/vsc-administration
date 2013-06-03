@@ -44,7 +44,7 @@ PILOT_PROJECTS = {
 def main():
     """Main."""
 
-    l = LdapQuery(LumaConfiguration())  # initialise
+    ldap_query = LdapQuery(LumaConfiguration())  # initialise
     muk = Muk()
 
     gpfs = GpfsOperations()
@@ -93,12 +93,12 @@ def main():
     for institute in pilot_projects.keys():
         group_name = "%st1_mukusers" % institute
         try:
-            group = l.group_filter_search(CnFilter(group_name))[0]
+            group = ldap_query.group_filter_search(CnFilter(group_name))[0]
         except:
             log.error("No LDAP group with the name %s found" % (group_name))
             continue
 
-        owner = l.user_filter_search(CnFilter(group['moderator'][0]))[0]
+        owner = ldap_query.user_filter_search(CnFilter(group['moderator'][0]))[0]
 
         project_fileset_name = pilot_projects[institute]
         project_fileset_path = os.path.join(scratch['defaultMountPoint'], 'projects', project_fileset_name)

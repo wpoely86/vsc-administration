@@ -79,7 +79,7 @@ class VscVo(VscLdapGroup):
         elif mount_point == "gpfs":
             mount_path = self.storage[storage].gpfs_mount_point
         else:
-            self.log.raiseException("mount_point is not login or gpfs")
+            self.log.raiseException("mount_point (%s)is not login or gpfs" % (mount_point))
 
         return os.path.join(mount_path, template[0], template[1](self.vo_id))
 
