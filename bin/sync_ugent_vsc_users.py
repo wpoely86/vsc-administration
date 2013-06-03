@@ -189,20 +189,23 @@ def main():
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
 
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
-        logger.info("Filter for looking up new UGent users = %s" % (timestamp_filter))
+        logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
         ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
-        logger.debug("Using the following LDAP filter" % (ugent_users_filter))
+        logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
 
         ugent_users = VscUser.lookup(ugent_users_filter)
         logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
         logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-
         (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
 
-        ugent_vo_filter = InstituteFilter(GENT) & CnFilter("gvo*") & timestamp_filter
+        ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
+        logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
+
         ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
+        logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
+        logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
         (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
 
