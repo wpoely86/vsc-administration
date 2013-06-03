@@ -27,7 +27,7 @@ from vsc.utils.generaloption import simple_option
 from vsc.utils.missing import Monoid, MonoidDict
 
 
-User = namedtuple('User',[
+User = namedtuple('User', [
     'vscid',
     'ugentid',
     'active',
@@ -38,9 +38,9 @@ User = namedtuple('User',[
 
 def get_hpc_collector_users(opts):
     """Get the users from UGent in the HPC collector database."""
-    c = cCol()
-    c.debug = opts.options.debug
-    users = c.getlist("member", "uid, inst, active")
+    collector = cCol()
+    collector.debug = opts.options.debug
+    users = collector.getlist("member", "uid, inst, active")
 
     opts.log.debug("Found the following users in the HPC collector DB: %s" % (users))
 
@@ -68,9 +68,9 @@ def ugent_status(opts, ldap_query, ugentid):
     users = ldap_query.user_filter_search(ldap_filter, ['objectClass'])
 
     if users:
-        objectClasses = users[0]['objectClass']
-        employee = objectClasses.count('ugentEmployee') > 0
-        student = objectClasses.count('ugentStudent') > 0
+        object_classes = users[0]['objectClass']
+        employee = object_classes.count('ugentEmployee') > 0
+        student = object_classes.count('ugentStudent') > 0
         opts.log.debug("User with UGent ID %s is employee: %s, student: %s" % (ugentid, employee, student))
         return (employee, student)
     else:
@@ -89,14 +89,14 @@ def main():
 
     opts = simple_option({})  # provides debug and logging
 
-    l = HpcLdapQuery(VscConfiguration())  # Initialise the LDAP connection
+    hpc_ldap_query = HpcLdapQuery(VscConfiguration())  # Initialise the LDAP connection
 
     users = get_hpc_collector_users(opts)
-    users = [u._replace(ugentid=get_ugent_id(opts, l, u.vscid)) for u in users]
+    users = [u._replace(ugentid=get_ugent_id(opts, hpc_ldap_query, u.vscid)) for u in users]
 
-    l = UGentLdapQuery(UGentLdapConfiguration("collector"))  # Initialise the LDAP connection
+    ugent_ldap_query = UGentLdapQuery(UGentLdapConfiguration("collector"))  # Initialise the LDAP connection
     users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in
-             [ugent_status(opts, l, u.ugentid)]]
+             [ugent_status(opts, ugent_ldap_query, u.ugentid)]]
 
     addm = Monoid(0, lambda x, y: x+y)
 
