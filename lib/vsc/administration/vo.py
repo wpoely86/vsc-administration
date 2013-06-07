@@ -105,7 +105,7 @@ class VscVo(VscLdapGroup):
         fileset_name = self.vo_id
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
-            self.log.info("Creating new fileset on %s scratch with name %s and path %s" % (filesystem_name,
+            self.log.info("Creating new fileset on %s with name %s and path %s" % (filesystem_name,
                                                                                            fileset_name,
                                                                                            path))
             base_dir_hierarchy = os.path.dirname(path)
