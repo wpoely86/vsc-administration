@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#/vulpix/home/gent!/usr/bin/env python
 ##
 #
 # Copyright 2012-2013 Ghent University
@@ -17,6 +17,7 @@ Sets up the basic structure on the UGent home and data storage
 """
 
 import os
+from ConfigParser import SafeConfigParser
 
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.ldap.utils import LdapQuery
@@ -24,6 +25,7 @@ from vsc.ldap.configuration import VscConfiguration
 from vsc.config.base import VscStorage
 from vsc.utils import fancylogger
 
+QUOTA_CONF_FILE = '/etc/quota_check.conf'
 
 log = fancylogger.getLogger('create_directory_trees_tier2_home_data')
 fancylogger.setLogLevelInfo()
@@ -56,19 +58,22 @@ def main():
     LdapQuery(VscConfiguration())  # initialise
     storage_settings = VscStorage()
 
+    local_storage_conf = SafeConfigParser()
+    local_storage_conf.read(QUOTA_CONF_FILE)
+
     gpfs = GpfsOperations()
     gpfs.list_filesystems()
     gpfs.list_filesets()
 
-    home_name = storage_settings['VSC_HOME'].filesystem
-    data_name = storage_settings['VSC_DATA'].filesystem
+    for storage_name in local_storage_conf.get('MAIN', 'storage').split(','):
 
-    home = gpfs.get_filesystem_info(home_name)
-    data = gpfs.get_filesystem_info(data_name)
-    #apps = gpfs.get_filesystem_info(storage_settings.apps_name)
+        filesystem_name = storage_settings[storage_name].filesystem
+        filesystem_info = gpfs.get_fileset_info(filesystem_name)
 
-    set_up_filesystem(gpfs, storage_settings, 'VSC_HOME', home, home_name)
-    set_up_filesystem(gpfs, storage_settings, 'VSC_DATA', data, data_name, vo_support=True)
+        if storage_name in ('VSC_HOME'):
+            set_up_filesystem(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name)
+        else:
+            set_up_filesystem(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name, vo_support=True)
 
 
 if __name__ == '__main__':
