@@ -1,4 +1,4 @@
-#/vulpix/home/gent!/usr/bin/env python
+#!/usr/bin/env python
 ##
 #
 # Copyright 2012-2013 Ghent University
@@ -41,7 +41,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
     if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(fileset_path, fileset_name)
         gpfs.chmod(0755, fileset_path)
-        log.info("Fileset users created and linked at %s" % (fileset_path))
+        log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
 
     if vo_support:
         # Create the basic vo fileset
@@ -50,7 +50,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
         if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, 'vos')
             gpfs.chmod(0755, vo_fileset_path)
-            log.info("Fileset vos created and linked at %s" % (vo_fileset_path))
+            log.info("Fileset %s created and linked at %s" % (fileset_name, vo_fileset_path))
 
 
 def main():
@@ -68,7 +68,7 @@ def main():
     for storage_name in local_storage_conf.get('MAIN', 'storage').split(','):
 
         filesystem_name = storage_settings[storage_name].filesystem
-        filesystem_info = gpfs.get_fileset_info(filesystem_name)
+        filesystem_info = gpfs.get_filesystem_info(filesystem_name)
 
         if storage_name in ('VSC_HOME'):
             set_up_filesystem(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name)
