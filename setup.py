@@ -49,6 +49,9 @@ PACKAGE = {
         'vsc-filesystems >= 0.6',
         'lockfile >= 0.9.1',
     ],
+    'scripts': [
+        'get_overview_users.py',
+    ],
     'provides': ['python-vsc-administration = 0.3'],
 }
 
