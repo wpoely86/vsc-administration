@@ -26,11 +26,10 @@ The following actions are available for users:
 """
 
 import os
-from lockfile.pidlockfile import PIDLockFile
 
 from vsc import fancylogger
 from vsc.administration.institute import Institute
-from vsc.config.base import VSC, Muk
+from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -56,8 +55,18 @@ class VscUser(VscLdapUser):
     #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
     #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    def __init__(self, user_id):
+    def __init__(self, user_id, storage=None):
         super(VscUser, self).__init__(user_id)
+
+        self.vsc = VSC()
+
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        self.gpfs = GpfsOperations()  # Only used when needed
+        self.posix = PosixOperations()
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user."""
@@ -99,13 +108,6 @@ class VscUser(VscLdapUser):
         else:
             return None
 
-    def modify_status(self, status):
-        """Modify the status from the user."""
-
-        #FIXME: Should be in the VscLdapUser superclass
-        self.status  # force load
-        self.status = status
-
     @classmethod
     def add(cls, login, institute, gecos, mail_address, key):
         """Add a user to the LDAP.
@@ -124,6 +126,8 @@ class VscUser(VscLdapUser):
 
         @raise: NoSuchInstituteError if the institute does not exist.
         @raise: FIXME: should raise an error if the user already exists in the LDAP
+
+        FIXME: Since we have the data in the django DB, we can pass it along here and use this for synchronising the LDAP.
         """
         vsc = VSC()
         if not institute in vsc.institutes:
@@ -139,7 +143,7 @@ class VscUser(VscLdapUser):
             if not user is None:
                 log.raiseException("User %s@%s already exists in LDAP" % (login, institute))
 
-            log.info("VscUser.add: did not find user %s@%s to add, proceeding" % (user.__class__.__name__, login, institute))
+            log.info("VscUser.add: did not find user %s@%s to add, proceeding" % (login, institute))
 
             # Determine VSC-specific attributes to set in the LDAP.
             user_id = Institute(institute).get_next_member_uid()  # numerical ID
@@ -187,17 +191,6 @@ class VscUser(VscLdapUser):
             VscUser.unlock()
         return None
 
-    def post_add(self, user, institute, gecos, mail_address):
-        """Do some post processing of the user, depending on his institute.
-
-        @type user
-        @type institute
-        @type gecos
-        @type mail_address
-        """
-        if institute == "gent":
-            self.__post_add_gent(user, institute, gecos, mail_address)
-
     def modify_quota(self, data_quota=None, scratch_quota=None):
         """Modify the data or scratch quota for a given user.
 
@@ -221,77 +214,144 @@ class VscUser(VscLdapUser):
             self.ldap_query.user_modify(self.cn, {'scratchQuota': scratch_quota})
             self.scratch_quota = scratch_quota
 
-    def __post_add_gent(self, user, institute, gecos, mail_address):
-        """Do some post-processing for added users if they belong to the gent institute.
+    def _create_grouping_fileset(self, filesystem_name, path):
+        """Create a fileset for a group of 100 user accounts
 
-        @type user
-        @type institute
-        @type gecos
-        @type mail_address
+        - creates the fileset if it does not already exist
         """
-        pass
-        #FIXME: this generates output, so we'll do this afterwards
+        self.gpfs.list_filesets()
+        fileset_name = self.vsc.user_grouping(self.user_id)
+        self.log.info("Trying to create the grouping fileset %s with link path %s" % (fileset_name, path))
 
-    def set_home(self):
+        if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
+            self.log.info("Creating new fileset on %s with name %s and path %s" % (filesystem_name,
+                                                                                   fileset_name,
+                                                                                   path))
+            base_dir_hierarchy = os.path.dirname(path)
+            self.gpfs.make_dir(base_dir_hierarchy)
+            self.gpfs.make_fileset(path, fileset_name)
+        else:
+            self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.user_id))
+
+        self.gpfs.chmod(0755, path)
+
+    def _get_path(self, storage, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage."""
+
+        template = self.storage.path_templates[storage]['user']
+        if mount_point == "login":
+            mount_path = self.storage[storage].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage].gpfs_mount_point
+        else:
+            self.log.raiseException("mount_point (%s) is not login or gpfs" % (mount_point))
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+    def _get_grouping_path(self, storage, mount_point="gpfs"):
+        """Get the path for the user group directory (and associated fileset)."""
+
+        template = self.storage.path_templates[storage]['user_grouping']
+        if mount_point == "login":
+            mount_path = self.storage[storage].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage].gpfs_mount_point
+        else:
+            self.log.raiseException("mount_point (%s) is not login or gpfs" % (mount_point))
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+    def _home_path(self, mount_point="gpfs"):
+        """Return the path to the home dir."""
+
+        return self._get_path('VSC_HOME', mount_point)
+
+    def _data_path(self, mount_point="gpfs"):
+        """Return the path to the data dir."""
+
+        return self._get_path('VSC_DATA', mount_point)
+
+    def _grouping_data_path(self, mount_point="gpfs"):
+        """Return the path to the grouping fileset for the users on data."""
+
+        return self._get_grouping_path('VSC_DATA', mount_point)
+
+    def create_home_dir(self):
         """Create all required files in the (future) user's home directory.
 
-        Note that:
-        - we can do this as root
-        - we need to use the numerical IDs from the LDAP database, since the
-        user as such does not necessarily exist on the machine where we are
-        running this.
-
-        TODO:
-        - check for errors and clean up if required!
+        Requires to be run on a system where the appropriate GPFS is mounted.
+        Always set the quota.
         """
-        ## Create directories
-        os.mkdir(os.path.join(self.homeDirectory, '.ssh'), mode=0700)
-        os.mkdir(self.dataDirectory, mode=0700)
-        os.mkdir(self.scratchDirectory, mode=0700)
+        try:
+            path = self._home_path()
+            self._create_user_dir(path)
+        except:
+            self.log.raiseException("Could not create home dir for user %s" % (self.user_id))
 
-        ## SSH keys
-        fp = open(os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'), 'w')
-        for key in self.pubkey:
-            fp.write(key + "\n")
-        fp.close()
-        os.chmod(os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'), 0644)
+    def create_data_dir(self):
+        """Create the user's directory on the HPC data filesystem.
 
-        ## bash shizzle
-        open(os.path.join(self.homeDirectory, '.bashrc')).close()
-        fp = open(os.path.join(self.homeDirectory), '.bash_profile')
-        fp.write('if [ -f ~/.bashrc ]; then\n . ~/.bashrc\nfi\n')
-        fp.close()
+        Required to be run on a system where the appropriate GPFS is mounted."""
+        try:
+            path = self._grouping_data_path()
+            self._create_grouping_fileset(self.storage['VSC_DATA'].filesystem, path)
 
-        # when we added a user, we also added groups in the LDAP database with the
-        # same name. So, given that these groups exist, we can change group
-        # ownership for all created files and directories to this group
-        for f in [os.path.join(self.homeDirectory, '.ssh'),
-                  self.data_directory,
-                  self.scratch_directory,
-                  os.path.join(self.homeDirectory, '.ssh', 'authorized_keys'),
-                  os.path.join(self.homeDirectory, '.bashrc'),
-                  os.path.join(self.homeDirectory, '.bash_profile')]:
-            os.chown(f, self.user_id, self.group_id)
+            path = self._data_path()
+            self._create_user_dir(path)
+        except:
+            self.log.raiseException("Could not create data dir for user %s at %s" % (self.user_id, path))
 
-    def set_quota(self):
-        ## set the quota for the user
-        #set_gpfs_user_quota(self.user_id, self.homeDirectory, self.homeQuota)
-        #set_gpfs_user_quota(self.user_id, self.dataDirectory, self.dataQuota)
-        #set_gpfs_user_quota(self.user_id, self.scratchDirectory, self.scratchQuota)
+    def _create_user_dir(self, path):
+        """Create a user owned directory on the GPFS."""
+        self.gpfs.make_dir(path)
+        self.gpfs.chmod(0700, path)
+        self.gpfs.chown(int(self.uidNumber), int(self.gidNumber), path)
 
-        ## FIXME: what about gold?
-        pass
+    def _set_quota(self, quota, path):
+        """Set quota on the target path.
 
-    @classmethod
-    def __generate_name(cls, numerical_user_id):
-        """Generate a name for a VSC user based on the numerical VSC user ID.
-
-        @type numerical_user_id: integer representing a numeric user ID on the VSC
-
-        @returns: name of the user on the VSC as a string
+        @type quota: int
+        @type path: path into a GPFS mount
         """
-        id = numerical_user_id % 100000  # retain last 5 digits
-        return ''.join(['vsc', str(id)])
+        quota *= 1024
+        soft = int(self.vsc.quota_soft_fraction * quota)
+
+        self.log.info("Setting quota on %s to %d" % (path, quota))
+
+        # LDAP information is expressed in KiB, GPFS wants bytes.
+        self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota)
+        self.gpfs.set_user_grace(path, self.vsc.user_storage_grace_time)  # 7 days
+
+    def set_home_quota(self):
+        """Set USR quota on the home FS in the user fileset."""
+        path = self._home_path()
+        self._set_quota(self.vsc.user_quota_home * self.vsc.quota_soft_fraction, path)
+
+    def set_data_quota(self):
+        """Set USR quota on the data FS in the user fileset."""
+        path = self._grouping_data_path()
+        self._set_quota(self.vsc.user_quota_data * self.vsc.quota_soft_fraction, path)
+
+    def populate_home_dir(self):
+        """Store the required files in the user's home directory.
+
+        Does not overwrite files that may contain user defined content.
+        """
+        path = self._home_path()
+        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - otherwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscUser, self).__setattr__(name, value)
 
 
 class MukUser(VscLdapUser):
