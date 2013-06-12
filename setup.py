@@ -36,23 +36,27 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.6',
+    'version': '0.7',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
     'namespace_packages': ['vsc'],
     'install_requires': [
-        'vsc-base >= 0.90',
-        'vsc-ldap >= 0.90',
-        'vsc-ldap-extension >= 0.90',
-        'vsc-config >= 0.90',
-        'vsc-filesystems >= 0.6',
+        'vsc-base >= 1.4.2',
+        'vsc-ldap >= 1.1',
+        'vsc-ldap-extension >= 1.3',
+        'vsc-config >= 1.2',
+        'vsc-filesystems >= 0.8',
         'lockfile >= 0.9.1',
     ],
     'scripts': [
+        'create_muk_scratch_directory_tree.py',
+        'create_tier2_ugent_home_data_directory_tree.py',
         'get_overview_users.py',
+        'sync_ugent_vsc_users.py',
+        'sync_muk_users.py',
     ],
-    'provides': ['python-vsc-administration = 0.3'],
+    'provides': ['python-vsc-administration = 0.7'],
 }
 
 
