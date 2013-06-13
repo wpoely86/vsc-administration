@@ -50,11 +50,11 @@ PACKAGE = {
         'lockfile >= 0.9.1',
     ],
     'scripts': [
-        'create_muk_scratch_directory_tree.py',
-        'create_tier2_ugent_home_data_directory_tree.py',
-        'get_overview_users.py',
-        'sync_ugent_vsc_users.py',
-        'sync_muk_users.py',
+        'bin/create_muk_scratch_directory_tree.py',
+        'bin/create_tier2_ugent_home_data_directory_tree.py',
+        'bin/get_overview_users.py',
+        'bin/sync_ugent_vsc_users.py',
+        'bin/sync_muk_users.py',
     ],
     'provides': ['python-vsc-administration = 0.7'],
 }
