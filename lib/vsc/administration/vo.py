@@ -114,8 +114,10 @@ class VscVo(VscLdapGroup):
         else:
             self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
 
+        moderator = VscUser(self.moderator[0])
+
         self.gpfs.chmod(0700, path)
-        self.gpfs.chown(int(self.gidNumber), int(self.gidNumber), path)
+        self.gpfs.chown(int(moderator.uidNumber), int(self.gidNumber), path)
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -194,7 +196,7 @@ class VscVo(VscLdapGroup):
         FIXME: This should probably be some variable in a config setting instance
         """
         if self.dataQuota:
-            quota = int(self.dataQuota) / 2 * 1024  # expressed in bytes
+            quota = int(self.dataQuota or 0) / 2 * 1024  # expressed in bytes
         else:
             quota = 0
         self._set_member_quota(self._data_path, member, quota)
