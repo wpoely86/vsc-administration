@@ -24,6 +24,7 @@ Original Perl code by Stijn De Weirdt
 """
 
 import os
+import pwd
 
 from vsc import fancylogger
 from vsc.administration.user import VscUser
@@ -114,10 +115,14 @@ class VscVo(VscLdapGroup):
         else:
             self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
 
-        moderator = VscUser(self.moderator[0])
+        moderators = [m for m in [VscUser(m_) for m_ in self.moderator] if m.status == 'active']
 
-        self.gpfs.chmod(0700, path)
-        self.gpfs.chown(int(moderator.uidNumber), int(self.gidNumber), path)
+        self.gpfs.chmod(0770, path)
+
+        if moderators:
+            self.gpfs.chown(int(moderators[0].uidNumber), int(self.gidNumber), path)
+        else:
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, int(self.gidNumber), path)
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -133,7 +138,7 @@ class VscVo(VscLdapGroup):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
             path = self._scratch_path(storage)
-            self._create_fileset(self.storage[storage].filesystem, path, self.dataQuota)
+            self._create_fileset(self.storage[storage].filesystem, path)
         except AttributeError:
             self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
@@ -215,30 +220,34 @@ class VscVo(VscLdapGroup):
             quota = 0
         self._set_member_quota(self._scratch_path, member, quota)
 
-    def _set_member_symlink(self, member, origin, target):
+    def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
+
+        self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
         try:
+            # This is the real directory on the GPFS
             self.gpfs.make_dir(target)
             self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
-                self.gpfs.make_symlink(target, origin)
-            self.gpfs.ignorerealpathmismatch = True
-            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), origin)
-            self.gpfs.ignorerealpathmismatch = False
-        except PosixOperationError:
-            self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
+                # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
+                os.make_symlink(fake_target, origin)
+        except (PosixOperationError, OSError):
+            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
         if member.dataMoved:
             origin = member._data_path()
             target = os.path.join(self._data_path(), member.user_id)
-            self._set_member_symlink(member, origin, target)
+            fake_target = member.dataDirectory
+            self._set_member_symlink(member, origin, target, fake_target)
 
     def set_member_scratch_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
         if member.scratchMoved:
             origin = member._scratch_path()
             target = os.path.join(self._scratch_path(), member.user_id)
-            self._set_member_symlink(member, origin, target)
+            # FIXME: should be different for different filesystems
+            fake_target = member.scratchDirectory
+            self._set_member_symlink(member, origin, target, fake_target)
