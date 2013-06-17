@@ -223,7 +223,7 @@ class VscVo(VscLdapGroup):
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
 
-        self.log.info("Creating a symlink for %s from %s to %s" % (member, origin, target))
+        self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
         try:
             # This is the real directory on the GPFS
             self.gpfs.make_dir(target)
@@ -232,11 +232,8 @@ class VscVo(VscLdapGroup):
                 self.gpfs.remove_obj(origin)
                 # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
                 os.make_symlink(fake_target, origin)
-            self.gpfs.ignorerealpathmismatch = True
-            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), origin)
-            self.gpfs.ignorerealpathmismatch = False
         except (PosixOperationError, OSError):
-            self.log.exception("Could not create the symlink from %s to %s [%s] for %s" % (origin, fake_target, target, member.user_id))
+            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
