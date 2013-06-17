@@ -114,7 +114,7 @@ class VscVo(VscLdapGroup):
         else:
             self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
 
-        moderators = [m for m in [VscLdapUser(m_) for m_ in self.moderator] if m.status == 'active']
+        moderators = [m for m in [VscUser(m_) for m_ in self.moderator] if m.status == 'active']
 
         self.gpfs.chmod(0700, path)
 
