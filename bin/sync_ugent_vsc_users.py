@@ -193,6 +193,7 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
+        (user_ok, users_critical) = ([], [])
         if opts.options.user:
             ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
             logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
@@ -202,9 +203,8 @@ def main():
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
             (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
-        else:
-            (user_ok, users_critical) = ([], [])
 
+        (vos_ok, vos_critical) = ([], [])
         if opts.options.vo:
             ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
             logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
@@ -214,8 +214,6 @@ def main():
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
             (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
-        else:
-            (vos_ok, vos_critical) = ([], [])
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
