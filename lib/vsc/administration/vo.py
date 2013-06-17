@@ -117,7 +117,7 @@ class VscVo(VscLdapGroup):
 
         moderators = [m for m in [VscUser(m_) for m_ in self.moderator] if m.status == 'active']
 
-        self.gpfs.chmod(0700, path)
+        self.gpfs.chmod(0770, path)
 
         if moderators:
             self.gpfs.chown(int(moderators[0].uidNumber), int(self.gidNumber), path)
@@ -222,6 +222,8 @@ class VscVo(VscLdapGroup):
 
     def _set_member_symlink(self, member, origin, target):
         """Create a symlink for this user from origin to target"""
+
+        self.log.info("Creating a symlink for %s from %s to %s" % (member, origin, target))
         try:
             self.gpfs.make_dir(target)
             self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
