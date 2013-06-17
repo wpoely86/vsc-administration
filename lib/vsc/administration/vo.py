@@ -220,32 +220,37 @@ class VscVo(VscLdapGroup):
             quota = 0
         self._set_member_quota(self._scratch_path, member, quota)
 
-    def _set_member_symlink(self, member, origin, target):
+    def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
 
         self.log.info("Creating a symlink for %s from %s to %s" % (member, origin, target))
         try:
+            # This is the real directory on the GPFS
             self.gpfs.make_dir(target)
             self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
-                self.gpfs.make_symlink(target, origin)
+                # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
+                os.make_symlink(fake_target, origin)
             self.gpfs.ignorerealpathmismatch = True
             self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), origin)
             self.gpfs.ignorerealpathmismatch = False
-        except PosixOperationError:
-            self.log.exception("Could not create the symlink from %s to %s for %s" % (origin, target, member.user_id))
+        except (PosixOperationError, OSError):
+            self.log.exception("Could not create the symlink from %s to %s [%s] for %s" % (origin, fake_target, target, member.user_id))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
         if member.dataMoved:
             origin = member._data_path()
             target = os.path.join(self._data_path(), member.user_id)
-            self._set_member_symlink(member, origin, target)
+            fake_target = member.dataDirectory
+            self._set_member_symlink(member, origin, target, fake_target)
 
     def set_member_scratch_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
         if member.scratchMoved:
             origin = member._scratch_path()
             target = os.path.join(self._scratch_path(), member.user_id)
-            self._set_member_symlink(member, origin, target)
+            # FIXME: should be different for different filesystems
+            fake_target = member.scratchDirectory
+            self._set_member_symlink(member, origin, target, fake_target)
