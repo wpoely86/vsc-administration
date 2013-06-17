@@ -134,7 +134,7 @@ def process_vos(options, vos, storage):
                     logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
                     error_vos[vo.vo_id] = [user]
         except:
-            logger.exception("Something went wrong setting up the VO %s on the storage" % (vo.vo_id, storage))
+            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage))
 
     return (ok_vos, error_vos)
 
