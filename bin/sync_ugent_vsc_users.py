@@ -103,29 +103,45 @@ def notify_vo_directory_created(vo, dry_run = True):
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
 
-def process_users(options, users, storage):
+def process_users(options, users, storage, storage_system):
     """
     Process the users.
 
-    - make their home directory
-    - populate their home directory
-    - make their data directory
+    We make a distinction here between three types of filesystems.
+        - home (unique)
+            - create and populate the home directory
+        - data (unique)
+            - create the grouping fileset if needed
+            - create the user data directory
+        - scratch (multiple)
+            - create the grouping fileset if needed
+            - create the user scracth directory
+
+    The following are done everywhere:
+        - set quota and permissions
     """
     error_users = []
     ok_users = []
+
     for user in users:
         if options.dry_run:
             user.dry_run = True
 
         try:
-            user.create_home_dir()
-            user.set_home_quota()
-            user.populate_home_dir()
+            if storage_system in ['VSC_HOME']:
+                user.create_home_dir()
+                user.set_home_quota()
+                user.populate_home_dir()
 
-            notify_user_directory_created(user, options.dry_run)
+            if storage_system in ['VSC_DATA']:
+                user.create_data_dir()
+                user.set_data_quota()
 
-            user.create_data_dir()
-            user.set_data_quota()
+            if storage_system in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
+                pass
+
+            if storage_system in ['VSC_HOME']:
+                notify_user_directory_created(user, options.dry_run)
 
             ok_users.append(user)
         except:
@@ -158,7 +174,7 @@ def process_vos(options, vos, storage):
             for user in vo.memberUid:
                 try:
                     vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                    vo.set_member_data_symlink(VscUser(user), storage[''])
+                    vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
                     ok_vos[vo.vo_id] = [user]
                 except:
                     logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
@@ -233,7 +249,10 @@ def main():
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
             for storage_system in opts.options.storage:
-                (users_ok, users_critical) = process_users(opts.options, ugent_users, storage[storage_system])
+                (users_ok, users_critical) = process_users(opts.options,
+                                                           ugent_users,
+                                                           storage[storage_system],
+                                                           storage_system)
 
         (vos_ok, vos_critical) = ([], [])
         if opts.options.vo:
@@ -245,7 +264,10 @@ def main():
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
             for storage_system in opts.options.storage:
-                (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage[storage_system])
+                (vos_ok, vos_critical) = process_vos(opts.options,
+                                                     ugent_vos,
+                                                     storage[storage_system],
+                                                     storage_system)
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
