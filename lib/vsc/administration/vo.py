@@ -24,6 +24,7 @@ Original Perl code by Stijn De Weirdt
 """
 
 import os
+import pwd
 
 from vsc import fancylogger
 from vsc.administration.user import VscUser
