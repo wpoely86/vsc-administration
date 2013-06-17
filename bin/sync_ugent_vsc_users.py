@@ -158,7 +158,7 @@ def process_vos(options, vos, storage):
             for user in vo.memberUid:
                 try:
                     vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                    vo.set_member_data_symlink(VscUser(user))
+                    vo.set_member_data_symlink(VscUser(user), storage[''])
                     ok_vos[vo.vo_id] = [user]
                 except:
                     logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
@@ -232,7 +232,8 @@ def main():
             logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-            (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
+            for storage_system in opts.options.storage:
+                (users_ok, users_critical) = process_users(opts.options, ugent_users, storage[storage_system])
 
         (vos_ok, vos_critical) = ([], [])
         if opts.options.vo:
@@ -243,7 +244,8 @@ def main():
             logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
-            (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
+            for storage_system in opts.options.storage:
+                (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage[storage_system])
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
