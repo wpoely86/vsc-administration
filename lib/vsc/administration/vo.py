@@ -138,7 +138,7 @@ class VscVo(VscLdapGroup):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
             path = self._scratch_path(storage)
-            self._create_fileset(self.storage[storage].filesystem, path, self.dataQuota)
+            self._create_fileset(self.storage[storage].filesystem, path)
         except AttributeError:
             self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
