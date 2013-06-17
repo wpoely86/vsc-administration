@@ -205,7 +205,7 @@ def main():
         else:
             (user_ok, users_critical) = ([], [])
 
-        if opts.options.vos:
+        if opts.options.vo:
             ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
             logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
 
