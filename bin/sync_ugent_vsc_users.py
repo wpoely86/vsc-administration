@@ -157,6 +157,8 @@ def main():
         'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store',
                                             NAGIOS_CHECK_INTERVAL_THRESHOLD),
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
+        'user': ('process users', None, 'store_true', False),
+        'vo': ('process vos', None, 'store_true', False),
     }
 
     opts = simple_option(options)
@@ -191,23 +193,29 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
-        ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
-        logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
+        if opts.options.user:
+            ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
+            logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
 
-        ugent_users = VscUser.lookup(ugent_users_filter)
-        logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
-        logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
+            ugent_users = VscUser.lookup(ugent_users_filter)
+            logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
+            logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-        (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
+            (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
+        else:
+            (user_ok, users_critical) = ([], [])
 
-        ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
-        logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
+        if opts.options.vos:
+            ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
+            logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
 
-        ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
-        logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
-        logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
+            ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
+            logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
+            logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
-        (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
+            (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
+        else:
+            (vos_ok, vos_critical) = ([], [])
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
