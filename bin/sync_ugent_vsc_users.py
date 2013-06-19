@@ -71,6 +71,9 @@ def notify_user_directory_created(user, dry_run=True):
     if user.status == 'new':
         user.status = 'notify'
         logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
+    elif user.status == 'modify':
+        user.status = 'active'
+        logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
     else:
         logger.info("User %s has LDAP status %s, not changing to notify" % (user.user_id, user.status))
 
