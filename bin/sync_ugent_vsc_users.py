@@ -75,7 +75,7 @@ def notify_user_directory_created(user, dry_run=True):
         user.status = 'active'
         logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
     else:
-        logger.info("User %s has LDAP status %s, not changing to notify" % (user.user_id, user.status))
+        logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
 
 
 def process_users(options, users, storage):
