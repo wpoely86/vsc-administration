@@ -253,3 +253,18 @@ class VscVo(VscLdapGroup):
             # FIXME: should be different for different filesystems
             fake_target = member.scratchDirectory
             self._set_member_symlink(member, origin, target, fake_target)
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - otherwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscVo, self).__setattr__(name, value)
+
+
