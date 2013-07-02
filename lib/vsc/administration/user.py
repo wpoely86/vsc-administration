@@ -263,27 +263,22 @@ class VscUser(VscLdapUser):
 
     def _home_path(self, mount_point="gpfs"):
         """Return the path to the home dir."""
-
         return self._get_path('VSC_HOME', mount_point)
 
     def _data_path(self, mount_point="gpfs"):
         """Return the path to the data dir."""
-
         return self._get_path('VSC_DATA', mount_point)
 
     def _scratch_path(self, storage_name, mount_point="gpfs"):
         """Return the path to the scratch dir"""
-
         return self._get_path(storage_name, mount_point)
 
     def _grouping_data_path(self, mount_point="gpfs"):
         """Return the path to the grouping fileset for the users on data."""
-
         return self._get_grouping_path('VSC_DATA', mount_point)
 
     def _grouping_scratch_path(self, storage_name, mount_point="gpfs"):
         """Return the path to the grouping fileset for the users on the given scratch filesystem."""
-
         return self._get_grouping_path(storage_name, mount_point)
 
     def create_home_dir(self):
