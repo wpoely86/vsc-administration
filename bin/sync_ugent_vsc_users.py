@@ -132,16 +132,17 @@ def process_users(options, users, storage, storage_system):
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
+                notify_user_directory_created(user, options.dry_run)
 
             if storage_system in ['VSC_DATA']:
                 user.create_data_dir()
                 user.set_data_quota()
 
             if storage_system in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
-                pass
+                user.create_scratch_dir()
 
-            if storage_system in ['VSC_HOME']:
-                notify_user_directory_created(user, options.dry_run)
+            if storage_system in ['VSC_SCRATCH_GENGAR']:
+                user.set_scratch_quota()
 
             ok_users.append(user)
         except:
