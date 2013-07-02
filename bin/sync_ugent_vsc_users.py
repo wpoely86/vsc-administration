@@ -97,10 +97,10 @@ def process_users(options, users, storage):
             user.set_home_quota()
             user.populate_home_dir()
 
+            notify_user_directory_created(user, options.dry_run)
+
             user.create_data_dir()
             user.set_data_quota()
-
-            notify_user_directory_created(user, options.dry_run)
 
             ok_users.append(user)
         except:
