@@ -344,7 +344,7 @@ class VscUser(VscLdapUser):
         quota *= 1024
         soft = int(self.vsc.quota_soft_fraction * quota)
 
-        self.log.info("Setting quota on %s to %d" % (path, quota))
+        self.log.info("Setting quota for %s on %s to %d" % (storage_name, path, quota))
 
         # LDAP information is expressed in KiB, GPFS wants bytes.
         self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota)
