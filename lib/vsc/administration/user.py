@@ -329,12 +329,18 @@ class VscUser(VscLdapUser):
         self.gpfs.chmod(0700, path)
         self.gpfs.chown(int(self.uidNumber), int(self.gidNumber), path)
 
-    def _set_quota(self, quota, path):
+    def _set_quota(self, storage_name, path):
         """Set quota on the target path.
 
         @type quota: int
         @type path: path into a GPFS mount
         """
+
+        quota = self.storage[storage_name].user_quota
+        if not quota:
+            self.log.warning("No user quota set for %s" % (storage_name))
+            return
+
         quota *= 1024
         soft = int(self.vsc.quota_soft_fraction * quota)
 
@@ -347,12 +353,12 @@ class VscUser(VscLdapUser):
     def set_home_quota(self):
         """Set USR quota on the home FS in the user fileset."""
         path = self._home_path()
-        self._set_quota(self.vsc.user_quota_home * self.vsc.quota_soft_fraction, path)
+        self._set_quota('VSC_HOME', path)
 
     def set_data_quota(self):
         """Set USR quota on the data FS in the user fileset."""
         path = self._grouping_data_path()
-        self._set_quota(self.vsc.user_quota_data * self.vsc.quota_soft_fraction, path)
+        self._set_quota('VSC_DATA', path)
 
     def set_scratch_quota(self, storage_name):
         """Set USR quota on the scratch FS in the user fileset.
@@ -363,9 +369,9 @@ class VscUser(VscLdapUser):
             path = self._grouping_scratch_path(storage_name)
         else:
             # Hack; this should actually become the link path of the fileset that contains the path (the file, not the followed symlink)
-            path = os.path.normpath(os.path.join(self._scratch_path(), '..'))
+            path = os.path.normpath(os.path.join(self._scratch_path(storage_name), '..'))
 
-        self._set_quota(self.vsc.user_quota_scratch * self.vsc.quota_soft_fraction, path)
+        self._set_quota(storage_name, path)
 
     def populate_home_dir(self):
         """Store the required files in the user's home directory.
