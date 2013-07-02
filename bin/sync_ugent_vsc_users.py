@@ -61,6 +61,8 @@ def notify_user_directory_created(user, dry_run=True):
     Currently, this is tailored to our LDAP-based setup.
     - if the LDAP state is new:
         change the state to notify
+    - if the LDAP state is modify:
+        change the state to active
     - otherwise, the user account already was active in the past, and we simply have an idempotent script.
     """
 
@@ -76,6 +78,29 @@ def notify_user_directory_created(user, dry_run=True):
         logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
     else:
         logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
+
+def notify_vo_directory_created(vo, dry_run = True):
+    """Make sure the rest of the subsystems know that the VO status has changed.
+
+    Currently, this is tailored to our LDAP-based setup.
+    - if the LDAP state is new:
+        change the state to notify
+    - if the LDAP state is modify:
+        change the state to active
+    - otherwise, the VO already was active in the past, and we simply have an idempotent script.
+    """
+    if dry_run:
+        logger.info("VO %s has LDAP status %s. Dry-run so not changing anything" % (vo.vo_id, vo.status))
+        return
+
+    if vo.status == 'new':
+        vo.status = 'notify'
+        logger.info("VO %s changed LDAP status from new to notify" % (vo.vo_id))
+    elif vo.status == 'modify':
+        vo.status = 'active'
+        logger.info("VO %s changed LDAP status from modify to active" % (vo.vo_id))
+    else:
+        logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
 
 def process_users(options, users, storage):
@@ -127,6 +152,8 @@ def process_vos(options, vos, storage):
             vo.status # force LDAP attribute load
             vo.create_data_fileset()
             vo.set_data_quota()
+
+            notify_vo_directory_created(vo, options.dry_run)
 
             for user in vo.memberUid:
                 try:
