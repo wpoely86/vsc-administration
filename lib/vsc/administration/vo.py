@@ -204,6 +204,8 @@ class VscVo(VscLdapGroup):
             quota = int(self.dataQuota or 0) / 2 * 1024  # expressed in bytes
         else:
             quota = 0
+
+        self.log.info("Setting the data quota for VO %s member %s to %d GiB" % (self.vo_id, member, ))
         self._set_member_quota(self._data_path, member, quota)
 
     def set_member_scratch_quota(self, member):
