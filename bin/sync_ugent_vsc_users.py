@@ -103,7 +103,7 @@ def notify_vo_directory_created(vo, dry_run = True):
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
 
-def process_users(options, users, storage, storage_system):
+def process_users(options, users, storage, storage_name):
     """
     Process the users.
 
@@ -115,7 +115,7 @@ def process_users(options, users, storage, storage_system):
             - create the user data directory
         - scratch (multiple)
             - create the grouping fileset if needed
-            - create the user scracth directory
+            - create the user scratch directory
 
     The following are done everywhere:
         - set quota and permissions
@@ -128,20 +128,20 @@ def process_users(options, users, storage, storage_system):
             user.dry_run = True
 
         try:
-            if storage_system in ['VSC_HOME']:
+            if storage_name in ['VSC_HOME']:
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
                 notify_user_directory_created(user, options.dry_run)
 
-            if storage_system in ['VSC_DATA']:
+            if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
                 user.set_data_quota()
 
-            if storage_system in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
+            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
                 user.create_scratch_dir()
 
-            if storage_system in ['VSC_SCRATCH_GENGAR']:
+            if storage_name in ['VSC_SCRATCH_GENGAR']:
                 user.set_scratch_quota()
 
             ok_users.append(user)
@@ -152,7 +152,7 @@ def process_users(options, users, storage, storage_system):
     return (ok_users, error_users)
 
 
-def process_vos(options, vos, storage):
+def process_vos(options, vos, storage, storage_name):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -165,21 +165,42 @@ def process_vos(options, vos, storage):
     error_vos = MonoidDict(copy.deepcopy(listm))
 
     for vo in vos:
+        if options.dry_run:
+            vo.dry_run = True
         try:
             vo.status # force LDAP attribute load
-            vo.create_data_fileset()
-            vo.set_data_quota()
 
-            notify_vo_directory_created(vo, options.dry_run)
+            if storage_name in ['VSC_DATA']:
+                vo.create_data_fileset()
+                vo.set_data_quota()
 
-            for user in vo.memberUid:
-                try:
-                    vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                    vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
-                    ok_vos[vo.vo_id] = [user]
-                except:
-                    logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
-                    error_vos[vo.vo_id] = [user]
+                notify_vo_directory_created(vo, options.dry_run)
+
+                for user in vo.memberUid:
+                    try:
+                        vo.set_member_data_quota(VscUser(user))  # half of the VO quota
+                        vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
+                        ok_vos[vo.vo_id] = [user]
+                    except:
+                        logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                        error_vos[vo.vo_id] = [user]
+
+            if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+                vo.create_scratch_fileset()
+                vo.set_scratch_quota()
+
+                for user in vo.memberUid:
+                    try:
+                        vo.set_member_scratch_quota(VscUser(user))  # half of the VO quota
+
+                        if storage_name in ['VSC_SCRATCH_GENGAR']:
+                            vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
+                        ok_vos[vo.vo_id] = [user]
+                    except:
+                        logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                        error_vos[vo.vo_id] = [user]
+
+
         except:
             logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage))
 
@@ -249,11 +270,11 @@ def main():
             logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-            for storage_system in opts.options.storage:
+            for storage_name in opts.options.storage:
                 (users_ok, users_critical) = process_users(opts.options,
                                                            ugent_users,
-                                                           storage[storage_system],
-                                                           storage_system)
+                                                           storage[storage_name],
+                                                           storage_name)
 
         (vos_ok, vos_critical) = ([], [])
         if opts.options.vo:
@@ -264,11 +285,11 @@ def main():
             logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
-            for storage_system in opts.options.storage:
+            for storage_name in opts.options.storage:
                 (vos_ok, vos_critical) = process_vos(opts.options,
                                                      ugent_vos,
-                                                     storage[storage_system],
-                                                     storage_system)
+                                                     storage[storage_name],
+                                                     storage_name)
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
