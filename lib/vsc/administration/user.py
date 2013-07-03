@@ -336,7 +336,7 @@ class VscUser(VscLdapUser):
         @type path: path into a GPFS mount
         """
 
-        quota = self.storage[storage_name].user_quota
+        quota = self.storage[storage_name].quota_user
         if not quota:
             self.log.warning("No user quota set for %s" % (storage_name))
             return
