@@ -206,7 +206,7 @@ class VscVo(VscLdapGroup):
         self.log.info("Setting the data quota for VO %s member %s to %d GiB" % (self.vo_id, member, quota / 1024 / 1024))
         self._set_member_quota(self._data_path(), member, quota)
 
-    def set_member_scratch_quota(self, storage_name. member):
+    def set_member_scratch_quota(self, storage_name, member):
         """Set the quota on the scratch FS for the member in the VO fileset.
 
         @type member: VscUser instance
@@ -226,30 +226,36 @@ class VscVo(VscLdapGroup):
         self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
         try:
             # This is the real directory on the GPFS
-            self.gpfs.make_dir(target)
+            created = self.gpfs.make_dir(target)
             self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+            if created:
+                self.gpfs.chmod(0700, target)
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
                 # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
                 os.make_symlink(fake_target, origin)
         except (PosixOperationError, OSError):
-            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
+            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" %
+                               (member.user_id, origin, fake_target, target))
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
         if member.dataMoved:
+            gpfs_mount_point = self.storage['VSC_DATA'].gpfs_mount_point
+            login_mount_point = self.storage['VSC_DATA'].login_mount_point
             origin = member._data_path()
             target = os.path.join(self._data_path(), member.user_id)
-            fake_target = member.dataDirectory
+            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
 
     def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
         if member.scratchMoved:
-            origin = member._scratch_path()
+            gpfs_mount_point = self.storage[storage_name].gpfs_mount_point
+            login_mount_point = self.storage[storage_name].login_mount_point
+            origin = member._scratch_path(storage_name)
             target = os.path.join(self._scratch_path(storage_name), member.user_id)
-            # FIXME: should be different for different filesystems
-            fake_target = member.scratchDirectory
+            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
 
     def __setattr__(self, name, value):

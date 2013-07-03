@@ -179,7 +179,7 @@ def process_vos(options, vos, storage, storage_name):
                 for user in vo.memberUid:
                     try:
                         vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                        vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
+                        vo.set_member_data_symlink(VscUser(user))
                         ok_vos[vo.vo_id] = [user]
                     except:
                         logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
@@ -194,7 +194,7 @@ def process_vos(options, vos, storage, storage_name):
                         vo.set_member_scratch_quota(storage_name, VscUser(user))  # half of the VO quota
 
                         if storage_name in ['VSC_SCRATCH_GENGAR']:
-                            vo.set_member_scratch_symlink(VscUser(storage_name, user), storage.login_mount_point)
+                            vo.set_member_scratch_symlink(storage_name, VscUser(user))
                         ok_vos[vo.vo_id] = [user]
                     except:
                         logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
@@ -255,6 +255,8 @@ def main():
         except:
             logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
+        last_timestamp = "201306120000Z"  # FIXME
+
 
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
 
