@@ -139,10 +139,10 @@ def process_users(options, users, storage, storage_name):
                 user.set_data_quota()
 
             if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
-                user.create_scratch_dir()
+                user.create_scratch_dir(storage_name)
 
             if storage_name in ['VSC_SCRATCH_GENGAR']:
-                user.set_scratch_quota()
+                user.set_scratch_quota(storage_name)
 
             ok_users.append(user)
         except:
@@ -186,15 +186,15 @@ def process_vos(options, vos, storage, storage_name):
                         error_vos[vo.vo_id] = [user]
 
             if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
-                vo.create_scratch_fileset()
-                vo.set_scratch_quota()
+                vo.create_scratch_fileset(storage_name)
+                vo.set_scratch_quota(storage_name)
 
                 for user in vo.memberUid:
                     try:
-                        vo.set_member_scratch_quota(VscUser(user))  # half of the VO quota
+                        vo.set_member_scratch_quota(storage_name, VscUser(user))  # half of the VO quota
 
                         if storage_name in ['VSC_SCRATCH_GENGAR']:
-                            vo.set_member_data_symlink(VscUser(user), storage.login_mount_point)
+                            vo.set_member_scratch_symlink(VscUser(storage_name, user), storage.login_mount_point)
                         ok_vos[vo.vo_id] = [user]
                     except:
                         logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
@@ -261,7 +261,7 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
-        (user_ok, users_critical) = ([], [])
+        (users_ok, users_critical) = ([], [])
         if opts.options.user:
             ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
             logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))

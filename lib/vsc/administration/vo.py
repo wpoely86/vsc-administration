@@ -148,7 +148,7 @@ class VscVo(VscLdapGroup):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-    def _set_quota(self, path_function, quota):
+    def _set_quota(self, path, quota):
         """Set FILESET quota on the FS for the VO fileset.
 
         @type quota: int
@@ -156,7 +156,6 @@ class VscVo(VscLdapGroup):
         @param quota: soft quota limit expressed in KiB
         """
         try:
-            path = path_function()
             quota *= 1024
             soft = int(quota * self.vsc.quota_soft_fraction)
 
@@ -169,24 +168,23 @@ class VscVo(VscLdapGroup):
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.dataQuota:
-            self._set_quota(self._data_path, int(self.dataQuota))
+            self._set_quota(self._data_path(), int(self.dataQuota))
         else:
-            self._set_quota(self._data_path, 0)
+            self._set_quota(self._data_path(), 0)
 
-    def set_scratch_quota(self, storage):
+    def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.scratchQuota:
-            self._set_quota(self._scratch_path, int(self.scratchQuota))
+            self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
         else:
-            self._set_quota(self._scratch_path, 0)
+            self._set_quota(self._scratch_path(storage_name), 0)
 
-    def _set_member_quota(self, path_function, member, quota):
+    def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
 
         @type member: VscUser instance
         """
         try:
-            path = path_function()
             soft = int(quota * self.vsc.quota_soft_fraction)
             self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
         except GpfsOperationError:
@@ -206,9 +204,9 @@ class VscVo(VscLdapGroup):
             quota = 0
 
         self.log.info("Setting the data quota for VO %s member %s to %d GiB" % (self.vo_id, member, quota / 1024 / 1024))
-        self._set_member_quota(self._data_path, member, quota)
+        self._set_member_quota(self._data_path(), member, quota)
 
-    def set_member_scratch_quota(self, member):
+    def set_member_scratch_quota(self, storage_name. member):
         """Set the quota on the scratch FS for the member in the VO fileset.
 
         @type member: VscUser instance
@@ -220,7 +218,7 @@ class VscVo(VscLdapGroup):
             quota = int(self.scratchQuota or 0) / 2 * 1024
         else:
             quota = 0
-        self._set_member_quota(self._scratch_path, member, quota)
+        self._set_member_quota(self._scratch_path(storage_name), member, quota)
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
@@ -245,11 +243,11 @@ class VscVo(VscLdapGroup):
             fake_target = member.dataDirectory
             self._set_member_symlink(member, origin, target, fake_target)
 
-    def set_member_scratch_symlink(self, member):
+    def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
         if member.scratchMoved:
             origin = member._scratch_path()
-            target = os.path.join(self._scratch_path(), member.user_id)
+            target = os.path.join(self._scratch_path(storage_name), member.user_id)
             # FIXME: should be different for different filesystems
             fake_target = member.scratchDirectory
             self._set_member_symlink(member, origin, target, fake_target)
