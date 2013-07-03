@@ -255,7 +255,6 @@ def main():
         except:
             logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
-        last_timestamp = "201306120000Z"  # FIXME
 
 
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
