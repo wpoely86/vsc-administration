@@ -310,7 +310,8 @@ def main():
                           vos_critical=len(vos_critical))
     try:
         (timestamp, ldap_timestamp) = convert_timestamp()
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        if not opts.options.dry_run:
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
         nagios_reporter.cache(NAGIOS_EXIT_OK, result)
     except:
         logger.exception("Something broke writing the timestamp")
