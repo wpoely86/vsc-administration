@@ -27,7 +27,6 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 import copy
 import sys
 
-from vsc import fancylogger
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
 from vsc.config.base import GENT, VscStorage, VSC
@@ -35,6 +34,7 @@ from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils import fancylogger
 from vsc.utils.availability import proceed_on_ha_service
 from vsc.utils.generaloption import simple_option
 from vsc.utils.lock import lock_or_bork, release_or_bork
