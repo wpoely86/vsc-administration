@@ -27,7 +27,6 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 import copy
 import sys
 
-from vsc import fancylogger
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
 from vsc.config.base import GENT, VscStorage, VSC
@@ -35,6 +34,8 @@ from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils import fancylogger
+from vsc.utils.availability import proceed_on_ha_service
 from vsc.utils.generaloption import simple_option
 from vsc.utils.lock import lock_or_bork, release_or_bork
 from vsc.utils.missing import Monoid, MonoidDict
@@ -79,7 +80,7 @@ def notify_user_directory_created(user, dry_run=True):
     else:
         logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
 
-def notify_vo_directory_created(vo, dry_run = True):
+def notify_vo_directory_created(vo, dry_run=True):
     """Make sure the rest of the subsystems know that the VO status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -102,30 +103,46 @@ def notify_vo_directory_created(vo, dry_run = True):
     else:
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
-
-def process_users(options, users, storage):
+def process_users(options, users, storage_name):
     """
     Process the users.
 
-    - make their home directory
-    - populate their home directory
-    - make their data directory
+    We make a distinction here between three types of filesystems.
+        - home (unique)
+            - create and populate the home directory
+        - data (unique)
+            - create the grouping fileset if needed
+            - create the user data directory
+        - scratch (multiple)
+            - create the grouping fileset if needed
+            - create the user scratch directory
+
+    The following are done everywhere:
+        - set quota and permissions
     """
     error_users = []
     ok_users = []
+
     for user in users:
         if options.dry_run:
             user.dry_run = True
 
         try:
-            user.create_home_dir()
-            user.set_home_quota()
-            user.populate_home_dir()
+            if storage_name in ['VSC_HOME']:
+                user.create_home_dir()
+                user.set_home_quota()
+                user.populate_home_dir()
+                notify_user_directory_created(user, options.dry_run)
 
-            notify_user_directory_created(user, options.dry_run)
+            if storage_name in ['VSC_DATA']:
+                user.create_data_dir()
+                user.set_data_quota()
 
-            user.create_data_dir()
-            user.set_data_quota()
+            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
+                user.create_scratch_dir(storage_name)
+
+            if storage_name in ['VSC_SCRATCH_GENGAR']:
+                user.set_scratch_quota(storage_name)
 
             ok_users.append(user)
         except:
@@ -135,7 +152,7 @@ def process_users(options, users, storage):
     return (ok_users, error_users)
 
 
-def process_vos(options, vos, storage):
+def process_vos(options, vos, storage, storage_name):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -148,23 +165,42 @@ def process_vos(options, vos, storage):
     error_vos = MonoidDict(copy.deepcopy(listm))
 
     for vo in vos:
+        if options.dry_run:
+            vo.dry_run = True
         try:
             vo.status # force LDAP attribute load
-            vo.create_data_fileset()
-            vo.set_data_quota()
 
-            notify_vo_directory_created(vo, options.dry_run)
+            if storage_name in ['VSC_DATA']:
+                vo.create_data_fileset()
+                vo.set_data_quota()
+                notify_vo_directory_created(vo, options.dry_run)
+
+            if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+                vo.create_scratch_fileset(storage_name)
+                vo.set_scratch_quota(storage_name)
 
             for user in vo.memberUid:
                 try:
-                    vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                    vo.set_member_data_symlink(VscUser(user))
+                    member = VscUser(user)
+                    if storage_name in ['VSC_DATA']:
+                        vo.set_member_data_quota(member)  # half of the VO quota
+                        vo.create_member_data_dir(member)
+                        vo.set_member_data_symlink(member)
+
+                    if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+                        vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
+                        vo.create_member_scratch_dir(storage_name, member)
+
+                        if storage_name in ['VSC_SCRATCH_GENGAR']:
+                            vo.set_member_scratch_symlink(storage_name, VscUser(user))
                     ok_vos[vo.vo_id] = [user]
                 except:
-                    logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                    logger.exception("Failure at setting up the member %s of VO %s on %s" %
+                                     (user, vo.vo_id, storage_name))
                     error_vos[vo.vo_id] = [user]
         except:
-            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage))
+            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
+            error_vos[vo.vo_id] = vo.memberUid
 
     return (ok_vos, error_vos)
 
@@ -189,6 +225,7 @@ def main():
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
+        'ha': ('high-availability master IP address', None, 'store', None),
     }
 
     opts = simple_option(options)
@@ -204,6 +241,12 @@ def main():
 
     logger.info("Starting synchronisation of UGent users.")
 
+    if not proceed_on_ha_service(opts.options.ha):
+        logger.warning("Not running on the target host in the HA setup. Stopping.")
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING,
+                        NagiosResult("Not running on the HA master."))
+        sys.exit(NAGIOS_EXIT_WARNING)
+
     lockfile = TimestampedPidLockfile(SYNC_UGENT_USERS_LOCKFILE)
     lock_or_bork(lockfile, nagios_reporter)
 
@@ -218,12 +261,13 @@ def main():
             logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
 
+
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
 
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
-        (user_ok, users_critical) = ([], [])
+        (users_ok, users_critical) = ([], [])
         if opts.options.user:
             ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
             logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
@@ -232,7 +276,10 @@ def main():
             logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
-            (users_ok, users_critical) = process_users(opts.options, ugent_users, storage)
+            for storage_name in opts.options.storage:
+                (users_ok, users_critical) = process_users(opts.options,
+                                                           ugent_users,
+                                                           storage_name)
 
         (vos_ok, vos_critical) = ([], [])
         if opts.options.vo:
@@ -243,7 +290,11 @@ def main():
             logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
-            (vos_ok, vos_critical) = process_vos(opts.options, ugent_vos, storage)
+            for storage_name in opts.options.storage:
+                (vos_ok, vos_critical) = process_vos(opts.options,
+                                                     ugent_vos,
+                                                     storage[storage_name],
+                                                     storage_name)
 
     except Exception, err:
         logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
@@ -259,7 +310,8 @@ def main():
                           vos_critical=len(vos_critical))
     try:
         (timestamp, ldap_timestamp) = convert_timestamp()
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        if not opts.options.dry_run:
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
         nagios_reporter.cache(NAGIOS_EXIT_OK, result)
     except:
         logger.exception("Something broke writing the timestamp")

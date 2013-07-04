@@ -148,7 +148,7 @@ class VscVo(VscLdapGroup):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-    def _set_quota(self, path_function, quota):
+    def _set_quota(self, path, quota):
         """Set FILESET quota on the FS for the VO fileset.
 
         @type quota: int
@@ -156,7 +156,6 @@ class VscVo(VscLdapGroup):
         @param quota: soft quota limit expressed in KiB
         """
         try:
-            path = path_function()
             quota *= 1024
             soft = int(quota * self.vsc.quota_soft_fraction)
 
@@ -169,24 +168,23 @@ class VscVo(VscLdapGroup):
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.dataQuota:
-            self._set_quota(self._data_path, int(self.dataQuota))
+            self._set_quota(self._data_path(), int(self.dataQuota))
         else:
-            self._set_quota(self._data_path, 0)
+            self._set_quota(self._data_path(), 0)
 
-    def set_scratch_quota(self, storage):
+    def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.scratchQuota:
-            self._set_quota(self._scratch_path, int(self.scratchQuota))
+            self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
         else:
-            self._set_quota(self._scratch_path, 0)
+            self._set_quota(self._scratch_path(storage_name), 0)
 
-    def _set_member_quota(self, path_function, member, quota):
+    def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
 
         @type member: VscUser instance
         """
         try:
-            path = path_function()
             soft = int(quota * self.vsc.quota_soft_fraction)
             self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
         except GpfsOperationError:
@@ -206,9 +204,9 @@ class VscVo(VscLdapGroup):
             quota = 0
 
         self.log.info("Setting the data quota for VO %s member %s to %d GiB" % (self.vo_id, member, quota / 1024 / 1024))
-        self._set_member_quota(self._data_path, member, quota)
+        self._set_member_quota(self._data_path(), member, quota)
 
-    def set_member_scratch_quota(self, member):
+    def set_member_scratch_quota(self, storage_name, member):
         """Set the quota on the scratch FS for the member in the VO fileset.
 
         @type member: VscUser instance
@@ -220,7 +218,7 @@ class VscVo(VscLdapGroup):
             quota = int(self.scratchQuota or 0) / 2 * 1024
         else:
             quota = 0
-        self._set_member_quota(self._scratch_path, member, quota)
+        self._set_member_quota(self._scratch_path(storage_name), member, quota)
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
@@ -228,28 +226,64 @@ class VscVo(VscLdapGroup):
         self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
         try:
             # This is the real directory on the GPFS
-            self.gpfs.make_dir(target)
-            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
                 # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
                 os.make_symlink(fake_target, origin)
         except (PosixOperationError, OSError):
-            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
+            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" %
+                               (member.user_id, origin, fake_target, target))
+
+    def _create_member_dir(self, member, target):
+        """Create a member-owned directory in the VO fileset."""
+        created = self.gpfs.make_dir(target)
+        self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+        if created:
+            self.gpfs.chmod(0700, target)
+
+        self.log.info("Created directory %s for member %s" % (target, member.user_id))
+
+    def create_member_data_dir(self, member):
+        """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        target = os.path.join(self._data_path(), member.user_id)
+        self._create_member_dir(member, target)
+
+    def create_member_scratch_dir(self, storage_name, member):
+        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        target = os.path.join(self._scratch_path(storage_name), member.user_id)
+        self._create_member_dir(member, target)
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        if member.dataMoved:
+        if member.dataMoved:  # failsafe
+            gpfs_mount_point = self.storage['VSC_DATA'].gpfs_mount_point
+            login_mount_point = self.storage['VSC_DATA'].login_mount_point
             origin = member._data_path()
             target = os.path.join(self._data_path(), member.user_id)
-            fake_target = member.dataDirectory
+            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
 
-    def set_member_scratch_symlink(self, member):
+    def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
-        if member.scratchMoved:
-            origin = member._scratch_path()
-            target = os.path.join(self._scratch_path(), member.user_id)
-            # FIXME: should be different for different filesystems
-            fake_target = member.scratchDirectory
+        if member.scratchMoved:  #failsafe
+            gpfs_mount_point = self.storage[storage_name].gpfs_mount_point
+            login_mount_point = self.storage[storage_name].login_mount_point
+            origin = member._scratch_path(storage_name)
+            target = os.path.join(self._scratch_path(storage_name), member.user_id)
+            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - otherwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscVo, self).__setattr__(name, value)
+
+
