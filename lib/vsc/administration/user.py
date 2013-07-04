@@ -231,7 +231,7 @@ class VscUser(VscLdapUser):
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.user_id))
+            self.log.info("Fileset %s already exists for user group of %s ... not creating again." % (fileset_name, self.user_id))
 
         self.gpfs.chmod(0755, path)
 
@@ -310,7 +310,6 @@ class VscUser(VscLdapUser):
         """Create the user's directory on the given scratch filesystem
 
         @type storage_name: string
-
         @param storage_name: name of the storage system as defined in /etc/filesystem_info.conf
         """
         try:
