@@ -244,12 +244,12 @@ class VscVo(VscLdapGroup):
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
         target = os.path.join(self._data_path(), member.user_id)
-        self._create_member_dir(self, member, target)
+        self._create_member_dir(member, target)
 
     def create_member_scratch_dir(self, storage_name, member):
         """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
         target = os.path.join(self._scratch_path(storage_name), member.user_id)
-        self._create_member_dir(self, member, target)
+        self._create_member_dir(member, target)
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
