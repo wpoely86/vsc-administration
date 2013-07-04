@@ -226,10 +226,6 @@ class VscVo(VscLdapGroup):
         self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
         try:
             # This is the real directory on the GPFS
-            created = self.gpfs.make_dir(target)
-            self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
-            if created:
-                self.gpfs.chmod(0700, target)
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
                 # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
@@ -238,9 +234,26 @@ class VscVo(VscLdapGroup):
             self.log.exception("Could not create the symlink for %s from %s to %s [%s]" %
                                (member.user_id, origin, fake_target, target))
 
+    def _create_member_dir(self, member, target):
+        """Create a member-owned directory in the VO fileset."""
+        created = self.gpfs.make_dir(target)
+        self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+        if created:
+            self.gpfs.chmod(0700, target)
+
+    def create_member_data_dir(self, member):
+        """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        target = os.path.join(self._data_path(), member.user_id)
+        self._create_member_dir(self, member, target)
+
+    def create_member_scratch_dir(self, storage_name, member):
+        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        target = os.path.join(self._scratch_path(storage_name), member.user_id)
+        self._create_member_dir(self, member, target)
+
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        if member.dataMoved:
+        if member.dataMoved:  # failsafe
             gpfs_mount_point = self.storage['VSC_DATA'].gpfs_mount_point
             login_mount_point = self.storage['VSC_DATA'].login_mount_point
             origin = member._data_path()
@@ -250,7 +263,7 @@ class VscVo(VscLdapGroup):
 
     def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
-        if member.scratchMoved:
+        if member.scratchMoved:  #failsafe
             gpfs_mount_point = self.storage[storage_name].gpfs_mount_point
             login_mount_point = self.storage[storage_name].login_mount_point
             origin = member._scratch_path(storage_name)

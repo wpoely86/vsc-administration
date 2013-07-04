@@ -173,36 +173,32 @@ def process_vos(options, vos, storage, storage_name):
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
-
                 notify_vo_directory_created(vo, options.dry_run)
-
-                for user in vo.memberUid:
-                    try:
-                        vo.set_member_data_quota(VscUser(user))  # half of the VO quota
-                        vo.set_member_data_symlink(VscUser(user))
-                        ok_vos[vo.vo_id] = [user]
-                    except:
-                        logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
-                        error_vos[vo.vo_id] = [user]
 
             if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
-                for user in vo.memberUid:
-                    try:
-                        vo.set_member_scratch_quota(storage_name, VscUser(user))  # half of the VO quota
+            for user in vo.memberUid:
+                try:
+                    member = VscUser(user)
+                    if storage_name in ['VSC_DATA']:
+                        vo.set_member_data_quota(member)  # half of the VO quota
+                        vo.create_member_data_dir(member)
+                        vo.set_member_data_symlink(member)
+
+                    if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+                        vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
+                        vo.create_member_scratch_dir(storage_name, member)
 
                         if storage_name in ['VSC_SCRATCH_GENGAR']:
                             vo.set_member_scratch_symlink(storage_name, VscUser(user))
-                        ok_vos[vo.vo_id] = [user]
-                    except:
-                        logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
-                        error_vos[vo.vo_id] = [user]
-
-
+                    ok_vos[vo.vo_id] = [user]
+                except:
+                    logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                    error_vos[vo.vo_id] = [user]
         except:
-            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage))
+            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
 
     return (ok_vos, error_vos)
 
