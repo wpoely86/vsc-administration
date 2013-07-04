@@ -241,6 +241,8 @@ class VscVo(VscLdapGroup):
         if created:
             self.gpfs.chmod(0700, target)
 
+        self.log.info("Created directory %s for member %s" %s (path, member.user_id))
+
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
         target = os.path.join(self._data_path(), member.user_id)
