@@ -35,6 +35,7 @@ from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.availability import proceed_on_ha_service
 from vsc.utils.generaloption import simple_option
 from vsc.utils.lock import lock_or_bork, release_or_bork
 from vsc.utils.missing import Monoid, MonoidDict
@@ -79,7 +80,7 @@ def notify_user_directory_created(user, dry_run=True):
     else:
         logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
 
-def notify_vo_directory_created(vo, dry_run = True):
+def notify_vo_directory_created(vo, dry_run=True):
     """Make sure the rest of the subsystems know that the VO status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -102,8 +103,7 @@ def notify_vo_directory_created(vo, dry_run = True):
     else:
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
-
-def process_users(options, users, storage, storage_name):
+def process_users(options, users, storage_name):
     """
     Process the users.
 
@@ -195,10 +195,12 @@ def process_vos(options, vos, storage, storage_name):
                             vo.set_member_scratch_symlink(storage_name, VscUser(user))
                     ok_vos[vo.vo_id] = [user]
                 except:
-                    logger.exception("Failure at setting up the member %s VO %s data" % (user, vo.vo_id))
+                    logger.exception("Failure at setting up the member %s of VO %s on %s" %
+                                     (user, vo.vo_id, storage_name))
                     error_vos[vo.vo_id] = [user]
         except:
             logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
+            error_vos[vo.vo_id] = vo.memberUid
 
     return (ok_vos, error_vos)
 
@@ -223,6 +225,7 @@ def main():
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
+        'ha': ('high-availability master IP address', None, 'store', None),
     }
 
     opts = simple_option(options)
@@ -237,6 +240,12 @@ def main():
         sys.exit(0)  # not reached
 
     logger.info("Starting synchronisation of UGent users.")
+
+    if not proceed_on_ha_service(opts.options.ha):
+        logger.warning("Not running on the target host in the HA setup. Stopping.")
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING,
+                        NagiosResult("Not running on the HA master."))
+        sys.exit(NAGIOS_EXIT_WARNING)
 
     lockfile = TimestampedPidLockfile(SYNC_UGENT_USERS_LOCKFILE)
     lock_or_bork(lockfile, nagios_reporter)
@@ -270,7 +279,6 @@ def main():
             for storage_name in opts.options.storage:
                 (users_ok, users_critical) = process_users(opts.options,
                                                            ugent_users,
-                                                           storage[storage_name],
                                                            storage_name)
 
         (vos_ok, vos_critical) = ([], [])
