@@ -49,55 +49,18 @@ fancylogger.setLogLevelInfo()
 logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
-def process_institute(options, institute, users_filter):
+def process_project(options, project):
 
     muk = Muk()  # Singleton class, so no biggie
-    changed_users = MukUser.lookup(users_filter & InstituteFilter(institute))
-    logger.info("Processing the following users from {institute}: {users}".format(institute=institute,
-                users=[u.user_id for u in changed_users]))
+    logger.info("Processing project %{project_id}".format(project_id=project.project_id))
 
     try:
-        nfs_location = muk.nfs_link_pathnames[institute]['home']
-        logger.info("Checking link to NFS mount at %s" % (nfs_location))
-        os.stat(nfs_location)
-        try:
-            error_users = process(options, changed_users)
-        except:
-            logger.exception("Something went wrong processing users from %s" % (institute))
+        project.create_scratch_fileset()
+        return True
     except:
-        logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
-        error_users = changed_users
+        logger.exception("Cannot create scratch fileset for project %{project_id}".format(project_id=project.project_id,))
+        return False
 
-    fail_usercount = len(error_users)
-    ok_usercount = len(changed_users) - fail_usercount
-
-    return { 'ok': ok_usercount,
-             'fail': fail_usercount
-           }
-
-
-def process(options, users):
-    """
-    Actually do the tasks for a changed or new user:
-
-    - create the user's fileset
-    - set the quota
-    - create the home directory as a link to the user's fileset
-    """
-
-    error_users = []
-    for user in users:
-        if options.dry_run:
-            user.dry_run = True
-        try:
-            user.create_scratch_fileset()
-            user.populate_scratch_fallback()
-            user.create_home_dir()
-        except:
-            logger.exception("Cannot process user %s" % (user.user_id))
-            error_users.append(user)
-
-    return error_users
 
 
 def main():
