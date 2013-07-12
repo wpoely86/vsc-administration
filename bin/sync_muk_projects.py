@@ -99,21 +99,6 @@ def process(options, users):
 
     return error_users
 
-def force_nfs_mounts(muk):
-
-    nfs_mounts = []
-    for institute in muk.institutes:
-        if institute == BRUSSEL:
-            logger.warning("Not performing any action for institute %s" % (BRUSSEL,))
-            continue
-        try:
-            os.stat(muk.nfs_link_pathnames[institute]['home'])
-            nfs_mounts.append(institute)
-        except:
-            logger.exception("Cannot stat %s, not adding institute" % muk.nfs_link_pathnames[institute]['home'])
-
-    return nfs_mounts
-
 
 def main():
     """
