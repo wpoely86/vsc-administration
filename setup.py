@@ -56,6 +56,7 @@ PACKAGE = {
         'bin/get_overview_users.py',
         'bin/sync_ugent_vsc_users.py',
         'bin/sync_muk_users.py',
+        'bin/sync_muk_projects.py',
     ],
     'provides': ['python-vsc-administration = 0.7'],
 }
