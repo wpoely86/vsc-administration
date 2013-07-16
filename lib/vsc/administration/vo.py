@@ -96,11 +96,13 @@ class VscVo(VscLdapGroup):
         """
         return self._get_path(storage, mount_point)
 
-    def _create_fileset(self, filesystem_name, path):
+    def _create_fileset(self, filesystem_name, path, parent_fileset=None):
         """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
         - sets the (fixed) quota on this fileset for the VO
+
+        The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
         """
         self.gpfs.list_filesets()
         fileset_name = self.vo_id
@@ -111,7 +113,12 @@ class VscVo(VscLdapGroup):
                                                                                    path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
-            self.gpfs.make_fileset(path, fileset_name)
+
+            # HACK to support versions older than 3.5 in our setup
+            if parent_fileset is None:
+                self.gpfs.make_fileset(path, fileset_name)
+            else:
+                self.gpfs.make_fileset(path, fileset_name, parent_fileset)
         else:
             self.log.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
 
@@ -134,15 +141,18 @@ class VscVo(VscLdapGroup):
         except KeyError:
             self.log.exception("Trying to access non-existent field 'VSC_DATA' in the storage dictionary")
 
-    def create_scratch_fileset(self, storage):
+    def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
-            path = self._scratch_path(storage)
-            self._create_fileset(self.storage[storage].filesystem, path)
+            path = self._scratch_path(storage_name)
+            if self.storage[storage_name].version >= (3,5,0,0):
+                self._create_fileset(self.storage[storage_name].filesystem, path)
+            else:
+                self._create_fileset(self.storage[storage_name].filesystem, path, 'root')
         except AttributeError:
             self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
-            self.log.exception("Trying to access non-existent field %s in the storage dictionary" % (storage))
+            self.log.exception("Trying to access non-existent field %s in the storage dictionary" % (storage_name))
 
     def _create_vo_dir(self, path):
         """Create a user owned directory on the GPFS."""
