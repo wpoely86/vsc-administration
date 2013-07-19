@@ -26,8 +26,8 @@ from vsc.administration.user import MukUser
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
-from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, write_timestamp
+from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
 from vsc.utils.availability import proceed_on_ha_service
 from vsc.utils.generaloption import simple_option
