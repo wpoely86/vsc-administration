@@ -514,7 +514,7 @@ class MukUser(VscLdapUser):
 
         self.gpfs.ignorerealpathmismatch = True
         self.gpfs.make_dir(base_home_dir_hierarchy)
-        self.gpfs.make_symlink(target, source)
+        os.make_symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
         self.gpfs.ignorerealpathmismatch = False
 
     def __setattr__(self, name, value):

@@ -20,15 +20,15 @@ This file provides utilities to set up projects on the VSC clusters.
 """
 import os
 
-from vsc import fancylogger
 
-from vsc.config.base import Muk
+from vsc.config.base import Muk, VscStorage
+from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.ldap.entities import VscLdapProject
+from vsc.ldap.entities import VscLdapGroup
 
 
-class MukProject(VscLdapProject):
+class MukProject(VscLdapGroup):
     """Project that will be run on Muk.
 
     - Check if the project has scratch requirements
@@ -37,52 +37,80 @@ class MukProject(VscLdapProject):
 
     """
 
-    def __init__(self, project_id):
+    def __init__(self, project_id, storage=None):
         """Initialisation.
 
-        @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
+        @type project_id: string
+        @param project_id: the unique ID of the project, i.e.,  the LDAP cn entry
         """
         super(MukProject, self).__init__(project_id)
 
+        self.project_id = project_id  # since we still do not have a proper project LDAP tree
         self.muk = Muk()
 
+        self.ext = ExtOperations()
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-    def _scratch_path(self):
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        # quota are obtained through LDAP
+        self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
+
+    def _scratch_path(self, mount_point="gpfs"):
         """Determines the path (relative to the scratch mount point)
 
         For a project with ID projectXYZUV this becomes projects/projectXYZ/projectYZUV.
 
         @returns: string representing the relative path for this project.
         """
-        scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
-        path = os.path.join(scratch['defaultMountPoint'], 'projects', self.project_id[:-2], self.project_id)
-        return path
+        template = self.storage.path_templates[self.muk.storage_name]['project']
+        if mount_point == "login":
+            mount_path = self.storage[self.muk.storage_name].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[self.muk.storage_name].gpfs_mount_point
+        else:
+            self.log.raiseException("mount_point (%s) is not login or gpfs" % (mount_point))
+
+        return os.path.join(mount_path, template[0], template[1](self.project_id))
+
 
     def create_scratch_fileset(self):
-        """Create a fileset for the project on the scratch filesystem.
+        """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
-        - sets the quota on this fileset
-        - only per-fileset quota
+        - sets the (fixed) quota on this fileset for the VO
         """
         self.gpfs.list_filesets()
-
         fileset_name = self.project_id
+        filesystem_name = self.muk.scratch_name
         path = self._scratch_path()
 
-        if not self.gpfs.get_fileset_info('scratch', fileset_name):
-            self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
+        if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
+            self.log.info("Creating new fileset for project %s on %s with name %s and path %s" % (self.project_id,
+                                                                                                  filesystem_name,
+                                                                                                  fileset_name,
+                                                                                                  path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.project_id))
+            self.log.info("Fileset %s already exists for project %s ... not creating again." % (fileset_name,
+                                                                                                self.project_id))
+
+        moderators = [m for m in [VscUser(m_) for m_ in self.moderator] if m.status == 'active']
+
+        self.gpfs.chmod(0770, path)
+
+        if moderators:
+            self.gpfs.chown(int(moderators[0].uidNumber), int(self.gidNumber), path)
+        else:
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, int(self.gidNumber), path)
 
         self.gpfs.set_fileset_quota(self.scratchQuota, path, fileset_name)
-        moderator = MukUser(self.moderator)
-        self.gpfs.chown(os.path.join(path, fileset_name), int(moderator.uidNumber), int(self.gidNumber)) # FIXME: the gidNumber prolly comes from elsewhere
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:

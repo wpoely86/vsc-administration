@@ -36,7 +36,7 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.13',
+    'version': '0.14',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
@@ -56,6 +56,7 @@ PACKAGE = {
         'bin/get_overview_users.py',
         'bin/sync_ugent_vsc_users.py',
         'bin/sync_muk_users.py',
+        'bin/sync_muk_projects.py',
     ],
     'provides': ['python-vsc-administration = 0.7'],
 }
