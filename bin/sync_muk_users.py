@@ -20,21 +20,23 @@ For these, the home and other shizzle should be set up.
 
 import os
 import sys
-from lockfile import FileLock, AlreadyLocked
 
-from vsc.utils import fancylogger
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
-from vsc.config.base import Muk
-from vsc.ldap.configuration import LumaConfiguration
+from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
+from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, write_timestamp
+from vsc.utils import fancylogger
+from vsc.utils.availability import proceed_on_ha_service
 from vsc.utils.generaloption import simple_option
+from vsc.utils.lock import lock_or_bork, release_or_bork
 from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
+from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
 NAGIOS_HEADER = 'sync_muk_users'
-NAGIOS_CHECK_FILENAME = "/var/log/pickles/%s.nagios.json.gz" % (NAGIOS_HEADER)
+NAGIOS_CHECK_FILENAME = "/var/cache/%s.nagios.json.gz" % (NAGIOS_HEADER)
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
@@ -101,6 +103,9 @@ def force_nfs_mounts(muk):
 
     nfs_mounts = []
     for institute in muk.institutes:
+        if institute == BRUSSEL:
+            logger.warning("Not performing any action for institute %s" % (BRUSSEL,))
+            continue
         try:
             os.stat(muk.nfs_link_pathnames[institute]['home'])
             nfs_mounts.append(institute)
@@ -126,6 +131,7 @@ def main():
         'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
         'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
         'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'ha': ('high-availability master IP address', None, 'store', None),
     }
 
     opts = simple_option(options)
@@ -138,28 +144,23 @@ def main():
 
     logger.info("Starting synchronisation of Muk users.")
 
-    try:
-        logger.info("Trying to acquire lockfile {lockfile}".format(lockfile=SYNC_MUK_USERS_LOGFILE))
-        lockfile = FileLock(SYNC_MUK_USERS_LOCKFILE)
-        lockfile.acquire(timeout=60)
-        logger.info("Lock acquired.")
-    except AlreadyLocked:
-        logger.exception("Cannot acquire lock, bailing.")
-        nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, NagiosResult("Cannot acquire lock on {lockfile}. Bailing.".format(lockfile=SYNC_MUK_USERS_LOCKFILE)))
-        sys.exit(NAGIOS_EXIT_CRITICAL)
-    except Exception:
-        logger.exception("Failed taking the lock on {lockfile}".format(lockfile=SYNC_MUK_USERS_LOCKFILE))
-        sys.exit(NAGIOS_EXIT_CRITICAL)
+    if not proceed_on_ha_service(opts.options.ha):
+        logger.warning("Not running on the target host in the HA setup. Stopping.")
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING,
+                        NagiosResult("Not running on the HA master."))
+        sys.exit(NAGIOS_EXIT_WARNING)
 
+    lockfile = TimestampedPidLockfile(SYNC_MUK_USERS_LOCKFILE)
+    lock_or_bork(lockfile, nagios_reporter)
 
     try:
         muk = Muk()
         nfs_mounts = force_nfs_mounts(muk)
         logger.info("Forced NFS mounts")
 
-        LdapQuery(LumaConfiguration())  # Initialise LDAP binding
+        l = LdapQuery(VscConfiguration())  # Initialise LDAP binding
 
-        muk_group_filter = CnFilter(muk.muk_users_group)
+        muk_group_filter = CnFilter(muk.muk_user_group)
         try:
             muk_group = Group.lookup(muk_group_filter)[0]
             logger.info("Muk group = %s" % (muk_group.memberUid))
@@ -171,9 +172,14 @@ def main():
 
         muk_users_filter = LdapFilter.from_list(lambda x, y: x | y, [CnFilter(u.user_id) for u in muk_users])
 
-        users_ok = {}
+        users_ok = {
+            ANTWERPEN: {},
+            BRUSSEL: {},
+            GENT: {},
+            LEUVEN: {},
+        }
         for institute in nfs_mounts:
-            users_ok[institute] = process_institute(options, institute, muk_users_filter)
+            users_ok[institute] = process_institute(opts.options, institute, muk_users_filter)
 
     except Exception:
         logger.exception("Fail during muk users synchronisation")
@@ -183,29 +189,59 @@ def main():
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
+    antwerp_user_count = len(l.user_filter_search(InstituteFilter(ANTWERPEN)))
+    brussel_user_count = len(l.user_filter_search(InstituteFilter(BRUSSEL)))
+    gent_user_count = len(l.user_filter_search(InstituteFilter(GENT)))
+    leuven_user_count = len(l.user_filter_search(InstituteFilter(LEUVEN)))
+
+    # We issue a warning if more than 20% of the institute's population suddenly needs to
+    # get synched to the Tier-1; critical when 30% seems to be getting on it.
     result_dict = {
-        'a': users_ok['antwerpen']['ok'],
-        'b': users_ok['brussel']['ok'],
-        'g': users_ok['gent']['ok'],
-        'l': users_ok['leuven']['ok'],
-        'a_critical': users_ok['antwerpen']['fail'],
-        'b_critical': users_ok['brussel']['fail'],
-        'g_critical': users_ok['gent']['fail'],
-        'l_critical': users_ok['leuven']['fail']
+        'a_sync': users_ok.get(ANTWERPEN).get('ok', 0),
+        'b_sync': users_ok.get(BRUSSEL).get('ok', -1),
+        'g_sync': users_ok.get(GENT).get('ok', 0),
+        'l_sync': users_ok.get(LEUVEN).get('ok', 0),
+        'a_sync_warning': antwerp_user_count / 5,
+        'b_sync_warning': brussel_user_count / 5,
+        'g_sync_warning': gent_user_count / 5,
+        'l_sync_warning': leuven_user_count / 5,
+        'a_sync_critical': antwerp_user_count / 3,
+        'b_sync_critical': brussel_user_count / 3,
+        'g_sync_critical': gent_user_count / 3,
+        'l_sync_critical': leuven_user_count / 3,
+        'a_fail': users_ok.get(ANTWERPEN).get('fail', 0),
+        'b_fail': users_ok.get(BRUSSEL).get('fail', -1),
+        'g_fail': users_ok.get(GENT).get('fail', 0),
+        'l_fail': users_ok.get(LEUVEN).get('fail', 0),
+        'a_fail_warning': 1,
+        'b_fail_warning': 1,
+        'g_fail_warning': 1,
+        'l_fail_warning': 1,
+        'a_fail_critical': 3,
+        'b_fail_critical': 3,
+        'g_fail_critical': 3,
+        'l_fail_critical': 3,
     }
 
-    if any([result_dict[i + '_critical'] for i in ['a', 'b', 'g', 'l']]):
-        result = NagiosResult("several users were not synched", result_dict)
-        exit_value = NAGIOS_EXIT_WARNING
+    if any([result_dict[i + '_fail'] > 0 for i in ['a', 'b', 'g', 'l']]):
+        result = NagiosResult("several users were not synched", **result_dict)
+        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
     else:
-        write_timestamp(SYNC_TIMESTAMP_FILENAME, convert_timestamp()[1])
-        result = NagiosResult("muk users synchronised", result_dict)
-        exit_value = NAGIOS_EXIT_OK
+        try:
+            result = NagiosResult("muk users synchronised", **result_dict)
+            (_, ldap_timestamp) = convert_timestamp()
+            if not opts.options.dry_run:
+                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+            nagios_reporter.cache(NAGIOS_EXIT_OK, result)
+        except:
+            logger.exception("Something broke writing the timestamp")
+            result.message = "muk users synchronised, filestamp not written"
+            nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
 
-    nagios_reporter.cache(exit_value, result)
+    result.message = "muk users synchronised, lock release failed"
+    release_or_bork(lockfile, nagios_reporter, result)
 
-    lockfile.release()
-    logger.info("Finished synchronisation of the Muk users from the LDAP with the filesystem.")
+    logger.info("Finished synchronisation of muk users from LDAP with the filesystem.")
 
 
 if __name__ == '__main__':

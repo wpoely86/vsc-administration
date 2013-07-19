@@ -78,7 +78,7 @@ class MukProject(VscLdapGroup):
         return os.path.join(mount_path, template[0], template[1](self.project_id))
 
 
-    def create_scratch_fileset(self, path):
+    def create_scratch_fileset(self):
         """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
