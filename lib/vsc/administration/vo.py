@@ -23,6 +23,7 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 
+import errno
 import os
 import pwd
 
@@ -239,7 +240,13 @@ class VscVo(VscLdapGroup):
             if not self.gpfs.is_symlink(origin):
                 self.gpfs.remove_obj(origin)
                 # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
-                os.make_symlink(fake_target, origin)
+                try:
+                    os.symlink(fake_target, origin)
+                except OSError, err:
+                    if not err.errno in [errno.EEXIST]:
+                        raise
+                    else:
+                        self.log.info("Symlink from %s to %s already exists" % (origin, fake_target))
         except (PosixOperationError, OSError):
             self.log.exception("Could not create the symlink for %s from %s to %s [%s]" %
                                (member.user_id, origin, fake_target, target))
