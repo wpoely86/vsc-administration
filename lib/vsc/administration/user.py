@@ -25,6 +25,7 @@ The following actions are available for users:
 @author: Andy Georges (Ghent University)
 """
 
+import errno
 import os
 
 from vsc import fancylogger
@@ -514,7 +515,14 @@ class MukUser(VscLdapUser):
 
         self.gpfs.ignorerealpathmismatch = True
         self.gpfs.make_dir(base_home_dir_hierarchy)
-        os.make_symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
+        try:
+            os.make_symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
+        except OSError, err:
+            if not err.errno in [errno.EEXIST]:
+                raise
+            else:
+                self.log.info("Symlink from %s to %s already exists" % (source, target))
+
         self.gpfs.ignorerealpathmismatch = False
 
     def __setattr__(self, name, value):
