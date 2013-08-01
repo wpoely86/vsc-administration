@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# #
+#
 #
 # Copyright 2013-2013 Ghent University
 #
