@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-##
+#
 #
 # Copyright 2013-2013 Ghent University
 #
@@ -43,7 +43,7 @@ from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIO
 from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
 
 NAGIOS_HEADER = 'sync_ugent_users'
-NAGIOS_CHECK_FILENAME = "/var/log/pickles/%s.nagios.json.gz" % (NAGIOS_HEADER)
+NAGIOS_CHECK_FILENAME = "/var/cache/%s.nagios.json.gz" % (NAGIOS_HEADER)
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
@@ -168,7 +168,7 @@ def process_vos(options, vos, storage, storage_name):
         if options.dry_run:
             vo.dry_run = True
         try:
-            vo.status # force LDAP attribute load
+            vo.status  # force LDAP attribute load
 
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
