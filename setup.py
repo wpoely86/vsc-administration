@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
-##
+# #
 # Copyright 2012-2013 Ghent University
 #
 # This file is part of vsc-administration,
@@ -12,7 +12,7 @@
 #
 # All rights reserved.
 #
-##
+# #
 """
 vsc-administration distribution setup.py
 
@@ -36,7 +36,7 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.14.3',
+    'version': '0.14.4',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
