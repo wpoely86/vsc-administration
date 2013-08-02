@@ -273,7 +273,8 @@ def main():
             logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
 
             ugent_users = VscUser.lookup(ugent_users_filter)
-            logger.info("Found %d UGent users that have changed in the LDAP since %s" % (len(ugent_users), last_timestamp))
+            logger.info("Found %d UGent users that have changed in the LDAP since %s" %
+                        (len(ugent_users), last_timestamp))
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
             for storage_name in opts.options.storage:
@@ -297,22 +298,25 @@ def main():
                                                      storage_name)
 
     except Exception, err:
-        logger.exception("Fail during UGent users synchronisation: {err}".format(err=err))
+        logger.exception("Fail during UGent users and VOs synchronisation: {err}".format(err=err))
         nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
                               NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_UGENT_USERS_LOGFILE)))
         lockfile.release()
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    result = NagiosResult("UGent users synchronised",
+    result = NagiosResult("UGent users and VOs synchronised",
                           users=len(users_ok),
-                          users_critical=len(users_critical),
+                          users_critical=1,
                           vos=len(vos_ok),
-                          vos_critical=len(vos_critical))
+                          vos_critical=1)
     try:
-        (timestamp, ldap_timestamp) = convert_timestamp()
-        if not opts.options.dry_run:
-            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-        nagios_reporter.cache(NAGIOS_EXIT_OK, result)
+        if users_critical + vos_critical:
+            nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, result)
+        else:
+            (timestamp, ldap_timestamp) = convert_timestamp()
+            if not opts.options.dry_run:
+                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+            nagios_reporter.cache(NAGIOS_EXIT_OK, result)
     except:
         logger.exception("Something broke writing the timestamp")
         result.message = "UGent users synchronised, filestamp not written"
