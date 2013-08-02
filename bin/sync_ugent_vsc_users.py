@@ -267,7 +267,7 @@ def main():
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
-        (users_ok, users_critical) = ([], [])
+        (users_ok, users_fail) = ([], [])
         if opts.options.user:
             ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
             logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
@@ -278,11 +278,11 @@ def main():
             logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
 
             for storage_name in opts.options.storage:
-                (users_ok, users_critical) = process_users(opts.options,
+                (users_ok, users_fail) = process_users(opts.options,
                                                            ugent_users,
                                                            storage_name)
 
-        (vos_ok, vos_critical) = ([], [])
+        (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
             ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
             logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
@@ -292,7 +292,7 @@ def main():
             logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
 
             for storage_name in opts.options.storage:
-                (vos_ok, vos_critical) = process_vos(opts.options,
+                (vos_ok, vos_fail) = process_vos(opts.options,
                                                      ugent_vos,
                                                      storage[storage_name],
                                                      storage_name)
@@ -310,7 +310,7 @@ def main():
                           vos=len(vos_ok),
                           vos_critical=1)
     try:
-        if users_critical + vos_critical:
+        if users_fail + vos_fail:
             nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, result)
         else:
             (timestamp, ldap_timestamp) = convert_timestamp()
