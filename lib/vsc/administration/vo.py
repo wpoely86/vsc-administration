@@ -289,6 +289,12 @@ class VscVo(VscLdapGroup):
             target = os.path.join(self._scratch_path(storage_name), member.user_id)
             fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
+            # we still need to adjust the quota in the root fileset!
+            if self.scratchQuota:
+                quota = int(self.scratchQuota or 0) / 2 * 1024
+            else:
+                quota = 0
+            self._set_member_quota(member._scratch_path(storage_name), member, quota)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
