@@ -181,7 +181,8 @@ class VscVo(VscLdapGroup):
         if self.dataQuota:
             self._set_quota(self._data_path(), int(self.dataQuota))
         else:
-            self._set_quota(self._data_path(), self.storage['VSC_DATA'].quota_vo * 1024)
+            quota = 16 * 1024**2  # default not used from the filesystem_info/conf file at thes moment.
+            self._set_quota(self._data_path(), quota)
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -209,10 +210,10 @@ class VscVo(VscLdapGroup):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if self.dataQuota:
-            quota = int(self.dataQuota or 2) / 2 * 1024  # expressed in bytes
+        if self.dataQuota and int(self.dataQuota) > 0:
+            quota = int(self.dataQuota) / 2 * 1024  # half the VO space expressed in bytes
         else:
-            quota = self.storage['VSC_DATA'].quota_user / 2 * 1024
+            quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
 
         self.log.info("Setting the data quota for VO %s member %s to %d GiB" %
                       (self.vo_id, member, quota / 1024 / 1024))
@@ -226,10 +227,10 @@ class VscVo(VscLdapGroup):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if self.scratchQuota:
+        if self.scratchQuota and int(self.scratchQuota) > 0:
             quota = int(self.scratchQuota or 2) / 2 * 1024
         else:
-            quota = int(self.storage[storage_name].quota_vo) / 2 * 1024
+            quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
 
         self.log.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
                       (storage_name, self.vo_id, member, quota / 1024 / 1024))
