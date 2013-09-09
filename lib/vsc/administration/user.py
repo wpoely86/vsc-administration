@@ -236,14 +236,14 @@ class VscUser(VscLdapUser):
 
         self.gpfs.chmod(0755, path)
 
-    def _get_path(self, storage, mount_point="gpfs"):
-        """Get the path for the (if any) user directory on the given storage."""
+    def _get_path(self, storage_name, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage_name."""
 
-        template = self.storage.path_templates[storage]['user']
+        template = self.storage.path_templates[storage_name]['user']
         if mount_point == "login":
-            mount_path = self.storage[storage].login_mount_point
+            mount_path = self.storage[storage_name].login_mount_point
         elif mount_point == "gpfs":
-            mount_path = self.storage[storage].gpfs_mount_point
+            mount_path = self.storage[storage_name].gpfs_mount_point
         else:
             self.log.raiseException("mount_point (%s) is not login or gpfs" % (mount_point))
 
