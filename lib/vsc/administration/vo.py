@@ -181,14 +181,14 @@ class VscVo(VscLdapGroup):
         if self.dataQuota:
             self._set_quota(self._data_path(), int(self.dataQuota))
         else:
-            self._set_quota(self._data_path(), 1024)
+            self._set_quota(self._data_path(), self.storage['VSC_DATA'].quota_vo * 1024)
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.scratchQuota:
             self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
         else:
-            self._set_quota(self._scratch_path(storage_name), 1024)
+            self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo * 1024)
 
     def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
@@ -210,11 +210,12 @@ class VscVo(VscLdapGroup):
         FIXME: This should probably be some variable in a config setting instance
         """
         if self.dataQuota:
-            quota = int(self.dataQuota or 0) / 2 * 1024  # expressed in bytes
+            quota = int(self.dataQuota or 2) / 2 * 1024  # expressed in bytes
         else:
-            quota = 0
+            quota = self.storage['VSC_DATA'].quota_user / 2 * 1024
 
-        self.log.info("Setting the data quota for VO %s member %s to %d GiB" % (self.vo_id, member, quota / 1024 / 1024))
+        self.log.info("Setting the data quota for VO %s member %s to %d GiB" %
+                      (self.vo_id, member, quota / 1024 / 1024))
         self._set_member_quota(self._data_path(), member, quota)
 
     def set_member_scratch_quota(self, storage_name, member):
@@ -226,9 +227,12 @@ class VscVo(VscLdapGroup):
         FIXME: This should probably be some variable in a config setting instance
         """
         if self.scratchQuota:
-            quota = int(self.scratchQuota or 0) / 2 * 1024
+            quota = int(self.scratchQuota or 2) / 2 * 1024
         else:
-            quota = 0
+            quota = int(self.storage[storage_name].quota_vo) / 2 * 1024
+
+        self.log.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
+                      (storage_name, self.vo_id, member, quota / 1024 / 1024))
         self._set_member_quota(self._scratch_path(storage_name), member, quota)
 
     def _set_member_symlink(self, member, origin, target, fake_target):
@@ -290,10 +294,7 @@ class VscVo(VscLdapGroup):
             fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
             self._set_member_symlink(member, origin, target, fake_target)
             # we still need to adjust the quota in the root fileset!
-            if self.scratchQuota:
-                quota = int(self.scratchQuota or 0) / 2 * 1024
-            else:
-                quota = 0
+            quota = self.storage[storage_name].quota_user * 1024
             self._set_member_quota(member._scratch_path(storage_name), member, quota)
 
     def __setattr__(self, name, value):
