@@ -181,14 +181,14 @@ class VscVo(VscLdapGroup):
         if self.dataQuota:
             self._set_quota(self._data_path(), int(self.dataQuota))
         else:
-            self._set_quota(self._data_path(), 0)
+            self._set_quota(self._data_path(), 1024)
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.scratchQuota:
             self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
         else:
-            self._set_quota(self._scratch_path(storage_name), 0)
+            self._set_quota(self._scratch_path(storage_name), 1024)
 
     def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
