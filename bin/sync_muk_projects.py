@@ -104,8 +104,8 @@ def main():
                 projects_fail += 1
 
         (_, ldap_timestamp) = convert_timestamp()
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        if not opts.options.dry_run:
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
 
     except Exception, err:
         logger.exception("critical exception caught: %s" % (err))
