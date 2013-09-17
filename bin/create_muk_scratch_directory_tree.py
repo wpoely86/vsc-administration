@@ -24,13 +24,13 @@ Sets up the baseline directory structure we need to have on muk.
 
 import os
 
-from vsc import fancylogger
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.ldap.filters import CnFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.configuration import LumaConfiguration
 from vsc.administration.user import MukUser
 from vsc.config.base import Muk
+from vsc.utils import fancylogger
 
 log = fancylogger.getLogger('create_directory_trees_muk')
 
@@ -40,6 +40,7 @@ PILOT_PROJECTS = {
     'g': 'project_gpilot',
     'l': 'project_lpilot',
 }
+
 
 def main():
     """Main."""
