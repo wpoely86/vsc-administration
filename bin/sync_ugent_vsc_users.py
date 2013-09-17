@@ -44,9 +44,6 @@ NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
 SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
 
-fancylogger.logToFile(SYNC_UGENT_USERS_LOGFILE)
-fancylogger.setLogLevelInfo()
-
 logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
@@ -212,8 +209,7 @@ def main():
     """
 
     options = {
-        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store',
-                                            NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
