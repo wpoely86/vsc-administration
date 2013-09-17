@@ -70,7 +70,7 @@ def main():
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
-        'locking':
+        'locking': SYNC_MUK_PROJECTS_LOCKFILE,
     }
 
     opts = ExtendedSimpleOption(options)
