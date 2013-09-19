@@ -35,25 +35,19 @@ from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
-from vsc.utils.availability import proceed_on_ha_service
-from vsc.utils.generaloption import simple_option
-from vsc.utils.lock import lock_or_bork, release_or_bork
 from vsc.utils.missing import Monoid, MonoidDict
-from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
-from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
+from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
+from vsc.utils.script_tools import ExtendedSimpleOption
 
-NAGIOS_HEADER = 'sync_ugent_users'
-NAGIOS_CHECK_FILENAME = "/var/cache/%s.nagios.json.gz" % (NAGIOS_HEADER)
+NAGIOS_HEADER = "sync_ugent_users"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
 SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
-SYNC_UGENT_USERS_LOCKFILE = "/var/run/%s.lock" % (NAGIOS_HEADER)
 
-fancylogger.logToFile(SYNC_UGENT_USERS_LOGFILE)
+logger = fancylogger.getLogger(__name__)
+fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
-
-logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
 def notify_user_directory_created(user, dry_run=True):
@@ -216,39 +210,14 @@ def main():
     """
 
     options = {
-        'dry-run': ('do not make any updates whatsoever', None, 'store_true', False),
-        'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
-        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store',
-                                  NAGIOS_CHECK_FILENAME),
-        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store',
-                                            NAGIOS_CHECK_INTERVAL_THRESHOLD),
+        'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
-        'ha': ('high-availability master IP address', None, 'store', None),
     }
 
-    opts = simple_option(options)
-
-    nagios_reporter = NagiosReporter(NAGIOS_HEADER,
-                                     opts.options.nagios_check_filename,
-                                     opts.options.nagios_check_interval_threshold)
-
-    if opts.options.nagios:
-        logger.debug("Producing Nagios report and exiting.")
-        nagios_reporter.report_and_exit()
-        sys.exit(0)  # not reached
-
-    logger.info("Starting synchronisation of UGent users.")
-
-    if not proceed_on_ha_service(opts.options.ha):
-        logger.warning("Not running on the target host in the HA setup. Stopping.")
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING,
-                        NagiosResult("Not running on the HA master."))
-        sys.exit(NAGIOS_EXIT_WARNING)
-
-    lockfile = TimestampedPidLockfile(SYNC_UGENT_USERS_LOCKFILE)
-    lock_or_bork(lockfile, nagios_reporter)
+    opts = ExtendedSimpleOption(options)
+    stats = {}
 
     try:
         LdapQuery(VscConfiguration())  # Initialise LDAP binding
@@ -261,9 +230,7 @@ def main():
             logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
 
-
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
-
         timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
         logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
@@ -279,8 +246,13 @@ def main():
 
             for storage_name in opts.options.storage:
                 (users_ok, users_fail) = process_users(opts.options,
-                                                           ugent_users,
-                                                           storage_name)
+                                                       ugent_users,
+                                                       storage_name)
+                stats["%s_users_sync" % (storage_name,)] = len(users_ok)
+                stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
+                stats["%s_users_sync_fail_warning" % (storage_name,)] = 1
+                stats["%s_users_sync_fail_critical" % (storage_name,)] = 10
+
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
@@ -296,36 +268,21 @@ def main():
                                                      ugent_vos,
                                                      storage[storage_name],
                                                      storage_name)
+                stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
+                stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
+                stats["%s_vos_sync_fail_warning" % (storage_name,)] = 1
+                stats["%s_vos_sync_fail_critical" % (storage_name,)] = 10
 
-    except Exception, err:
-        logger.exception("Fail during UGent users and VOs synchronisation: {err}".format(err=err))
-        nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
-                              NagiosResult("Script failed, check log file ({logfile})".format(logfile=SYNC_UGENT_USERS_LOGFILE)))
-        lockfile.release()
-        sys.exit(NAGIOS_EXIT_CRITICAL)
-
-    result = NagiosResult("UGent users and VOs synchronised",
-                          users=len(users_ok),
-                          users_critical=1,
-                          vos=len(vos_ok),
-                          vos_critical=1)
-    try:
-        if users_fail + vos_fail:
-            nagios_reporter.cache(NAGIOS_EXIT_CRITICAL, result)
-        else:
-            (timestamp, ldap_timestamp) = convert_timestamp()
+        if not users_fail + vos_fail:
+            (_, ldap_timestamp) = convert_timestamp()
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-            nagios_reporter.cache(NAGIOS_EXIT_OK, result)
-    except:
-        logger.exception("Something broke writing the timestamp")
-        result.message = "UGent users synchronised, filestamp not written"
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
-    finally:
-        result.message = "UGent users synchronised, lock release failed"
-        release_or_bork(lockfile, nagios_reporter, result)
+    except Exception, err:
+        logger.exception("critical exception caught: %s" % (err))
+        opts.critical("Script failed in a horrible way")
+        sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    logger.info("Finished synchronisation of the UGent VSC users from the LDAP with the filesystem.")
+    opts.epilogue("UGent users and VOs synchronised", stats)
 
 
 if __name__ == '__main__':

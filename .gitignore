@@ -29,3 +29,5 @@ html
 test-reports
 
 setup.cfg
+
+*.orig

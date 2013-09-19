@@ -29,24 +29,18 @@ from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
 from vsc.ldap.timestamp import convert_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
-from vsc.utils.availability import proceed_on_ha_service
-from vsc.utils.generaloption import simple_option
-from vsc.utils.lock import lock_or_bork, release_or_bork
-from vsc.utils.nagios import NagiosReporter, NagiosResult, NAGIOS_EXIT_OK, NAGIOS_EXIT_CRITICAL, NAGIOS_EXIT_WARNING
-from vsc.utils.timestamp_pid_lockfile import TimestampedPidLockfile
+from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
+from vsc.utils.script_tools import ExtendedSimpleOption
 
 NAGIOS_HEADER = 'sync_muk_projects'
-NAGIOS_CHECK_FILENAME = "/var/cache/%s.nagios.json.gz" % (NAGIOS_HEADER)
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 24 * 60 * 60 # 1 day
 
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
-SYNC_MUK_PROJECTS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
 SYNC_MUK_PROJECTS_LOCKFILE = "/gpfs/scratch/user/%s.lock" % (NAGIOS_HEADER)
 
-fancylogger.logToFile(SYNC_MUK_PROJECTS_LOGFILE)
+logger = fancylogger.getLogger(__name__)
+fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
-
-logger = fancylogger.getLogger(name=NAGIOS_HEADER)
 
 
 def process_project(options, project):
@@ -75,31 +69,12 @@ def main():
     """
 
     options = {
-        'dry-run': ("Do not make any updates whatsoever", None, "store_true", False),
-        'nagios': ('print out nagion information', None, 'store_true', False, 'n'),
-        'nagios-check-filename': ('filename of where the nagios check data is stored', str, 'store', NAGIOS_CHECK_FILENAME),
-        'nagios-check-interval-threshold': ('threshold of nagios checks timing out', None, 'store', NAGIOS_CHECK_INTERVAL_THRESHOLD),
-        'ha': ('high-availability master IP address', None, 'store', None),
+        'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
+        'locking': SYNC_MUK_PROJECTS_LOCKFILE,
     }
 
-    opts = simple_option(options)
-
-    nagios_reporter = NagiosReporter(NAGIOS_HEADER, NAGIOS_CHECK_FILENAME, NAGIOS_CHECK_INTERVAL_THRESHOLD)
-
-    if opts.options.nagios:
-        nagios_reporter.report_and_exit()
-        sys.exit(0)  # not reached
-
-    logger.info("Starting synchronisation of Muk users.")
-
-    if not proceed_on_ha_service(opts.options.ha):
-        logger.warning("Not running on the target host in the HA setup. Stopping.")
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING,
-                        NagiosResult("Not running on the HA master."))
-        sys.exit(NAGIOS_EXIT_WARNING)
-
-    lockfile = TimestampedPidLockfile(SYNC_MUK_PROJECTS_LOCKFILE)
-    lock_or_bork(lockfile, nagios_reporter)
+    opts = ExtendedSimpleOption(options)
+    stats = {}
 
     try:
         muk = Muk()
@@ -116,6 +91,7 @@ def main():
         except IndexError:
             logger.raiseException("Could not find a group with cn %s. Cannot proceed synchronisation" % muk.muk_user_group)
 
+        # FIXME: This certainly is not correct.
         muk_projects = [MukProject(project_id) for project_id in muk_group.memberUid]
 
         projects_ok = 0
@@ -127,40 +103,16 @@ def main():
             else:
                 projects_fail += 1
 
-    except Exception:
-        logger.exception("Fail during muk users synchronisation")
-        nagios_reporter.cache(NAGIOS_EXIT_CRITICAL,
-                              NagiosResult("Script failed, check log file ({logfile})".format(
-                                  logfile=SYNC_MUK_USERS_LOGFILE)))
-        lockfile.release()
+        (_, ldap_timestamp) = convert_timestamp()
+        if not opts.options.dry_run:
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+
+    except Exception, err:
+        logger.exception("critical exception caught: %s" % (err))
+        opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    result_dict = {
-        'projects_ok': projects_ok,
-        'projects_fail': projects_fail,
-        'projects_fail_warning': 1,
-        'projects_fail_critical': 3,
-    }
-
-    if projects_fail > 0:
-        result = NagiosResult("several projects were not synched", **result_dict)
-        nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
-    else:
-        try:
-            result = NagiosResult("muk projects synchronised", **result_dict)
-            (_, ldap_timestamp) = convert_timestamp()
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-            nagios_reporter.cache(NAGIOS_EXIT_OK, result)
-        except:
-            logger.exception("Something broke writing the timestamp")
-            result.message = "muk projects synchronised, filestamp not written"
-            nagios_reporter.cache(NAGIOS_EXIT_WARNING, result)
-
-    result.message = "muk projects synchronised, lock release failed"
-    release_or_bork(lockfile, nagios_reporter, result)
-
-    logger.info("Finished synchronisation of the Muk users from the LDAP with the filesystem.")
+    opts.epilogue(stats)
 
 
 if __name__ == '__main__':
