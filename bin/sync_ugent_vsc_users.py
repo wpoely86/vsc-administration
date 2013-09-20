@@ -50,6 +50,12 @@ fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
 
+STORAGE_USERS_LIMIT_WARNING = 1
+STORAGE_USERS_LIMIT_CRITICAL = 10
+STORAGE_VO_LIMIT_WARNING = 1
+STORAGE_VO_LIMIT_CRITICAL = 10
+
+
 def notify_user_directory_created(user, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
 
@@ -250,9 +256,8 @@ def main():
                                                        storage_name)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
-                stats["%s_users_sync_fail_warning" % (storage_name,)] = 1
-                stats["%s_users_sync_fail_critical" % (storage_name,)] = 10
-
+                stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
+                stats["%s_users_sync_fail_critical" % (storage_name,)] = STORAGE_USERS_LIMIT_CRITICAL
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
@@ -270,10 +275,10 @@ def main():
                                                      storage_name)
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
-                stats["%s_vos_sync_fail_warning" % (storage_name,)] = 1
-                stats["%s_vos_sync_fail_critical" % (storage_name,)] = 10
+                stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
+                stats["%s_vos_sync_fail_critical" % (storage_name,)] = STORAGE_VO_LIMIT_CRITICAL
 
-        if not users_fail + vos_fail:
+        if not (users_fail or vos_fail):
             (_, ldap_timestamp) = convert_timestamp()
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
