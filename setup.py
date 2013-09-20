@@ -36,7 +36,7 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.15.1',
+    'version': '0.15.2',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
