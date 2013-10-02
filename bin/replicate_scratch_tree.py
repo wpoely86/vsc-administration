@@ -68,7 +68,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
 
         for user in xrange(0,99):
 
-            user_name = "vsc%02d%02d" % (group, user)
+            user_name = "vsc4%02d%02d" % (group, user)
             user_id = 2540000 + group * 100 + user
             user_path = os.path.join(group_path, user_name)
             if not os.path.exists(user_path):
