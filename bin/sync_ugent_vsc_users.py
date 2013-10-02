@@ -141,7 +141,7 @@ def process_users(options, users, storage_name):
             if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
                 user.create_scratch_dir(storage_name)
 
-            if storage_name in ['VSC_SCRATCH_GENGAR']:
+            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR']:
                 user.set_scratch_quota(storage_name)
 
             ok_users.append(user)

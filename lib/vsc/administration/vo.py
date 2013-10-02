@@ -189,7 +189,7 @@ class VscVo(VscLdapGroup):
         if self.scratchQuota:
             self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
         else:
-            self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo * 1024)
+            self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
 
     def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
@@ -271,7 +271,7 @@ class VscVo(VscLdapGroup):
         self._create_member_dir(member, target)
 
     def create_member_scratch_dir(self, storage_name, member):
-        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_SCRATCH_VO/<vscid>."""
         target = os.path.join(self._scratch_path(storage_name), member.user_id)
         self._create_member_dir(member, target)
 
