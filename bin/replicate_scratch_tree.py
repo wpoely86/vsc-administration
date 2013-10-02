@@ -12,6 +12,8 @@
 """
 This script replicates the users and VO's onto the scratch storage in
 a temporary tree.
+
+@author: Andy Georges
 """
 
 import grp
@@ -167,4 +169,4 @@ def main():
 
 
 if __name__ == '__main__':
-    maini)
+    main()
