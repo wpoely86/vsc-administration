@@ -14,19 +14,13 @@ This script replicates the users and VO's onto the scratch storage in
 a temporary tree.
 """
 
-import copy
+import grp
 import pwd
 import sys
 
-from vsc.administration.user import VscUser
-from vsc.administration.vo import VscVo
-from vsc.config.base import GENT, VscStorage, VSC
-from vsc.ldap.configuration import VscConfiguration
-from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
-from vsc.ldap.utils import LdapQuery
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.config.base import VscStorage
+from vsc.filesystem.gpfs import GpfsOperations
 from vsc.utils import fancylogger
-from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
@@ -41,6 +35,7 @@ SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
 logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
+
 
 
 def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesystem_name, vo_support=False):
@@ -133,11 +128,6 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                             log.error("Cannot create dir %s" % (member_path,))
 
 
-
-
-
-
-
 def main():
     """
     Main script.
@@ -149,8 +139,6 @@ def main():
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
-        'user': ('process users', None, 'store_true', False),
-        'vo': ('process vos', None, 'store_true', False),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -179,4 +167,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    maini)
