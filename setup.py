@@ -54,6 +54,7 @@ PACKAGE = {
         'bin/create_muk_scratch_directory_tree.py',
         'bin/create_tier2_ugent_home_data_directory_tree.py',
         'bin/get_overview_users.py',
+        'bin/replicate_scratch_tree.py',
         'bin/sync_ugent_vsc_users.py',
         'bin/sync_muk_users.py',
         'bin/sync_muk_projects.py',
