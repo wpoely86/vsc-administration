@@ -122,7 +122,7 @@ def main():
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
-        'lockfile': SYNC_MUK_USERS_LOCKFILE,
+        'locking-filename': SYNC_MUK_USERS_LOCKFILE,
     }
 
     opts = ExtendedSimpleOption(options)
@@ -150,11 +150,11 @@ def main():
         for institute in nfs_mounts:
             users_ok = process_institute(opts.options, institute, muk_users_filter)
             total_institute_users = len(l.user_filter_search(InstituteFilter(institute)))
-            stats["%s_users_sync" % (institute,)] = users_ok.get(institute).get('ok',0)
+            stats["%s_users_sync" % (institute,)] = users_ok.get('ok',0)
             stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)  # 20% of all users want to get on
             stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)  # 30% of all users want to get on
-            stats["%s_users_sync_fail" % (institute,)] = users_ok.get(institute).get('fail',0)
-            stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get(institute).get('fail',0)
+            stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail',0)
+            stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail',0)
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
     except Exception, err:
