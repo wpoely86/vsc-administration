@@ -122,7 +122,7 @@ def main():
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
-        'lockfile': SYNC_MUK_USERS_LOCKFILE,
+        'locking-filename': SYNC_MUK_USERS_LOCKFILE,
     }
 
     opts = ExtendedSimpleOption(options)
