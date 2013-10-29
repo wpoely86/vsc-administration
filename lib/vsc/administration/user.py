@@ -341,13 +341,19 @@ class VscUser(VscLdapUser):
             self.log.warning("No user quota set for %s" % (storage_name))
             return
 
+        # FIXME: temp fix for the delcatty storage rsync
+        if storage_name.startswith('VSC_SCRATCH_DELCATTY'):
+            multiplier = 10
+        else:
+            multiplier = 1
+
         quota *= 1024
         soft = int(self.vsc.quota_soft_fraction * quota)
 
-        self.log.info("Setting quota for %s on %s to %d" % (storage_name, path, quota))
+        self.log.info("Setting quota for %s on %s to %d" % (storage_name, path, quota * multiplier))
 
         # LDAP information is expressed in KiB, GPFS wants bytes.
-        self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota)
+        self.gpfs.set_user_quota(soft, int(self.uidNumber), path, quota * multiplier)
         self.gpfs.set_user_grace(path, self.vsc.user_storage_grace_time)  # 7 days
 
     def set_home_quota(self):
