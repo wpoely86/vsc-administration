@@ -187,7 +187,12 @@ class VscVo(VscLdapGroup):
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.scratchQuota:
-            self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota))
+            # FIXME: temp fix for the delcatty storage rsync
+            if storage_name.startswith('VSC_SCRATCH_DELCATTY'):
+                multiplier = 10
+            else:
+                multiplier = 1
+            self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota) * multiplier)
         else:
             self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
 
