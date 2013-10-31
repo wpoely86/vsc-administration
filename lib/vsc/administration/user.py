@@ -33,7 +33,7 @@ from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
-from vsc.filesystem.posix import PosixOperations
+from vsc.filesystem.posix import PosixOperations, PosixOperationError
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
