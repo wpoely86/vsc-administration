@@ -233,9 +233,15 @@ class VscVo(VscLdapGroup):
         FIXME: This should probably be some variable in a config setting instance
         """
         if self.scratchQuota and int(self.scratchQuota) > 0:
-            quota = int(self.scratchQuota or 2) / 2 * 1024
+            # FIXME: temp fix for the delcatty storage rsync
+            if storage_name.startswith('VSC_SCRATCH_DELCATTY'):
+                multiplier = 10
+            else:
+                multiplier = 1
+            quota = int(self.scratchQuota or 2) / 2 * 1024 * multiplier
         else:
             quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
+
 
         self.log.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
                       (storage_name, self.vo_id, member, quota / 1024 / 1024))
