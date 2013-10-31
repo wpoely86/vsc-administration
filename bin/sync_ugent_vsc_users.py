@@ -185,7 +185,6 @@ def process_vos(options, vos, storage, storage_name):
                     if storage_name in ['VSC_DATA']:
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
-                        vo.set_member_data_symlink(member)
 
                     if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
