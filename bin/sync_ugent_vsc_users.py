@@ -185,14 +185,11 @@ def process_vos(options, vos, storage, storage_name):
                     if storage_name in ['VSC_DATA']:
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
-                        vo.set_member_data_symlink(member)
 
                     if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
-                        if storage_name in ['VSC_SCRATCH_GENGAR']:
-                            vo.set_member_scratch_symlink(storage_name, member)
                     ok_vos[vo.vo_id] = [user]
                 except:
                     logger.exception("Failure at setting up the member %s of VO %s on %s" %

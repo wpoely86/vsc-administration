@@ -249,23 +249,7 @@ class VscVo(VscLdapGroup):
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
-
-        self.log.info("Creating a symlink for %s from %s to %s [%s]" % (member.user_id, origin, fake_target, target))
-        try:
-            # This is the real directory on the GPFS
-            if not self.gpfs.is_symlink(origin):
-                self.gpfs.remove_obj(origin)
-                # This is the symlink target that is present when the GPFS is mounted, i.e., the user-known location
-                try:
-                    os.symlink(fake_target, origin)
-                except OSError, err:
-                    if not err.errno in [errno.EEXIST]:
-                        raise
-                    else:
-                        self.log.info("Symlink from %s to %s already exists" % (origin, fake_target))
-        except (PosixOperationError, OSError):
-            self.log.exception("Could not create the symlink for %s from %s to %s [%s]" %
-                               (member.user_id, origin, fake_target, target))
+        self.log.info("Trying to create a symlink for %s from %s to %s [%s]. Deprecated. Not doing anything." % (member.user_id, origin, fake_target, target))
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
@@ -288,26 +272,14 @@ class VscVo(VscLdapGroup):
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        if member.dataMoved:  # failsafe
-            gpfs_mount_point = self.storage['VSC_DATA'].gpfs_mount_point
-            login_mount_point = self.storage['VSC_DATA'].login_mount_point
-            origin = member._data_path()
-            target = os.path.join(self._data_path(), member.user_id)
-            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
-            self._set_member_symlink(member, origin, target, fake_target)
+        self.log.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything" % (storage_name,))
 
     def set_member_scratch_symlink(self, storage_name, member):
-        """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>."""
-        if member.scratchMoved:  #failsafe
-            gpfs_mount_point = self.storage[storage_name].gpfs_mount_point
-            login_mount_point = self.storage[storage_name].login_mount_point
-            origin = member._scratch_path(storage_name)
-            target = os.path.join(self._scratch_path(storage_name), member.user_id)
-            fake_target = target.replace(gpfs_mount_point, login_mount_point, 1)
-            self._set_member_symlink(member, origin, target, fake_target)
-            # we still need to adjust the quota in the root fileset!
-            quota = self.storage[storage_name].quota_user * 1024
-            self._set_member_quota(member._scratch_path(storage_name), member, quota)
+        """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>.
+
+        @deprecated. We should not create new symlinks.
+        """
+        self.log.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything" % (storage_name,))
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
