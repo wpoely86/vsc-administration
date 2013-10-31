@@ -33,7 +33,7 @@ from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
-from vsc.filesystem.posix import PosixOperations
+from vsc.filesystem.posix import PosixOperations, PosixOperationError
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
@@ -325,7 +325,12 @@ class VscUser(VscLdapUser):
 
     def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""
-        self.gpfs.make_dir(path)
+        try:
+            self.gpfs.make_dir(path)
+        except PosixOperationError, err:
+            # this can occur when we have a symlink and we try to 'make' it
+            if not self.gpfs.is_symlink(path):
+                raise
         self.gpfs.chmod(0700, path)
         self.gpfs.chown(int(self.uidNumber), int(self.gidNumber), path)
 
