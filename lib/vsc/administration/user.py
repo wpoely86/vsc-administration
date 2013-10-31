@@ -325,12 +325,11 @@ class VscUser(VscLdapUser):
 
     def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""
-        try:
-            self.gpfs.make_dir(path)
-        except PosixOperationError, err:
-            # this can occur when we have a symlink and we try to 'make' it
-            if not self.gpfs.is_symlink(path):
-                raise
+        if self.gpfs.is_symlink(path):
+            self.log.warning("Trying to make a user dir, but a symlink already exists at %s" % (path,))
+            return
+
+        self.gpfs.make_dir(path)
         self.gpfs.chmod(0700, path)
         self.gpfs.chown(int(self.uidNumber), int(self.gidNumber), path)
 
