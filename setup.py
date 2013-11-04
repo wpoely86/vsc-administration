@@ -44,7 +44,7 @@ PACKAGE = {
     'install_requires': [
         'vsc-base >= 1.6.4',
         'vsc-config >= 1.10',
-        'vsc-filesystems >= 0.10',
+        'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
