@@ -189,10 +189,10 @@ class VscVo(VscLdapGroup):
         if self.scratchQuota:
             # FIXME: temp fix for the delcatty storage rsync
             if storage_name.startswith('VSC_SCRATCH_DELCATTY'):
-                multiplier = 10
+                multiplier = 1.3
             else:
                 multiplier = 1
-            self._set_quota(self._scratch_path(storage_name), int(self.scratchQuota) * multiplier)
+            self._set_quota(self._scratch_path(storage_name), int(int(self.scratchQuota) * multiplier))
         else:
             self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
 
@@ -235,10 +235,10 @@ class VscVo(VscLdapGroup):
         if self.scratchQuota and int(self.scratchQuota) > 0:
             # FIXME: temp fix for the delcatty storage rsync
             if storage_name.startswith('VSC_SCRATCH_DELCATTY'):
-                multiplier = 10
+                multiplier = 1.3
             else:
                 multiplier = 1
-            quota = int(self.scratchQuota or 2) / 2 * 1024 * multiplier
+            quota = int(int(self.scratchQuota or 2) / 2 * 1024 * multiplier)
         else:
             quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
 
