@@ -36,14 +36,14 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.16.6',
+    'version': '0.16.7',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
     'namespace_packages': ['vsc'],
     'install_requires': [
         'vsc-base >= 1.6.4',
-        'vsc-config >= 1.8',
+        'vsc-config >= 1.10',
         'vsc-filesystems >= 0.10',
         'vsc-ldap >= 1.1',
         'vsc-ldap-extension >= 1.3',
