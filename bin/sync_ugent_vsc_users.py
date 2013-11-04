@@ -140,8 +140,6 @@ def process_users(options, users, storage_name):
 
             if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
                 user.create_scratch_dir(storage_name)
-
-            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR']:
                 user.set_scratch_quota(storage_name)
 
             ok_users.append(user)
@@ -175,7 +173,7 @@ def process_vos(options, vos, storage, storage_name):
                 vo.set_data_quota()
                 notify_vo_directory_created(vo, options.dry_run)
 
-            if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+            if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
@@ -186,7 +184,7 @@ def process_vos(options, vos, storage, storage_name):
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
 
-                    if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY']:
+                    if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
