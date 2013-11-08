@@ -56,7 +56,7 @@ class VscUser(VscLdapUser):
     #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
     #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    def __init__(self, user_id, storage=None):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_GENGAR'):
         super(VscUser, self).__init__(user_id)
 
         self.vsc = VSC()
@@ -69,9 +69,19 @@ class VscUser(VscLdapUser):
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
+        self.pickle_storage = pickle_storage
+
     def pickle_path(self):
-        """Provide the location where to store pickle files for this user."""
-        return self.homeDirectory
+        """Provide the location where to store pickle files for this user.
+
+        For now this is only ever used by scripts running on master2, it should
+        be extended if this would no longer be the case.
+        """
+        template = self.storage.path_templates[self.pickle_storage]['user']
+        return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
+                            template[0],
+                            template[1](self.user_id)
+                           )
 
     @classmethod
     def lock(cls):
@@ -539,7 +549,7 @@ class MukUser(VscLdapUser):
         """Override the setting of an attribute:
 
         - dry_run: set this here and in the gpfs and posix instance fields.
-        - othwerwise, call super's __setattr__()
+        - otherwise, call super's __setattr__()
         """
 
         if name == 'dry_run':
