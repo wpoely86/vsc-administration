@@ -42,7 +42,7 @@ PACKAGE = {
     'packages': ['vsc', 'vsc.administration'],
     'namespace_packages': ['vsc'],
     'install_requires': [
-        'vsc-base >= 1.6.4',
+        'vsc-base >= 1.6.5',
         'vsc-config >= 1.10',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
