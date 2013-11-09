@@ -436,12 +436,12 @@ class MukUser(VscLdapUser):
       deployed settings.
     """
 
-    def __init__(self, user_id):
+    def __init__(self, user_id, pickle_storage='VSC_SCRATCH_MUK'):
         """Initialisation.
 
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(MukUser, self).__init__(user_id)
+        super(MukUser, self).__init__(user_id, None, pickle_storage )
 
         self.muk = Muk()
 
@@ -565,6 +565,6 @@ cluster_user_pickle_location_map = {
 }
 
 cluster_user_pickle_store_map = {
-    'gengar': store_pickle_data_at_user_home,
-    'muk': store_pickle_data_at_user
+    'gengar': 'VSC_SCRATCH_GENGAR',
+    'muk': 'VSC_SCRATCH_MUK',
 }
