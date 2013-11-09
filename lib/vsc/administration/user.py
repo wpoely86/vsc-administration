@@ -74,8 +74,8 @@ class VscUser(VscLdapUser):
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
 
-        For now this is only ever used by scripts running on master2, it should
-        be extended if this would no longer be the case.
+        This location is the user'path on the pickle_storage specified when creating
+        a VscUser instance.
         """
         template = self.storage.path_templates[self.pickle_storage]['user']
         return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
