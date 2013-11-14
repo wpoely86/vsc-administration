@@ -37,7 +37,6 @@ from vsc.filesystem.posix import PosixOperations
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
-from vsc.utils.fs_store import store_pickle_data_at_user_home, store_pickle_data_at_user
 
 
 log = fancylogger.getLogger(__name__)
