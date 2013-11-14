@@ -59,7 +59,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
         fileset_name = storage_settings.path_templates[storage]['vo'][0]
         vo_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
         if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
-            gpfs.make_fileset(vo_fileset_path, 'vos')
+            gpfs.make_fileset(vo_fileset_path, fileset_name)
             gpfs.chmod(0755, vo_fileset_path)
             log.info("Fileset %s created and linked at %s" % (fileset_name, vo_fileset_path))
 
