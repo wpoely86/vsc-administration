@@ -435,12 +435,23 @@ class MukUser(VscLdapUser):
       deployed settings.
     """
 
-    def __init__(self, user_id, pickle_storage='VSC_SCRATCH_MUK'):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK'):
         """Initialisation.
 
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(MukUser, self).__init__(user_id, None, pickle_storage )
+        super(MukUser, self).__init__(user_id)
+
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        self.gpfs = GpfsOperations()  # Only used when needed
+        self.posix = PosixOperations()
+
+        self.pickle_storage = pickle_storage
+
 
         self.muk = Muk()
 
