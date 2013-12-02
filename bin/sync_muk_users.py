@@ -259,8 +259,8 @@ $VSC_SCRATCH storage on the Tier-1 to your home institution's long term
 storage, since you will no longer be able to log in to this machine once
 the grace period expires.
 
-Should you have any questions, please reply to this email which will open
-a ticket in our helpdesk system for you.
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
 
 Kind regards,
 -- The UGent HPC team
@@ -278,8 +278,8 @@ has expired.  From this point on, you will not be able to log in to the
 machine anymore, nor will you be able to reach its dedicated $VSC_SCRATCH
 storage.
 
-Should you have any questions, please reply to this email which will open
-a ticket in our helpdesk system for you.
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
 
 Kind regards,
 -- The UGent HPC team
