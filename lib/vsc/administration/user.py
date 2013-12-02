@@ -544,6 +544,19 @@ class MukUser(VscLdapUser):
 
         self.gpfs.ignorerealpathmismatch = False
 
+    def cleanup_home_dir(self):
+        """Remove the symlink to the home dir for the user."""
+        try:
+            source = self.homeDirectory
+        except AttributeError, _:
+            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+
+        if os.is_symlink(source):
+            os.unlink(source)
+            self.log.info("Removed the symbolic link %s" % (source,))
+        else:
+            self.log.error("Home dir cleanup wanted to remove a non-symlink %s")
+
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
 

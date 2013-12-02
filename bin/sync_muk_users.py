@@ -21,6 +21,8 @@ For these, the home and other shizzle should be set up.
 import os
 import sys
 
+from string import Template
+
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
@@ -29,6 +31,7 @@ from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, write_timestamp
 from vsc.utils import fancylogger
+from vsc.utils.cache import FileCache
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
@@ -37,6 +40,9 @@ NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
 SYNC_MUK_USERS_LOCKFILE = "/gpfs/scratch/user/%s.lock" % (NAGIOS_HEADER)
+
+PURGE_NOTIFICATION_TIMES = (7 * 86400, 12 * 86400)
+PURGE_DEADLINE_TIME = 14 * 86400
 
 logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
@@ -109,6 +115,180 @@ def force_nfs_mounts(muk):
     return nfs_mounts
 
 
+def purge_obsolete_symlinks(path, current_users, dry_run):
+    """
+    The symbolic links to home directories must vanish for people who no longer have access.
+
+    For this we use a cache with the following items.
+    - previous list of tier-1 members
+    - to-be-purged dict of member, timestamp pairs
+
+    @type path: string
+    @type current_users: list of user login names
+
+    @param path: path to the cache of purged or to be purged users
+    @param current_users: VSC members who are entitled to compute on the Tier-1 at this point in time
+    """
+
+    now = time.time()
+    cache = FileCache(path)
+
+    previous_users = cache.load('previous_users')
+    if not previous_users:
+        logger.warning("Purge cache has no previous_users")
+        previous_users = []
+        previous_users_timestamp = now
+    else:
+        (previous_users_timestamp, previous_users) = previous_users
+
+    purgees = cache.load('purgees')
+    if not purgees:
+        logger.warning("Purge cache has no purgees")
+        purgees = dict()
+        purgees_timestamp = now
+    else:
+        (purgees_timestamp, purgees) = purgees
+
+    logger.info("Starting purge at time %s" % (now,))
+    logger.debug("Previous users: %s", (previous_users,))
+    logger.debug("Purgees: %s", (purgees,))
+
+    # if a user is added again before his grace ran out, remove him from the purgee list
+    for user in current_users:
+        logger.debug("Checking if %s is in purgees", (user,))
+        if user in purgees:
+            del purgees[user]
+            logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
+
+    # warn those still on the purge list if needed
+    for (user, (first_warning, second_warning, final_warning)) in purgees.items():
+
+        logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user, now, now - first_warning)
+
+        if not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
+            notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
+            purgees[user] = (first_warning, now, None)
+            logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, now, None)))
+        elif not final_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[1]:
+            notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
+            purgees[user] = (first_warning, second_warning, now)
+            logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
+                                                                                         now)))
+
+        if now - first_warning > PURGE_DEADLINE_TIME:
+            m_user = MukUser(user)
+            notify_user_of_purge(m_user, first_warning, now, dry_run)
+            purge_user(m_user, dry_run)
+            del purgees[user]
+            logger.info("Removed %s from the list of purgees - time's up " % (user, ))
+
+    # add those that went to the other side and warn them
+    for user in previous_users:
+        if not user in current_users and not user in purgees:
+            notify_user_of_purge(MukUser(user), now, now, dry_run)
+            purgees[user] = (now, None, None)
+            logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
+        else:
+            logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
+
+    cache.update('previous_users', current_users, 0)
+    cache.update('purgees', purgees, 0)
+    cache.close()
+
+    logger.info("Purge cache updated")
+
+
+def notify_user_of_purge(user, grace_time, current_time, dry_run):
+    """
+    Send out a notification mail to the user letting him know he will be purged in n days or k hours.
+    """
+    left = grace_time + PURGE_DEADLINE_TIME - current_time
+
+    logger.debug("Time left for %s: %d seconds", user, left)
+
+    if left < 0:
+        left = 0
+        left_unit = None
+    if left <= 86400:
+        left /= 3600
+        left_unit = "hours"
+    else:
+        left /= 86400
+        left_unit = "days"
+
+    logger.info("Sending notification mail to %s - time left before purge %d %s" % (user, left, left_unit))
+    if left:
+        notify_purge(user, left, left_unit, dry_run)
+    else:
+        notify_purge(user, None, None, dry_run)
+
+
+def notify_purge(user, grace=0, grace_unit="", dry_run=True):
+    """Send out the actual notification"""
+    mail = VscMail(mail_host="smtp.ugent.be")
+
+    if grace:
+        message = """
+Dear %(gecos)s,
+
+Your allocated compute time on the VSC Tier-1 cluster at Ghent has expired.
+You are now in a grace state for the next %(grace_time)s.  This means you can
+no longer submit new jobs to the scheduler.  Jobs running at this moment will
+not be killed and should likely finish.
+
+Please make sure you copy back all required results from the dedicated
+$VSC_SCRATCH storage on the Tier-1 to your home institution's long term
+storage, since you will no longer be able to log in to this machine once
+the grace period expires.
+
+Should you have any questions, please reply to this email which will open
+a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+""" % ({'gecos': user.gecos,
+        'grace_time': "%d %s" % (grace, grace_unit),
+        })
+        mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.cn})
+
+    else:
+        message = """
+Dear %(gecos)s,
+
+The grace period for your compute time on the VSC Tier-1 cluster at Ghent
+has expired.  From this point on, you will not be able to log in to the
+machine anymore, nor will you be able to reach its dedicated $VSC_SCRATCH
+storage.
+
+Should you have any questions, please reply to this email which will open
+a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+""" % ({'gecos': user.gecos,
+        })
+        mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.cn})
+
+    if dry_run:
+        logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
+    else:
+        mail.sendTextMail(mail_to=user.mail,
+                          mail_from="hpc@ugent.be",
+                          reply_to="hpc@ugent.be",
+                          mail_subject=mail_subject,
+                          message=message)
+    logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
+                (user.cn, user.gecos, mail_subject))
+
+
+def purge_user(user, dry_run):
+    """
+    Really purge the user by removing the symlink to his home dir.
+    """
+    logger.info("Purging %s" % (user.cn,))
+    user.cleanup_home_dir()
+
+
 def main():
     """
     Main script.
@@ -123,6 +303,7 @@ def main():
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'locking-filename': SYNC_MUK_USERS_LOCKFILE,
+        'purge-cache': ('Location of the cache with users that should be purged', None, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
