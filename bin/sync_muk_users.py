@@ -290,13 +290,13 @@ Kind regards,
     if dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
-        mail.sendTextMail(mail_to=user.mail,
-                          mail_from="hpc@ugent.be",
-                          reply_to="hpc@ugent.be",
-                          mail_subject=mail_subject,
-                          message=message)
-    logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
-                (user.cn, user.gecos, mail_subject))
+        #mail.sendTextMail(mail_to=user.mail,
+                          #mail_from="hpc@ugent.be",
+                          #reply_to="hpc@ugent.be",
+                          #mail_subject=mail_subject,
+                          #message=message)
+        logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
+                    (user.cn, user.gecos, mail_subject))
 
 
 def purge_user(user, dry_run):
@@ -304,7 +304,9 @@ def purge_user(user, dry_run):
     Really purge the user by removing the symlink to his home dir.
     """
     logger.info("Purging %s" % (user.cn,))
-    user.cleanup_home_dir()
+    if dry_run:
+        user.dry_run = True
+    #user.cleanup_home_dir()
 
 
 def main():
@@ -361,7 +363,7 @@ def main():
          purgees_first_notify,
          purgees_second_notify,
          purgees_final_notify,
-         purgees_begone) = purge_obsolete_symlinks()
+         purgees_begone) = purge_obsolete_symlinks(opts.options.purge_cache, muk_users, opts.options.dry_run)
 
         stats['purgees_undone'] = purgees_undone
         stats['purgees_first_notify'] = purgees_first_notify
