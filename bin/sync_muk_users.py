@@ -133,6 +133,12 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     now = time.time()
     cache = FileCache(path)
 
+    purgees_undone = 0
+    purgees_first_notify = 0
+    purgees_second_notify = 0
+    purgees_final_notify = 0
+    purgees_begone = 0
+
     previous_users = cache.load('previous_users')
     if not previous_users:
         logger.warning("Purge cache has no previous_users")
@@ -158,6 +164,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
         logger.debug("Checking if %s is in purgees", (user,))
         if user in purgees:
             del purgees[user]
+            purgees_undone += 1
             logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
 
     # warn those still on the purge list if needed
@@ -168,10 +175,12 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
         if not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
             notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
             purgees[user] = (first_warning, now, None)
+            purgees_second_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, now, None)))
         elif not final_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[1]:
             notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
             purgees[user] = (first_warning, second_warning, now)
+            purgees_final_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
                                                                                          now)))
 
@@ -180,6 +189,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             notify_user_of_purge(m_user, first_warning, now, dry_run)
             purge_user(m_user, dry_run)
             del purgees[user]
+            purgees_begone += 1
             logger.info("Removed %s from the list of purgees - time's up " % (user, ))
 
     # add those that went to the other side and warn them
@@ -187,6 +197,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
         if not user in current_users and not user in purgees:
             notify_user_of_purge(MukUser(user), now, now, dry_run)
             purgees[user] = (now, None, None)
+            purgees_first_notify += 1
             logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
         else:
             logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
@@ -196,6 +207,13 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     cache.close()
 
     logger.info("Purge cache updated")
+
+    return (purgees_undone,
+            purgees_first_notify,
+            purgees_second_notify,
+            purgees_final_notify,
+            purgees_begone,
+            )
 
 
 def notify_user_of_purge(user, grace_time, current_time, dry_run):
@@ -338,6 +356,19 @@ def main():
             stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail',0)
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
+
+        (purgees_undone,
+         purgees_first_notify,
+         purgees_second_notify,
+         purgees_final_notify,
+         purgees_begone) = purge_obsolete_symlinks()
+
+        stats['purgees_undone'] = purgees_undone
+        stats['purgees_first_notify'] = purgees_first_notify
+        stats['purgees_second_notify'] = purgees_second_notify
+        stats['purgees_final_notify'] = purgees_final_notify
+        stats['purgees_begone'] = purgees_begone
+
     except Exception, err:
         logger.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
