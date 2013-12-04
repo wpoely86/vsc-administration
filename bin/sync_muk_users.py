@@ -113,6 +113,39 @@ def force_nfs_mounts(muk):
 
     return nfs_mounts
 
+def cleanup_purgees(current_users, purgees, dry_run):
+    """
+    Remove users from purgees if they are in the current users list.
+    """
+    purgees_undone = 0
+    for user in current_users:
+        logger.debug("Checking if %s is in purgees", (user,))
+        if user in purgees:
+            del purgees[user]
+            purgees_undone += 1
+            logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
+            notify_reinstatement(MukUser(user), dry_run)
+
+    return purgees_undone
+
+
+def add_users_to_purgees(previous_users, current_users, purgees, now, dry_run):
+    """
+    Add the users that are out to the purgees
+    """
+    purgees_first_notify = 0
+    for user in previous_users:
+        if not user in current_users and not user in purgees:
+            notify_user_of_purge(MukUser(user), now, now, dry_run)
+            purgees[user] = (now, None, None)
+            purgees_first_notify += 1
+            logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
+        else:
+            logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
+
+    return purgees_first_notify
+
+
 
 def purge_obsolete_symlinks(path, current_users, dry_run):
     """
@@ -159,17 +192,10 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     logger.debug("Purgees: %s", (purgees,))
 
     # if a user is added again before his grace ran out, remove him from the purgee list
-    for user in current_users:
-        logger.debug("Checking if %s is in purgees", (user,))
-        if user in purgees:
-            del purgees[user]
-            purgees_undone += 1
-            logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
-            notify_reinstatement(MukUser(user), dry_run)
+    purgees_undone = cleanup_purgees(current_users, purgees, dry_run)
 
     # warn those still on the purge list if needed
     for (user, (first_warning, second_warning, final_warning)) in purgees.items():
-
         logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user, now, now - first_warning)
 
         if now - first_warning > PURGE_DEADLINE_TIME:
@@ -195,15 +221,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
                                                                                          now)))
 
     # add those that went to the other side and warn them
-    for user in previous_users:
-        if not user in current_users and not user in purgees:
-            notify_user_of_purge(MukUser(user), now, now, dry_run)
-            purgees[user] = (now, None, None)
-            purgees_first_notify += 1
-            logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
-        else:
-            logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
-
+    purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
     cache.update('previous_users', current_users, 0)
     cache.update('purgees', purgees, 0)
     cache.close()
