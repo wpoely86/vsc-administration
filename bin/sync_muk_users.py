@@ -22,15 +22,12 @@ import os
 import sys
 import time
 
-from string import Template
-
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.ldap.timestamp import convert_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
 from vsc.utils.mail import VscMail
