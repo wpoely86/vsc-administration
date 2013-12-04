@@ -168,11 +168,22 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             del purgees[user]
             purgees_undone += 1
             logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
+            notify_reinstatement(MukUser(user), dry_run)
 
     # warn those still on the purge list if needed
     for (user, (first_warning, second_warning, final_warning)) in purgees.items():
 
         logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user, now, now - first_warning)
+
+        if now - first_warning > PURGE_DEADLINE_TIME:
+            m_user = MukUser(user)
+            notify_user_of_purge(m_user, first_warning, now, dry_run)
+            purge_user(m_user, dry_run)
+            del purgees[user]
+            purgees_begone += 1
+            logger.info("Removed %s from the list of purgees - time's up " % (user, ))
+
+            continue
 
         if not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
             notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
@@ -185,14 +196,6 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             purgees_final_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
                                                                                          now)))
-
-        if now - first_warning > PURGE_DEADLINE_TIME:
-            m_user = MukUser(user)
-            notify_user_of_purge(m_user, first_warning, now, dry_run)
-            purge_user(m_user, dry_run)
-            del purgees[user]
-            purgees_begone += 1
-            logger.info("Removed %s from the list of purgees - time's up " % (user, ))
 
     # add those that went to the other side and warn them
     for user in previous_users:
@@ -241,6 +244,39 @@ def notify_user_of_purge(user, grace_time, current_time, dry_run):
         notify_purge(user, left, left_unit, dry_run)
     else:
         notify_purge(user, None, None, dry_run)
+
+
+def notify_reinstatement(user, dry_run):
+    """
+    Send out a mail notifying the user he was removed from grace and back to regular mode on muk.
+    """
+    mail = VscMail(mail_host="smtp.ugent.be")
+
+    message = """
+Dear %(gecos)s,
+
+You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
+again submit jobs to the scheduler.
+
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+""" % ({'gecos': user.gecos,})
+    mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.cn})
+
+    if dry_run:
+        logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
+    else:
+        mail.sendTextMail(mail_to=user.mail,
+                          mail_from="hpc@ugent.be",
+                          reply_to="hpc@ugent.be",
+                          mail_subject=mail_subject,
+                          message=message)
+        logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
+                    (user.cn, user.gecos, mail_subject))
+
 
 
 def notify_purge(user, grace=0, grace_unit="", dry_run=True):
