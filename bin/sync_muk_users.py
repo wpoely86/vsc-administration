@@ -47,8 +47,58 @@ logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
+REINSTATEMENT_MESSAGE = """
+Dear %(gecos)s,
+
+You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
+again submit jobs to the scheduler.
+
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+"""
+
+GRACE_MESSAGE = """
+Dear %(gecos)s,
+
+Your allocated compute time on the VSC Tier-1 cluster at Ghent has expired.
+You are now in a grace state for the next %(grace_time)s.  This means you can
+no longer submit new jobs to the scheduler.  Jobs running at this moment will
+not be killed and should likely finish.
+
+Please make sure you copy back all required results from the dedicated
+$VSC_SCRATCH storage on the Tier-1 to your home institution's long term
+storage, since you will no longer be able to log in to this machine once
+the grace period expires.
+
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+"""
+
+FINAL_MESSAGE = """
+Dear %(gecos)s,
+
+The grace period for your compute time on the VSC Tier-1 cluster at Ghent
+has expired.  From this point on, you will not be able to log in to the
+machine anymore, nor will you be able to reach its dedicated $VSC_SCRATCH
+storage.
+
+Should you have any questions, please contact us at hpc@ugent.be or reply to
+this email which will open a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+"""
 
 def process_institute(options, institute, users_filter):
+    """
+    Sync the users from the given institute to the system
+    """
 
     muk = Muk()  # Singleton class, so no biggie
     changed_users = MukUser.lookup(users_filter & InstituteFilter(institute))
@@ -99,6 +149,9 @@ def process(options, users):
     return error_users
 
 def force_nfs_mounts(muk):
+    """
+    Make sure that the NFS mounts are there
+    """
 
     nfs_mounts = []
     for institute in muk.institutes:
@@ -144,7 +197,6 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, dry_run):
             logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
 
     return purgees_first_notify
-
 
 
 def purge_obsolete_symlinks(path, current_users, dry_run):
@@ -222,6 +274,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
 
     # add those that went to the other side and warn them
     purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
+
     cache.update('previous_users', current_users, 0)
     cache.update('purgees', purgees, 0)
     cache.close()
@@ -268,18 +321,7 @@ def notify_reinstatement(user, dry_run):
     """
     mail = VscMail(mail_host="smtp.ugent.be")
 
-    message = """
-Dear %(gecos)s,
-
-You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
-again submit jobs to the scheduler.
-
-Should you have any questions, please contact us at hpc@ugent.be or reply to
-this email which will open a ticket in our helpdesk system for you.
-
-Kind regards,
--- The UGent HPC team
-""" % ({'gecos': user.gecos,})
+    message = REINSTATEMENT_MESSAGE % ({'gecos': user.gecos,})
     mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.cn})
 
     if dry_run:
@@ -300,45 +342,13 @@ def notify_purge(user, grace=0, grace_unit="", dry_run=True):
     mail = VscMail(mail_host="smtp.ugent.be")
 
     if grace:
-        message = """
-Dear %(gecos)s,
-
-Your allocated compute time on the VSC Tier-1 cluster at Ghent has expired.
-You are now in a grace state for the next %(grace_time)s.  This means you can
-no longer submit new jobs to the scheduler.  Jobs running at this moment will
-not be killed and should likely finish.
-
-Please make sure you copy back all required results from the dedicated
-$VSC_SCRATCH storage on the Tier-1 to your home institution's long term
-storage, since you will no longer be able to log in to this machine once
-the grace period expires.
-
-Should you have any questions, please contact us at hpc@ugent.be or reply to
-this email which will open a ticket in our helpdesk system for you.
-
-Kind regards,
--- The UGent HPC team
-""" % ({'gecos': user.gecos,
-        'grace_time': "%d %s" % (grace, grace_unit),
-        })
+        message = GRACE_MESSAGE % ({'gecos': user.gecos,
+                                    'grace_time': "%d %s" % (grace, grace_unit),
+                                    })
         mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.cn})
 
     else:
-        message = """
-Dear %(gecos)s,
-
-The grace period for your compute time on the VSC Tier-1 cluster at Ghent
-has expired.  From this point on, you will not be able to log in to the
-machine anymore, nor will you be able to reach its dedicated $VSC_SCRATCH
-storage.
-
-Should you have any questions, please contact us at hpc@ugent.be or reply to
-this email which will open a ticket in our helpdesk system for you.
-
-Kind regards,
--- The UGent HPC team
-""" % ({'gecos': user.gecos,
-        })
+        message = FINAL_MESSAGE % ({'gecos': user.gecos, })
         mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.cn})
 
     if dry_run:
