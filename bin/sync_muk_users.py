@@ -33,6 +33,7 @@ from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
+from vsc.utils.mail import VscMail
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
@@ -291,11 +292,11 @@ Kind regards,
     if dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
-        #mail.sendTextMail(mail_to=user.mail,
-                          #mail_from="hpc@ugent.be",
-                          #reply_to="hpc@ugent.be",
-                          #mail_subject=mail_subject,
-                          #message=message)
+        mail.sendTextMail(mail_to=user.mail,
+                          mail_from="hpc@ugent.be",
+                          reply_to="hpc@ugent.be",
+                          mail_subject=mail_subject,
+                          message=message)
         logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
                     (user.cn, user.gecos, mail_subject))
 
@@ -307,7 +308,7 @@ def purge_user(user, dry_run):
     logger.info("Purging %s" % (user.cn,))
     if dry_run:
         user.dry_run = True
-    #user.cleanup_home_dir()
+    user.cleanup_home_dir()
 
 
 def main():
