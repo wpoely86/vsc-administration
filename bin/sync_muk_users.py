@@ -20,6 +20,7 @@ For these, the home and other shizzle should be set up.
 
 import os
 import sys
+import time
 
 from string import Template
 
@@ -363,7 +364,7 @@ def main():
          purgees_first_notify,
          purgees_second_notify,
          purgees_final_notify,
-         purgees_begone) = purge_obsolete_symlinks(opts.options.purge_cache, muk_users, opts.options.dry_run)
+         purgees_begone) = purge_obsolete_symlinks(opts.options.purge_cache, [u.cn for u in muk_users], opts.options.dry_run)
 
         stats['purgees_undone'] = purgees_undone
         stats['purgees_first_notify'] = purgees_first_notify
