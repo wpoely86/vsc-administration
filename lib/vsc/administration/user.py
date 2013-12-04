@@ -562,7 +562,7 @@ class MukUser(VscLdapUser):
         except AttributeError, _:
             self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
-        if os.is_symlink(source):
+        if self.gpfs.is_symlink(source):
             os.unlink(source)
             self.log.info("Removed the symbolic link %s" % (source,))
         else:
