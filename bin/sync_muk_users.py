@@ -210,12 +210,13 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
 
     logger.info("Purge cache updated")
 
-    return (purgees_undone,
-            purgees_first_notify,
-            purgees_second_notify,
-            purgees_final_notify,
-            purgees_begone,
-            )
+    return {
+        'purgees_undone': purgees_undone,
+        'purgees_first_notify': purgees_first_notify,
+        'purgees_second_notify' :purgees_second_notify,
+        'purgees_final_notify': purgees_final_notify,
+        'purgees_begone': purgees_begone,
+    }
 
 
 def notify_user_of_purge(user, grace_time, current_time, dry_run):
@@ -394,17 +395,8 @@ def main():
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
 
-        (purgees_undone,
-         purgees_first_notify,
-         purgees_second_notify,
-         purgees_final_notify,
-         purgees_begone) = purge_obsolete_symlinks(opts.options.purge_cache, [u.cn for u in muk_users], opts.options.dry_run)
-
-        stats['purgees_undone'] = purgees_undone
-        stats['purgees_first_notify'] = purgees_first_notify
-        stats['purgees_second_notify'] = purgees_second_notify
-        stats['purgees_final_notify'] = purgees_final_notify
-        stats['purgees_begone'] = purgees_begone
+        purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, [u.cn for u in muk_users], opts.options.dry_run)
+        stats.update(purgees_stats)
 
     except Exception, err:
         logger.exception("critical exception caught: %s" % (err))
