@@ -47,13 +47,16 @@ logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
+TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
+UGENT_SMTP_ADDRESS="smtp.ugent.be"
+
 REINSTATEMENT_MESSAGE = """
 Dear %(gecos)s,
 
 You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
 again submit jobs to the scheduler.
 
-Should you have any questions, please contact us at hpc@ugent.be or reply to
+Should you have any questions, please contact us at %(tier1_helpdesk)s or reply to
 this email which will open a ticket in our helpdesk system for you.
 
 Kind regards,
@@ -73,7 +76,7 @@ $VSC_SCRATCH storage on the Tier-1 to your home institution's long term
 storage, since you will no longer be able to log in to this machine once
 the grace period expires.
 
-Should you have any questions, please contact us at hpc@ugent.be or reply to
+Should you have any questions, please contact us at %(tier1_helpdesk)s or reply to
 this email which will open a ticket in our helpdesk system for you.
 
 Kind regards,
@@ -88,7 +91,7 @@ has expired.  From this point on, you will not be able to log in to the
 machine anymore, nor will you be able to reach its dedicated $VSC_SCRATCH
 storage.
 
-Should you have any questions, please contact us at hpc@ugent.be or reply to
+Should you have any questions, please contact us at %(tier1_helpdesk)s or reply to
 this email which will open a ticket in our helpdesk system for you.
 
 Kind regards,
@@ -224,20 +227,20 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     purgees_begone = 0
 
     previous_users = cache.load('previous_users')
-    if not previous_users:
+    if previous_users:
+        (previous_users_timestamp, previous_users) = previous_users
+    else:
         logger.warning("Purge cache has no previous_users")
         previous_users = []
         previous_users_timestamp = now
-    else:
-        (previous_users_timestamp, previous_users) = previous_users
 
     purgees = cache.load('purgees')
     if not purgees:
+        (purgees_timestamp, purgees) = purgees
+    else:
         logger.warning("Purge cache has no purgees")
         purgees = dict()
         purgees_timestamp = now
-    else:
-        (purgees_timestamp, purgees) = purgees
 
     logger.info("Starting purge at time %s" % (now,))
     logger.debug("Previous users: %s", (previous_users,))
@@ -257,10 +260,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             del purgees[user]
             purgees_begone += 1
             logger.info("Removed %s from the list of purgees - time's up " % (user, ))
-
-            continue
-
-        if not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
+        elif not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
             notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
             purgees[user] = (first_warning, now, None)
             purgees_second_notify += 1
@@ -271,6 +271,8 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             purgees_final_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
                                                                                          now)))
+        else:
+            logger.info("Time difference does not warrant sending a new mail already.")
 
     # add those that went to the other side and warn them
     purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
@@ -294,42 +296,44 @@ def notify_user_of_purge(user, grace_time, current_time, dry_run):
     """
     Send out a notification mail to the user letting him know he will be purged in n days or k hours.
     """
-    left = grace_time + PURGE_DEADLINE_TIME - current_time
+    time_left = grace_time + PURGE_DEADLINE_TIME - current_time
 
-    logger.debug("Time left for %s: %d seconds", user, left)
+    logger.debug("Time time_left for %s: %d seconds", user, time_left)
 
-    if left < 0:
-        left = 0
+    if time_left < 0:
+        time_left = 0
         left_unit = None
-    if left <= 86400:
-        left /= 3600
+    if time_left <= 86400:
+        time_left /= 3600
         left_unit = "hours"
     else:
-        left /= 86400
+        time_left /= 86400
         left_unit = "days"
 
-    logger.info("Sending notification mail to %s - time left before purge %d %s" % (user, left, left_unit))
-    if left:
-        notify_purge(user, left, left_unit, dry_run)
+    logger.info("Sending notification mail to %s - time time_left before purge %d %s" % (user, time_left, left_unit))
+    if time_left:
+        notify_purge(user, time_left, left_unit, dry_run)
     else:
         notify_purge(user, None, None, dry_run)
 
 
 def notify_reinstatement(user, dry_run):
     """
-    Send out a mail notifying the user he was removed from grace and back to regular mode on muk.
+    Send out a mail notifying the user who was removed from grace and back to regular mode on muk.
     """
-    mail = VscMail(mail_host="smtp.ugent.be")
+    mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
 
-    message = REINSTATEMENT_MESSAGE % ({'gecos': user.gecos,})
+    message = REINSTATEMENT_MESSAGE % ({'gecos': user.gecos,
+                                        'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
+                                        })
     mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.cn})
 
     if dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
         mail.sendTextMail(mail_to=user.mail,
-                          mail_from="hpc@ugent.be",
-                          reply_to="hpc@ugent.be",
+                          mail_from=TIER1_HELPDESK_ADDRESS,
+                          reply_to=TIER1_HELPDESK_ADDRESS,
                           mail_subject=mail_subject,
                           message=message)
         logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
@@ -339,24 +343,27 @@ def notify_reinstatement(user, dry_run):
 
 def notify_purge(user, grace=0, grace_unit="", dry_run=True):
     """Send out the actual notification"""
-    mail = VscMail(mail_host="smtp.ugent.be")
+    mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
 
     if grace:
         message = GRACE_MESSAGE % ({'gecos': user.gecos,
                                     'grace_time': "%d %s" % (grace, grace_unit),
+                                    'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
                                     })
         mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.cn})
 
     else:
-        message = FINAL_MESSAGE % ({'gecos': user.gecos, })
+        message = FINAL_MESSAGE % ({'gecos': user.gecos,
+                                    'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
+                                    })
         mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.cn})
 
     if dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
         mail.sendTextMail(mail_to=user.mail,
-                          mail_from="hpc@ugent.be",
-                          reply_to="hpc@ugent.be",
+                          mail_from=TIER1_HELPDESK_ADDRESS,
+                          reply_to=TIER1_HELPDESK_ADDRESS,
                           mail_subject=mail_subject,
                           message=message)
         logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
