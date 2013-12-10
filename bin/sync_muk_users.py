@@ -235,7 +235,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
         previous_users_timestamp = now
 
     purgees = cache.load('purgees')
-    if not purgees:
+    if purgees:
         (purgees_timestamp, purgees) = purgees
     else:
         logger.warning("Purge cache has no purgees")
