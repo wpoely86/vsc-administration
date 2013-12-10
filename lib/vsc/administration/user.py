@@ -435,12 +435,23 @@ class MukUser(VscLdapUser):
       deployed settings.
     """
 
-    def __init__(self, user_id, pickle_storage='VSC_SCRATCH_MUK'):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK'):
         """Initialisation.
 
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(MukUser, self).__init__(user_id, None, pickle_storage )
+        super(MukUser, self).__init__(user_id)
+
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        self.gpfs = GpfsOperations()  # Only used when needed
+        self.posix = PosixOperations()
+
+        self.pickle_storage = pickle_storage
+
 
         self.muk = Muk()
 
@@ -543,6 +554,19 @@ class MukUser(VscLdapUser):
                 self.log.info("Symlink from %s to %s already exists" % (source, target))
 
         self.gpfs.ignorerealpathmismatch = False
+
+    def cleanup_home_dir(self):
+        """Remove the symlink to the home dir for the user."""
+        try:
+            source = self.homeDirectory
+        except AttributeError, _:
+            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+
+        if self.gpfs.is_symlink(source):
+            os.unlink(source)
+            self.log.info("Removed the symbolic link %s" % (source,))
+        else:
+            self.log.error("Home dir cleanup wanted to remove a non-symlink %s")
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
