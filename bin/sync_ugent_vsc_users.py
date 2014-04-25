@@ -26,6 +26,9 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 
 import copy
 import sys
+import urllib
+import urllib2
+
 
 from vsc.administration.user import VscUser
 from vsc.administration.vo import VscVo
@@ -37,6 +40,7 @@ from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestam
 from vsc.utils import fancylogger
 from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
+from vsc.utils.rest_oauth import request_access_token, make_api_request
 from vsc.utils.script_tools import ExtendedSimpleOption
 
 NAGIOS_HEADER = "sync_ugent_users"
@@ -56,7 +60,7 @@ STORAGE_VO_LIMIT_WARNING = 1
 STORAGE_VO_LIMIT_CRITICAL = 10
 
 
-def notify_user_directory_created(user, dry_run=True):
+def notify_user_directory_created(user, options, opener, access_token, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -66,17 +70,23 @@ def notify_user_directory_created(user, dry_run=True):
         change the state to active
     - otherwise, the user account already was active in the past, and we simply have an idempotent script.
     """
-
     if dry_run:
         logger.info("User %s has LDAP status %s. Dry-run so not changing anything" % (user.user_id, user.status))
         return
 
+    payload = '{"status": "active"}'
     if user.status == 'new':
-        user.status = 'notify'
-        logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
+        response = make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
+        if response.get('status', None) not in ('active'):
+            logger.error("Status for %s was not set to active" % (user.cn,))
+        else:
+            logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
     elif user.status == 'modify':
-        user.status = 'active'
-        logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
+        response = make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
+        if response.get('status', None) not in ('active'):
+            logger.error("Status for %s was not set to active" % (user.cn,))
+        else:
+            logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
     else:
         logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
 
@@ -103,7 +113,7 @@ def notify_vo_directory_created(vo, dry_run=True):
     else:
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
-def process_users(options, users, storage_name):
+def process_users(options, users, storage_name, opener, access_token):
     """
     Process the users.
 
@@ -132,7 +142,7 @@ def process_users(options, users, storage_name):
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
-                notify_user_directory_created(user, options.dry_run)
+                notify_user_directory_created(user, options, opener, access_token, options.dry_run)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
@@ -215,12 +225,21 @@ def main():
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
+        'client_id': ('ID of the registered application', None, 'store', None),
+        'client_secret': ('secret key', None, 'store', None),
+        'account_page_url': ('Base URL of the account page', None, 'store', 'https://account.vscentrum.be/django')
     }
 
     opts = ExtendedSimpleOption(options)
     stats = {}
 
     try:
+        opener = urllib2.build_opener(urllib2.HTTPHandler)
+        oauth_path = "%s/oauth/token/" % (opts.options.account_page_url,)
+        access_token_info = request_access_token(opener, oauth_path, opts.options.client_id, opts.options.client_secret )
+        access_token = access_token_info['access_token']
+
+
         LdapQuery(VscConfiguration())  # Initialise LDAP binding
         vsc = VSC()
         storage = VscStorage()
@@ -248,7 +267,9 @@ def main():
             for storage_name in opts.options.storage:
                 (users_ok, users_fail) = process_users(opts.options,
                                                        ugent_users,
-                                                       storage_name)
+                                                       storage_name,
+                                                       opener,
+                                                       access_token)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
