@@ -283,6 +283,10 @@ class VscUser(VscLdapUser):
         """Return the path to the scratch dir"""
         return self._get_path(storage_name, mount_point)
 
+    def _grouping_home_path(self, mount_point="gpfs"):
+        """Return the path to the grouping fileset for the users on data."""
+        return self._get_grouping_path('VSC_HOME', mount_point)
+
     def _grouping_data_path(self, mount_point="gpfs"):
         """Return the path to the grouping fileset for the users on data."""
         return self._get_grouping_path('VSC_DATA', mount_point)
@@ -298,6 +302,9 @@ class VscUser(VscLdapUser):
         Always set the quota.
         """
         try:
+            path = self._grouping_home_path()
+            self._create_grouping_fileset(self.storage['VSC_HOME'].filesystem, path)
+
             path = self._home_path()
             self._create_user_dir(path)
         except:
