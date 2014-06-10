@@ -42,6 +42,35 @@ from vsc.ldap.entities import VscLdapUser
 log = fancylogger.getLogger(__name__)
 
 
+class VscAccountPageUser(object):
+
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELATTY', rest_client=None):
+        self.vsc_id = user_id
+        self.rest_client = rest_client
+
+        self.vsc = VSC()
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        self.gpfs = GpfsOperations()  # Only used when needed
+        self.posix = PosixOperations()
+
+        self.pickle_storage = pickle_storage
+
+    def pickle_path(self):
+        """Provide the location where to store pickle files for this user.
+
+        This location is the user'path on the pickle_storage specified when creating
+        a VscUser instance.
+        """
+        template = self.storage.path_templates[self.pickle_storage]['user']
+        return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
+                            template[0],
+                            template[1](self.user_id)
+                           )
+
 class VscUser(VscLdapUser):
     """Classs representing a user in the VSC administrative library.
 
