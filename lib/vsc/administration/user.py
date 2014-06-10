@@ -55,7 +55,7 @@ class VscUser(VscLdapUser):
     #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
     #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_GENGAR'):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELATTY'):
         super(VscUser, self).__init__(user_id)
 
         self.vsc = VSC()
@@ -590,11 +590,11 @@ class MukUser(VscLdapUser):
 
 
 cluster_user_pickle_location_map = {
-    'gengar': VscUser,
+    'delcatty': VscUser,
     'muk': MukUser
 }
 
 cluster_user_pickle_store_map = {
-    'gengar': 'VSC_SCRATCH_GENGAR',
+    'delcatty': 'VSC_SCRATCH_DELCATTY',
     'muk': 'VSC_SCRATCH_MUK',
 }
