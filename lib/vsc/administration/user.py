@@ -44,8 +44,8 @@ log = fancylogger.getLogger(__name__)
 
 class VscAccountPageUser(object):
 
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELATTY', rest_client=None):
-        self.vsc_id = user_id
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
+        self.user_id = user_id
         self.rest_client = rest_client
 
         self.vsc = VSC()
