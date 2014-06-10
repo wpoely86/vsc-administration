@@ -619,7 +619,7 @@ class MukUser(VscLdapUser):
 
 
 cluster_user_pickle_location_map = {
-    'delcatty': VscUser,
+    'delcatty': VscAccountPageUser,
     'muk': MukUser
 }
 
