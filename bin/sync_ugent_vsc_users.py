@@ -225,9 +225,8 @@ def main():
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
-        'client_id': ('ID of the registered application', None, 'store', None),
-        'client_secret': ('secret key', None, 'store', None),
-        'account_page_url': ('Base URL of the account page', None, 'store', 'https://account.vscentrum.be/django')
+        'account_page_url': ('Base URL of the account page', None, 'store', 'https://account.vscentrum.be/django'),
+        'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -235,9 +234,7 @@ def main():
 
     try:
         opener = urllib2.build_opener(urllib2.HTTPHandler)
-        oauth_path = "%s/oauth/token/" % (opts.options.account_page_url,)
-        access_token_info = request_access_token(opener, oauth_path, opts.options.client_id, opts.options.client_secret )
-        access_token = access_token_info['access_token']
+        access_token = opts.options.access_token
 
 
         LdapQuery(VscConfiguration())  # Initialise LDAP binding
