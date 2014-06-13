@@ -84,7 +84,7 @@ class VscUser(VscLdapUser):
     #USER_LOCKFILE_NAME = "/var/run/lock.%s.pid" % (__class__.__name__)
     #LOCKFILE = PIDLockFile(USER_LOCKFILE_NAME)
 
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELATTY'):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY'):
         super(VscUser, self).__init__(user_id)
 
         self.vsc = VSC()
