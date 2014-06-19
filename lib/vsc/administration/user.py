@@ -565,7 +565,7 @@ class MukUser(VscLdapUser):
 
         target = None
         try:
-            if self.mukHomeOnScratch:
+            if self.mukHomeOnScratch and self.mukHomeOnScratch not in ('FALSE',):
                 self.log.info("User %s has his home on Muk scratch" % (self.user_id))
                 target = self._scratch_path()
             elif self.mukHomeOnAFM:
