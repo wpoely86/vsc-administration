@@ -126,8 +126,10 @@ def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
             account = p.user.account
         except User.DoesNotExist:
             _log.error("No user found for the given public key %d" % (p.pk,))
+            continue
         except Account.DoesNotExist:
             _log.error("No account for the user %s corresponding to the public key %d" % (p.user.username, p.pk))
+            continue
 
         if account in processed_accounts[NEW] or account in processed_accounts[UPDATED]:
             _log.info("Account %s was already processed and has the new set of public keys" % (account.vsc_id,))
