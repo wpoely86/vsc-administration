@@ -20,12 +20,10 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.utils.generaloption import SimpleOption
 
 
-
 def main():
     """
     Main script. Sets the hard limit for either user or VO.
     """
-
     options = {
         'storage': ("The storage system's name", None, 'store', None),
         'fileset': ("The fileset where you want to adjust the quota", None, 'store', None),
@@ -81,4 +79,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
