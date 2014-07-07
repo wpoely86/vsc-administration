@@ -651,7 +651,7 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
-    l = LdapQuery(VscConfiguration('/etc/vsc.conf.alakazam_ldap_test'))
+    l = LdapQuery(VscConfiguration('/etc/vsc.conf.new'))
 
     last_timestamp = opts.options.start_timestamp
     if not last_timestamp:
