@@ -81,7 +81,7 @@ def notify_user_directory_created(user, options, opener, access_token, dry_run=T
             logger.error("Status for %s was not set to active" % (user.cn,))
         else:
             logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
-    elif user.status == 'modify':
+    elif user.status in ('modify', 'modified'):
         response = make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
         if response.get('status', None) not in ('active'):
             logger.error("Status for %s was not set to active" % (user.cn,))
@@ -107,7 +107,7 @@ def notify_vo_directory_created(vo, dry_run=True):
     if vo.status == 'new':
         vo.status = 'notify'
         logger.info("VO %s changed LDAP status from new to notify" % (vo.vo_id))
-    elif vo.status == 'modify':
+    elif vo.status in ('modify', 'modified'):
         vo.status = 'active'
         logger.info("VO %s changed LDAP status from modify to active" % (vo.vo_id))
     else:
