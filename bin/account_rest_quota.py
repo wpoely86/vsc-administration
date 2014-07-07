@@ -29,24 +29,23 @@ def main():
         'fileset': ("The fileset where you want to adjust the quota", None, 'store', None),
         'user': ('process users', None, 'store', None),
         'vo': ('process vos', None, 'store', None),
-        'size': ('the target quota (in KiB', int, 'store', None),
+        'size': ('the target quota (in KiB)', int, 'store', None),
         'original': ('show the original quota values', None, 'store_true', False),
-        'account_page_url': ('Base URL of the account page', None, 'store', None),  # Not used
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
     }
 
     opts = SimpleOption(options)
     client = AccountpageClient(token=opts.options.access_token)
-    client.client.url = "http://localhost:8000/api/"
 
     fileset = opts.options.fileset
     storage = opts.options.storage
 
     if not opts.options.size:
+        print "size "
         sys.exit()
 
     # TODO: could use some love in allowing a unit to be appended and converting to KiB prior to uploading
-    size = int(opts.options.size)
+    size = opts.options.size
 
     if opts.options.user:
         # quota/user/%(vsc_id)s/storage/%(storage)s/fileset/%(fileset)s/size/$
