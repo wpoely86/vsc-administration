@@ -34,9 +34,11 @@ from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
+from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
+from vsc.ldap.utils import LdapQuery
 
 
 log = fancylogger.getLogger(__name__)
@@ -473,9 +475,9 @@ class MukUser(VscLdapUser):
 
     def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK'):
         """Initialisation.
-
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
+        LdapQuery(VscConfiguration())
         super(MukUser, self).__init__(user_id)
 
         if not storage:
