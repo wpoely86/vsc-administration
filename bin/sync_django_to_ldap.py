@@ -265,10 +265,16 @@ def sync_altered_accounts(last, now, dry_run=True):
             _log.error("No scratch storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
 
         try:
+            try:
+                gecos = str(account.user.person.gecos)
+            except UnicodeEncodeError:
+                gecos = account.user.person.gecos.encode('ascii', 'ignore')
+                _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
+
             ldap_attributes = {
                 'cn': str(account.vsc_id),
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
-                'gecos': [str(account.user.person.gecos)],
+                'gecos': [gecos],
                 'mail': [str(account.user.email)],
                 'institute': [str(account.user.person.institute.site)],
                 'instituteLogin': [str(account.user.person.institute_login)],
