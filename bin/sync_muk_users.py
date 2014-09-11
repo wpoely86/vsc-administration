@@ -275,11 +275,16 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     # add those that went to the other side and warn them
     purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
 
-    cache.update('previous_users', current_users, 0)
-    cache.update('purgees', purgees, 0)
+    if not dry_run:
+        cache.update('previous_users', current_users, 0)
+        cache.update('purgees', purgees, 0)
+        logger.info("Purge cache updated")
+    else:
+        logger.info("Dry run: not updating the purgees cache")
+
     cache.close()
 
-    logger.info("Purge cache updated")
+
 
     return {
         'purgees_undone': purgees_undone,
@@ -407,7 +412,7 @@ def main():
         l = LdapQuery(VscConfigurationNoTLS())  # Initialise LDAP binding
         client = AccountpageClient(token=opts.options.access_token)
 
-        muk_users_set = client.autogroup[muk.muk_user_group].get()[0]['members']
+        muk_users_set = client.autogroup[muk.muk_user_group].get()[1]['members']
         logger.debug("Found the following Muk users: {users}".format(users=muk_users_set))
 
         for institute in nfs_mounts:
