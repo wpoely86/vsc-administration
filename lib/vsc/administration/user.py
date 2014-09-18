@@ -686,7 +686,13 @@ class MukAccountpageUser(VscAccountPageUser):
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-        self.user_scratch_quota = rest_client.account[self.user_id].quota.get()
+        all_quota = rest_client.account[self.user_id].quota.get()[1]
+        muk_quota = filter(lambda q: q['storage']['name'] == muk.storage_name)
+
+        if muk_quota:
+            self.user_scratch_quota = muk_quota[0]['hard']
+        else:
+            self.user_scratch_quota = 0
 
         # self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB  # FIXME: should also come from the account page
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
@@ -741,7 +747,7 @@ class MukAccountpageUser(VscAccountPageUser):
         a valid NFS mount point and avoid setting home on Muk.
         """
         path = self._scratch_path()
-        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
+        self.gpfs.populate_home_dir(int(self.vsc_id_number), int(self.gidNumber), path, self.pubkey)
 
     def create_home_dir(self):
         """Create the symlink to the real user's home dir that is
@@ -751,7 +757,7 @@ class MukAccountpageUser(VscAccountPageUser):
         - sits on scratch (as indicated by the LDAP attribute).
         """
         try:
-            source = self.homeDirectory
+            source = self.home_directory
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         except AttributeError, _:
             self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
