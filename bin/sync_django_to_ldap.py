@@ -288,6 +288,7 @@ def sync_altered_accounts(last, now, dry_run=True):
             }
         except UserGroup.DoesNotExist:
             _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
+            continue
 
         result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
         accounts[result].add(account)
