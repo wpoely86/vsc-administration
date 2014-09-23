@@ -419,8 +419,8 @@ def main():
 
             (status, institute_users) = client.account.institute[institute].get()
             if status == 200:
-                muk_insitute_users = set([u['vsc_id'] for u in institute_users]).intersection(muk_users_set)
-                users_ok = process_institute(opts.options, institute, muk_insitute_users, client)
+                muk_institute_users = set([u['vsc_id'] for u in institute_users]).intersection(muk_users_set)
+                users_ok = process_institute(opts.options, institute, muk_institute_users, client)
             else:
                 # not sure what to do here.
                 continue
