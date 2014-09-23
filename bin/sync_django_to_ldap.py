@@ -49,9 +49,8 @@ NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
-
 fancylogger.setLogLevelInfo()
-fancylogger.logToScreen(True)
+fancylogger.logToScreen(False)
 
 DONE = 'done'
 NEW = 'new'
@@ -265,10 +264,16 @@ def sync_altered_accounts(last, now, dry_run=True):
             _log.error("No scratch storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
 
         try:
+            try:
+                gecos = str(account.user.person.gecos)
+            except UnicodeEncodeError:
+                gecos = account.user.person.gecos.encode('ascii', 'ignore')
+                _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
+
             ldap_attributes = {
                 'cn': str(account.vsc_id),
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
-                'gecos': [str(account.user.person.gecos)],
+                'gecos': [gecos],
                 'mail': [str(account.user.email)],
                 'institute': [str(account.user.person.institute.site)],
                 'instituteLogin': [str(account.user.person.institute_login)],
@@ -282,7 +287,7 @@ def sync_altered_accounts(last, now, dry_run=True):
                 'pubkey': [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)],
                 'gidNumber': ["%s" % (account.usergroup.vsc_id_number,)],
                 'loginShell': [str(account.login_shell)],
-                'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
+                # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
                 'researchField': ["unknown"],
                 'status': [str(account.status)],
             }
@@ -334,7 +339,7 @@ def sync_altered_user_quota(last, now, altered_accounts, dry_run=True):
                 ldap_user.dataQuota = "%d" % (quota.hard,)
                 quotas[UPDATED].add(quota)
             elif quota.storage.storage_type in (settings.SCRATCH,):
-                ldap_user.scratchQuota = "%d" (quota.hard,)
+                ldap_user.scratchQuota = "%d" % (quota.hard,)
                 quotas[UPDATED].add(quota)
             else:
                 _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
@@ -630,7 +635,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
                 ldap_group.dataQuota = "%d" % (quota.hard,)
                 quotas[UPDATED].add(quota)
             elif quota.storage.storage_type in (settings.SCRATCH,):
-                ldap_group.scratchQuota = "%d" (quota.hard,)
+                ldap_group.scratchQuota = "%d" % (quota.hard,)
                 quotas[UPDATED].add(quota)
             else:
                 _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
@@ -643,7 +648,6 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
 
 def main():
     _log = fancylogger.getLogger(NAGIOS_HEADER)
-    _log.propagate = False
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
@@ -665,12 +669,20 @@ def main():
 
     _log.info("Using timestamp %s" % (last_timestamp))
 
-    parent_pid = os.fork()
+    try:
+        parent_pid = os.fork()
+        _log.info("Forked.")
+    except OSError:
+        _log.exception("Could not fork")
+        parent_pid = 1
+    except Exception:
+        _log.exception("Oops")
+        parent_pid = 1
 
     if parent_pid == 0:
         try:
+            global _log
             _log = fancylogger.getLogger(NAGIOS_HEADER)
-            _log.propagate = False
             # drop privileges in the child
             try:
                 apache_uid = pwd.getpwnam('apache').pw_uid
