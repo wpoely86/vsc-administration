@@ -29,6 +29,8 @@ import errno
 import logging
 import os
 
+from urllib2 import HTTPError
+
 from vsc import fancylogger
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
@@ -686,15 +688,14 @@ class MukAccountpageUser(VscAccountPageUser):
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-        all_quota = rest_client.account[self.user_id].quota.get()[1]
-        muk_quota = filter(lambda q: q['storage']['name'] == muk.storage_name)
-
-        if muk_quota:
+        try:
+            all_quota = rest_client.account[self.user_id].quota.get()[1]
+            muk_quota = filter(lambda q: q['storage']['name'] == self.muk.storage_name, all_quota)
             self.user_scratch_quota = muk_quota[0]['hard']
-        else:
+        except HTTPError:
+            logging.exception("Unable to retrieve quota information")
             self.user_scratch_quota = 0
 
-        # self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB  # FIXME: should also come from the account page
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
     def pickle_path(self):
