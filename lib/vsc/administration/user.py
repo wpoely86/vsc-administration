@@ -29,6 +29,7 @@ import errno
 import logging
 import os
 
+from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
@@ -47,12 +48,42 @@ from vsc.ldap.utils import LdapQuery
 log = fancylogger.getLogger(__name__)
 
 
+VscAccount = namedtuple("VscAccount", [
+   'vsc_id',
+   'status',
+   'vsc_id_number',
+   'home_directory',
+   'data_directory',
+   'scratch_directory',
+   'login_shell',
+   'broken',
+   'email',
+   'create_timestamp',
+])
+
+VscAccountPerson = namedtuple("VscAccountPerson", [
+    'gecos',
+    'institute',
+    'institute_login',
+])
+
+VscUserGroup = namedtuple("VscUserGroup", [
+   'vsc_id',
+   'vsc_id_number',
+   'status',
+   'institute',
+   'members',
+   'moderators',
+   'description',
+])
+
+
 class VscAccountPageUser(object):
     """
     A user who gets his own information from the accountpage through the REST API.
     """
 
-    def __init__(self, user_id, rest_client=None):
+    def __init__(self, user_id, rest_client):
         """
         Initialise.
         """
@@ -60,21 +91,13 @@ class VscAccountPageUser(object):
         self.rest_client = rest_client
 
         # We immediately retrieve this information
-        self.account = rest_client.account[user_id].get()
-        self.person = rest_client.account[user_id].person.get()
-
-
-    def __getattr__(self, item):
-        """
-        Retrieve a piece of information from the account page information if available. This caches the account page
-        values, and will no issue a REST request every thing an attribute is accessed.
-        """
-        result = self.account.get(item, None) or self.person.get(item.None)
-
-        if not result:
-            return self.__getattribute__(item)
-        else:
-            return result
+        try:
+            self.account = VscAccount(**(rest_client.account[user_id].get()[1]))
+            self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
+            self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
+        except HTTPError:
+            logging.error("Cannot get information from the account page")
+            raise
 
 
 class VscTier2AccountpageUser(VscAccountPageUser):
@@ -725,12 +748,12 @@ class MukAccountpageUser(VscAccountPageUser):
         path = self._scratch_path()
 
         if not self.gpfs.get_fileset_info(self.muk.scratch_name, fileset_name):
-            self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
+            logging.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
+            logging.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
 
         self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
 
@@ -761,15 +784,15 @@ class MukAccountpageUser(VscAccountPageUser):
             source = self.home_directory
             base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+            logging.exception(""
 
         target = None
         try:
             if self.mukHomeOnScratch and self.mukHomeOnScratch not in ('FALSE',):
-                self.log.info("User %s has his home on Muk scratch" % (self.user_id))
+                logging.info("User %s has his home on Muk scratch" % (self.user_id))
                 target = self._scratch_path()
             elif self.mukHomeOnAFM:
-                self.log.info("User %s has his home on Muk AFM" % (self.user_id))
+                logging.info("User %s has his home on Muk AFM" % (self.user_id))
                 target = self.muk.user_afm_home_mount(self.user_id, self.institute)
         except AttributeError, _:
             pass
@@ -787,7 +810,7 @@ class MukAccountpageUser(VscAccountPageUser):
             if not err.errno in [errno.EEXIST]:
                 raise
             else:
-                self.log.info("Symlink from %s to %s already exists" % (source, target))
+                logging.info("Symlink from %s to %s already exists" % (source, target))
 
         self.gpfs.ignorerealpathmismatch = False
 
@@ -796,13 +819,13 @@ class MukAccountpageUser(VscAccountPageUser):
         try:
             source = self.homeDirectory
         except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+            loggging.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
 
         if self.gpfs.is_symlink(source):
             os.unlink(source)
-            self.log.info("Removed the symbolic link %s" % (source,))
+            logging.info("Removed the symbolic link %s" % (source,))
         else:
-            self.log.error("Home dir cleanup wanted to remove a non-symlink %s")
+            logging.error("Home dir cleanup wanted to remove a non-symlink %s")
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
