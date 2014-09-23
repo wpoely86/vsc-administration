@@ -24,6 +24,7 @@ import time
 
 from vsc.administration.group import Group
 from vsc.administration.user import MukUser
+from vsc.accountpage.client import AccountpageClient
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.ldap.configuration import VscConfigurationNoTLS
 from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
@@ -98,30 +99,26 @@ Kind regards,
 -- The UGent HPC team
 """
 
-def process_institute(options, institute, users_filter):
+def process_institute(options, institute, institute_users, client):
     """
     Sync the users from the given institute to the system
     """
-
     muk = Muk()  # Singleton class, so no biggie
-    changed_users = MukUser.lookup(users_filter & InstituteFilter(institute))
-    logger.info("Processing the following users from {institute}: {users}".format(institute=institute,
-                users=[u.user_id for u in changed_users]))
 
     try:
         nfs_location = muk.nfs_link_pathnames[institute]['home']
         logger.info("Checking link to NFS mount at %s" % (nfs_location))
         os.stat(nfs_location)
         try:
-            error_users = process(options, changed_users)
+            error_users = process(options, institute_users)
         except:
             logger.exception("Something went wrong processing users from %s" % (institute))
     except:
         logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
-        error_users = changed_users
+        error_users = institute_users
 
     fail_usercount = len(error_users)
-    ok_usercount = len(changed_users) - fail_usercount
+    ok_usercount = len(institute_users) - fail_usercount
 
     return { 'ok': ok_usercount,
              'fail': fail_usercount
@@ -138,7 +135,8 @@ def process(options, users):
     """
 
     error_users = []
-    for user in users:
+    for user_id in users:
+        user = MukUser(user_id)
         if options.dry_run:
             user.dry_run = True
         try:
@@ -146,8 +144,8 @@ def process(options, users):
             user.populate_scratch_fallback()
             user.create_home_dir()
         except:
-            logger.exception("Cannot process user %s" % (user.user_id))
-            error_users.append(user)
+            logger.exception("Cannot process user %s" % (user_id))
+            error_users.append(user_id)
 
     return error_users
 
@@ -277,11 +275,16 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     # add those that went to the other side and warn them
     purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
 
-    cache.update('previous_users', current_users, 0)
-    cache.update('purgees', purgees, 0)
+    if not dry_run:
+        cache.update('previous_users', current_users, 0)
+        cache.update('purgees', purgees, 0)
+        logger.info("Purge cache updated")
+    else:
+        logger.info("Dry run: not updating the purgees cache")
+
     cache.close()
 
-    logger.info("Purge cache updated")
+
 
     return {
         'purgees_undone': purgees_undone,
@@ -395,6 +398,7 @@ def main():
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'locking-filename': SYNC_MUK_USERS_LOCKFILE,
         'purge-cache': ('Location of the cache with users that should be purged', None, 'store', None),
+        'access_token': ('OAuth2 token identiying the user with the accountpage', None, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -406,21 +410,21 @@ def main():
         logger.info("Forced NFS mounts")
 
         l = LdapQuery(VscConfigurationNoTLS())  # Initialise LDAP binding
+        client = AccountpageClient(token=opts.options.access_token)
 
-        muk_group_filter = CnFilter(muk.muk_user_group)
-        try:
-            muk_group = Group.lookup(muk_group_filter)[0]
-            logger.info("Muk group = %s" % (muk_group.memberUid))
-        except IndexError:
-            logger.raiseException("Could not find a group with cn %s. Cannot proceed synchronisation" % muk.muk_user_group)
-
-        muk_users = [MukUser(user_id) for user_id in muk_group.memberUid]
-        logger.debug("Found the following Muk users: {users}".format(users=muk_group.memberUid))
-
-        muk_users_filter = LdapFilter.from_list(lambda x, y: x | y, [CnFilter(u.user_id) for u in muk_users])
+        muk_users_set = client.autogroup[muk.muk_user_group].get()[1]['members']
+        logger.debug("Found the following Muk users: {users}".format(users=muk_users_set))
 
         for institute in nfs_mounts:
-            users_ok = process_institute(opts.options, institute, muk_users_filter)
+
+            (status, institute_users) = client.account.institute[institute].get()
+            if status == 200:
+                muk_institute_users = set([u['vsc_id'] for u in institute_users]).intersection(muk_users_set)
+                users_ok = process_institute(opts.options, institute, muk_institute_users, client)
+            else:
+                # not sure what to do here.
+                continue
+
             total_institute_users = len(l.user_filter_search(InstituteFilter(institute)))
             stats["%s_users_sync" % (institute,)] = users_ok.get('ok',0)
             stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)  # 20% of all users want to get on
@@ -430,7 +434,7 @@ def main():
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
 
-        purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, [u.cn for u in muk_users], opts.options.dry_run)
+        purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, muk_users_set, opts.options.dry_run)
         stats.update(purgees_stats)
 
     except Exception, err:
