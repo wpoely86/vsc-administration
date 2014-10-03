@@ -50,7 +50,7 @@ NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
 fancylogger.setLogLevelInfo()
-fancylogger.logToScreen(False)
+fancylogger.logToScreen(True)
 
 DONE = 'done'
 NEW = 'new'
@@ -441,9 +441,12 @@ def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
         DONE: set(),
     }
 
+    newly_processed_groups = set()
     for member in changed_members:
 
-        if member.group in processed_groups[NEW] or member.group in processed_groups[UPDATED]:
+        if member.group in processed_groups[NEW] \
+                or member.group in processed_groups[UPDATED] \
+                or member.group in newly_processed_groups:
             _log.info("Member %s was already processed with group %s" % (member.account.vsc_id, member.group))
             members[DONE].add(member)
             continue
@@ -452,8 +455,9 @@ def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
             ldap_group = VscLdapGroup(member.group.vsc_id)
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in Membership.objects.filter(group=member.group)]
-            processed_groups[UPDATED].add(member.group)
+            newly_processed_groups.add(member.group)
             members[UPDATED].add(member)
+            _log.info("Processed group %s member %s" % (member.group.vsc_id, members.account.vsc_id))
         except Exception:
             _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
@@ -512,9 +516,13 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
         DONE: set(),
     }
 
+    newly_processed_vos = set()
+
     for member in changed_members:
 
-        if member.group in processed_vos[NEW] or member.group in processed_vos[UPDATED]:
+        if member.group in processed_vos[NEW] \
+                or member.group in processed_vos[UPDATED] \
+                or member.group in newly_processed_vos:
             _log.info("Member %s membership was already processed with group %s" % (member.account.vsc_id, member.group))
             members[DONE].add(member)
             continue
@@ -523,8 +531,9 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
             ldap_group = VscLdapGroup(member.group.vsc_id)
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=member.group)]
-            processed_vos[UPDATED].add(member.group)
+            newly_processed_vos.add(member.group)
             members[UPDATED].add(member)
+            _log.info("Processed group %s member %s" % (member.group.vsc_id, members.account.vsc_id))
         except Exception:
             _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
@@ -549,8 +558,6 @@ def sync_altered_VO(last, now, dry_run=True):
     }
 
     for vo in changed_vos:
-
-
 
         try:
             data_storage = Storage.objects.get(storage_type=settings.DATA, institute=vo.institute)
@@ -608,7 +615,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
     """
     changed_quota = VirtualOrganisationSizeQuota.objects.filter(modify_timestamp__range=[last, now])
 
-    _log.info("Found %d modified quota in the range %s until %s" % (len(changed_quota),
+    _log.info("Found %d modified VO quota in the range %s until %s" % (len(changed_quota),
                                                                     last.strftime("%Y%m%d%H%M%SZ"),
                                                                     now.strftime("%Y%m%d%H%M%SZ")))
     quotas = {
@@ -739,6 +746,18 @@ def main():
                 sys.exit(0)
             else:
                 _log.info("Child process exiting with status -1")
+                _log.warning("Error occured in %s" % (
+                    ["%s: %s\n" % (k, v) for (k.v) in [
+                        ("altered accounts", altered_accounts[ERROR]),
+                        ("altered groups", altered_groups[ERROR],
+                        ("altered vos", altered_vos[ERROR]),
+                        ("altered members", altered_members[ERROR]),
+                        ("altered vo_members", altered_vo_members[ERROR]),
+                        ("altered usergroups", altered_usergroups[ERROR]),
+                        ("altered user quota", altered_user_quota[ERROR]),
+                        ("altered vo quota", altered_vo_quota[ERROR]),
+                    ]]
+                ))
                 sys.exit(-1)
         except Exception:
             _log.exception("Child caught an exception")
