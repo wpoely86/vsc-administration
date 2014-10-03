@@ -747,9 +747,9 @@ def main():
             else:
                 _log.info("Child process exiting with status -1")
                 _log.warning("Error occured in %s" % (
-                    ["%s: %s\n" % (k, v) for (k.v) in [
+                    ["%s: %s\n" % (k, v) for (k, v) in [
                         ("altered accounts", altered_accounts[ERROR]),
-                        ("altered groups", altered_groups[ERROR],
+                        ("altered groups", altered_groups[ERROR]),
                         ("altered vos", altered_vos[ERROR]),
                         ("altered members", altered_members[ERROR]),
                         ("altered vo_members", altered_vo_members[ERROR]),
