@@ -455,12 +455,13 @@ def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
             ldap_group = VscLdapGroup(member.group.vsc_id)
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in Membership.objects.filter(group=member.group)]
-            newly_processed_groups.add(member.group)
-            members[UPDATED].add(member)
-            _log.info("Processed group %s member %s" % (member.group.vsc_id, members.account.vsc_id))
         except Exception:
             _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
+        else:
+            newly_processed_groups.add(member.group)
+            members[UPDATED].add(member)
+            _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
 
     return members
 
@@ -515,7 +516,6 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
         ERROR: set(),
         DONE: set(),
     }
-
     newly_processed_vos = set()
 
     for member in changed_members:
@@ -531,12 +531,13 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
             ldap_group = VscLdapGroup(member.group.vsc_id)
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=member.group)]
-            newly_processed_vos.add(member.group)
-            members[UPDATED].add(member)
-            _log.info("Processed group %s member %s" % (member.group.vsc_id, members.account.vsc_id))
         except Exception:
             _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
+        else:
+            newly_processed_vos.add(member.group)
+            members[UPDATED].add(member)
+            _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
 
     return members
 
