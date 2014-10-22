@@ -23,12 +23,9 @@ import sys
 import time
 
 from vsc.administration.group import Group
-from vsc.administration.user import MukUser
+from vsc.administration.user import MukAccountpageUser
 from vsc.accountpage.client import AccountpageClient
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
-from vsc.ldap.configuration import VscConfigurationNoTLS
-from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
-from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
 from vsc.utils.mail import VscMail
@@ -110,9 +107,10 @@ def process_institute(options, institute, institute_users, client):
         logger.info("Checking link to NFS mount at %s" % (nfs_location))
         os.stat(nfs_location)
         try:
-            error_users = process(options, institute_users)
+            error_users = process(options, institute_users, client)
         except:
             logger.exception("Something went wrong processing users from %s" % (institute))
+            error_users = institute_users
     except:
         logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
         error_users = institute_users
@@ -125,7 +123,7 @@ def process_institute(options, institute, institute_users, client):
            }
 
 
-def process(options, users):
+def process(options, users, client):
     """
     Actually do the tasks for a changed or new user:
 
@@ -136,7 +134,7 @@ def process(options, users):
 
     error_users = []
     for user_id in users:
-        user = MukUser(user_id)
+        user = MukAccountpageUser(user_id, rest_client=client)
         if options.dry_run:
             user.dry_run = True
         try:
@@ -148,6 +146,7 @@ def process(options, users):
             error_users.append(user_id)
 
     return error_users
+
 
 def force_nfs_mounts(muk):
     """
@@ -167,7 +166,7 @@ def force_nfs_mounts(muk):
 
     return nfs_mounts
 
-def cleanup_purgees(current_users, purgees, dry_run):
+def cleanup_purgees(current_users, purgees, client, dry_run):
     """
     Remove users from purgees if they are in the current users list.
     """
@@ -178,19 +177,19 @@ def cleanup_purgees(current_users, purgees, dry_run):
             del purgees[user]
             purgees_undone += 1
             logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
-            notify_reinstatement(MukUser(user), dry_run)
+            notify_reinstatement(MukAccountpageUser(user, rest_client=client), dry_run)
 
     return purgees_undone
 
 
-def add_users_to_purgees(previous_users, current_users, purgees, now, dry_run):
+def add_users_to_purgees(previous_users, current_users, purgees, now, client, dry_run):
     """
     Add the users that are out to the purgees
     """
     purgees_first_notify = 0
     for user in previous_users:
         if not user in current_users and not user in purgees:
-            notify_user_of_purge(MukUser(user), now, now, dry_run)
+            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), now, now, dry_run)
             purgees[user] = (now, None, None)
             purgees_first_notify += 1
             logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
@@ -200,7 +199,7 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, dry_run):
     return purgees_first_notify
 
 
-def purge_obsolete_symlinks(path, current_users, dry_run):
+def purge_obsolete_symlinks(path, current_users, client, dry_run):
     """
     The symbolic links to home directories must vanish for people who no longer have access.
 
@@ -245,26 +244,26 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
     logger.debug("Purgees: %s", (purgees,))
 
     # if a user is added again before his grace ran out, remove him from the purgee list
-    purgees_undone = cleanup_purgees(current_users, purgees, dry_run)
+    purgees_undone = cleanup_purgees(current_users, purgees, client, dry_run)
 
     # warn those still on the purge list if needed
     for (user, (first_warning, second_warning, final_warning)) in purgees.items():
         logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user, now, now - first_warning)
 
         if now - first_warning > PURGE_DEADLINE_TIME:
-            m_user = MukUser(user)
+            m_user = MukAccountpageUser(user, rest_client=client)
             notify_user_of_purge(m_user, first_warning, now, dry_run)
             purge_user(m_user, dry_run)
             del purgees[user]
             purgees_begone += 1
             logger.info("Removed %s from the list of purgees - time's up " % (user, ))
         elif not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
-            notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
+            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), first_warning, now, dry_run)
             purgees[user] = (first_warning, now, None)
             purgees_second_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, now, None)))
         elif not final_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[1]:
-            notify_user_of_purge(MukUser(user), first_warning, now, dry_run)
+            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), first_warning, now, dry_run)
             purgees[user] = (first_warning, second_warning, now)
             purgees_final_notify += 1
             logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
@@ -273,7 +272,7 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
             logger.info("Time difference does not warrant sending a new mail already.")
 
     # add those that went to the other side and warn them
-    purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, dry_run)
+    purgees_first_notify = add_users_to_purgees(previous_users, current_users, purgees, now, client, dry_run)
 
     if not dry_run:
         cache.update('previous_users', current_users, 0)
@@ -298,6 +297,8 @@ def purge_obsolete_symlinks(path, current_users, dry_run):
 def notify_user_of_purge(user, grace_time, current_time, dry_run):
     """
     Send out a notification mail to the user letting him know he will be purged in n days or k hours.
+
+    @type user: MukAccountpageUser
     """
     time_left = grace_time + PURGE_DEADLINE_TIME - current_time
 
@@ -323,24 +324,26 @@ def notify_user_of_purge(user, grace_time, current_time, dry_run):
 def notify_reinstatement(user, dry_run):
     """
     Send out a mail notifying the user who was removed from grace and back to regular mode on muk.
+
+    @type user: MukAccountpageUser
     """
     mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
 
-    message = REINSTATEMENT_MESSAGE % ({'gecos': user.gecos,
+    message = REINSTATEMENT_MESSAGE % ({'gecos': user.person.gecos,
                                         'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
                                         })
-    mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.cn})
+    mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.account.vsc_id})
 
     if dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
-        mail.sendTextMail(mail_to=user.mail,
+        mail.sendTextMail(mail_to=user.account.email,
                           mail_from=TIER1_HELPDESK_ADDRESS,
                           reply_to=TIER1_HELPDESK_ADDRESS,
                           mail_subject=mail_subject,
                           message=message)
         logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
-                    (user.cn, user.gecos, mail_subject))
+                    (user.account.vsc_id, user.person.gecos, mail_subject))
 
 
 
@@ -349,35 +352,35 @@ def notify_purge(user, grace=0, grace_unit="", dry_run=True):
     mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
 
     if grace:
-        message = GRACE_MESSAGE % ({'gecos': user.gecos,
+        message = GRACE_MESSAGE % ({'gecos': user.person.gecos,
                                     'grace_time': "%d %s" % (grace, grace_unit),
                                     'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
                                     })
-        mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.cn})
+        mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.account.vsc_id})
 
     else:
-        message = FINAL_MESSAGE % ({'gecos': user.gecos,
+        message = FINAL_MESSAGE % ({'gecos': user.person.gecos,
                                     'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
                                     })
-        mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.cn})
+        mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.account.vsc_id})
 
     if dry_run:
-        logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
+        logger.info("Dry-run, would send the following message to %s: %s" % (user.account.vsc_id, message,))
     else:
-        mail.sendTextMail(mail_to=user.mail,
+        mail.sendTextMail(mail_to=user.account.email,
                           mail_from=TIER1_HELPDESK_ADDRESS,
                           reply_to=TIER1_HELPDESK_ADDRESS,
                           mail_subject=mail_subject,
                           message=message)
         logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
-                    (user.cn, user.gecos, mail_subject))
+                    (user.account.vsc_id, user.person.gecos, mail_subject))
 
 
 def purge_user(user, dry_run):
     """
     Really purge the user by removing the symlink to his home dir.
     """
-    logger.info("Purging %s" % (user.cn,))
+    logger.info("Purging %s" % (user.account.vsc_id,))
     if dry_run:
         user.dry_run = True
     user.cleanup_home_dir()
@@ -398,7 +401,7 @@ def main():
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'locking-filename': SYNC_MUK_USERS_LOCKFILE,
         'purge-cache': ('Location of the cache with users that should be purged', None, 'store', None),
-        'access_token': ('OAuth2 token identiying the user with the accountpage', None, 'store', None),
+        'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -409,7 +412,6 @@ def main():
         nfs_mounts = force_nfs_mounts(muk)
         logger.info("Forced NFS mounts")
 
-        l = LdapQuery(VscConfigurationNoTLS())  # Initialise LDAP binding
         client = AccountpageClient(token=opts.options.access_token)
 
         muk_users_set = client.autogroup[muk.muk_user_group].get()[1]['members']
@@ -425,7 +427,7 @@ def main():
                 # not sure what to do here.
                 continue
 
-            total_institute_users = len(l.user_filter_search(InstituteFilter(institute)))
+            total_institute_users = len(muk_institute_users)
             stats["%s_users_sync" % (institute,)] = users_ok.get('ok',0)
             stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)  # 20% of all users want to get on
             stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)  # 30% of all users want to get on
@@ -434,7 +436,7 @@ def main():
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
 
-        purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, muk_users_set, opts.options.dry_run)
+        purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, muk_users_set, client, opts.options.dry_run)
         stats.update(purgees_stats)
 
     except Exception, err:
