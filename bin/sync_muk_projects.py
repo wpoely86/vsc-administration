@@ -22,7 +22,6 @@ import os
 import sys
 
 from vsc.administration.group import Group
-from vsc.administration.user import MukUser
 from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import CnFilter, InstituteFilter, LdapFilter
@@ -54,7 +53,6 @@ def process_project(options, project):
     except:
         logger.exception("Cannot create scratch fileset for project %{project_id}".format(project_id=project.project_id,))
         return False
-
 
 
 def main():

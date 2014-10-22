@@ -75,6 +75,11 @@ VscAccountPubkey = namedtuple("VscAccountPubkey", [
     'vsc_id',
 ])
 
+VscHomeOnScratch = namedtuple("VscHomeOnScratch", [
+    'account',
+    'storage',
+])
+
 VscUserGroup = namedtuple("VscUserGroup", [
     'vsc_id',
     'vsc_id_number',
@@ -105,6 +110,7 @@ class VscAccountPageUser(object):
             self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
                                                   if not p['deleted']]
             self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
+            self.home_on_scratch = [VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]]
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -423,7 +429,7 @@ class VscUser(VscLdapUser):
         @return: a VscUser instance or None if no such user exists
         """
         if not institute in VSC.institutes:
-            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
+            log.raiseException("Institute %s does not exist in the VSC." % (institute))
 
         login_filter = LoginFilter(login)
         institute_filter = InstituteFilter(institute)
@@ -457,7 +463,7 @@ class VscUser(VscLdapUser):
         """
         vsc = VSC()
         if not institute in vsc.institutes:
-            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
+            log.raiseException("Institute %s does not exist in the VSC." % (institute))
 
         user = VscUser(None)  # placeholder, but defines the LdapQuery instance
 
@@ -737,175 +743,6 @@ class VscUser(VscLdapUser):
         super(VscUser, self).__setattr__(name, value)
 
 
-class MukUser(VscLdapUser):
-    """A VSC user who is allowed to execute on the Tier 1 machine(s).
-
-    This class provides functionality for administrating users on the
-    Tier 1 machine(s).
-
-    - Provide a fileset for the user on scratch ($VSC_SCRATCH)
-    - Set up quota (scratch)
-    - Symlink the user's home ($VSC_HOME) to the real home
-        - AFM cached mount (GPFS) of the NFS path
-        - NFS mount of the home institute's directory for the user
-        - Local scratch location
-      This is more involved than it seems since Ghent has a different
-      path compared to the other institutes.
-      Also, /scratch needs to remain the real scratch.
-    - All changes should be an idempotent operation, i.e., f . f = f.
-    - All changes should be made based on the timestamp of the LDAP entry,
-      i.e., only if the modification time is more recent, we update the
-      deployed settings.
-    """
-
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK'):
-        """Initialisation.
-        @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
-        """
-        LdapQuery(VscConfiguration())
-        super(MukUser, self).__init__(user_id)
-
-        if not storage:
-            self.storage = VscStorage()
-        else:
-            self.storage = storage
-
-        self.gpfs = GpfsOperations()  # Only used when needed
-        self.posix = PosixOperations()
-
-        self.pickle_storage = pickle_storage
-
-
-        self.muk = Muk()
-
-        self.ext = ExtOperations()
-        self.gpfs = GpfsOperations()
-        self.posix = PosixOperations()
-
-        self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
-        self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
-
-    def pickle_path(self):
-        return self._scratch_path()
-
-    def _scratch_path(self):
-        """Determines the path (relative to the scratch mount point)
-
-        For a user with ID vscXYZUV this becomes users/vscXYZ/vscXYZUV. Note that the 'user' dir on scratch is
-        different, that is there to ensure the home dir symlink tree can be present on all nodes.
-
-        @returns: string representing the relative path for this user.
-        """
-        path = os.path.join(self.scratch['defaultMountPoint'], 'users', self.user_id[:-2], self.user_id)
-        return path
-
-    def create_scratch_fileset(self):
-        """Create a fileset for the user on the scratch filesystem.
-
-        - creates the fileset if it does not already exist
-        - sets the (fixed) quota on this fileset
-        - no user quota on scratch! only per-fileset quota
-        """
-        self.gpfs.list_filesets()
-
-        fileset_name = self.user_id
-        path = self._scratch_path()
-
-        if not self.gpfs.get_fileset_info(self.muk.scratch_name, fileset_name):
-            self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
-            base_dir_hierarchy = os.path.dirname(path)
-            self.gpfs.make_dir(base_dir_hierarchy)
-            self.gpfs.make_fileset(path, fileset_name)
-        else:
-            self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
-
-        self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
-
-        # We will always populate the scratch directory of the user as if it's his home directory
-        # In this way, if the user moves to home on scratch, everything will be up to date and in place.
-
-    def populate_scratch_fallback(self):
-        """The scratch fileset is populated with the
-
-        - ssh keys,
-        - a clean .bashrc script,
-        - a clean .bash_profile.
-
-        The user can then always log in to the scratch, should the synchronisation fail to detect
-        a valid NFS mount point and avoid setting home on Muk.
-        """
-        path = self._scratch_path()
-        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
-
-    def create_home_dir(self):
-        """Create the symlink to the real user's home dir that is
-
-        - mounted somewhere over NFS
-        - has an AFM cache covering the real NFS mount
-        - sits on scratch (as indicated by the LDAP attribute).
-        """
-        try:
-            source = self.homeDirectory
-            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
-        except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
-
-        target = None
-        try:
-            if self.mukHomeOnScratch and self.mukHomeOnScratch not in ('FALSE',):
-                self.log.info("User %s has his home on Muk scratch" % (self.user_id))
-                target = self._scratch_path()
-            elif self.mukHomeOnAFM:
-                self.log.info("User %s has his home on Muk AFM" % (self.user_id))
-                target = self.muk.user_afm_home_mount(self.user_id, self.institute)
-        except AttributeError, _:
-            pass
-
-
-        if target is None:
-            # This is the default case
-            target = self.muk.user_nfs_home_mount(self.user_id, self.institute)
-
-        self.gpfs.ignorerealpathmismatch = True
-        self.gpfs.make_dir(base_home_dir_hierarchy)
-        try:
-            os.symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
-        except OSError, err:
-            if not err.errno in [errno.EEXIST]:
-                raise
-            else:
-                self.log.info("Symlink from %s to %s already exists" % (source, target))
-
-        self.gpfs.ignorerealpathmismatch = False
-
-    def cleanup_home_dir(self):
-        """Remove the symlink to the home dir for the user."""
-        try:
-            source = self.homeDirectory
-        except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
-
-        if self.gpfs.is_symlink(source):
-            os.unlink(source)
-            self.log.info("Removed the symbolic link %s" % (source,))
-        else:
-            self.log.error("Home dir cleanup wanted to remove a non-symlink %s")
-
-    def __setattr__(self, name, value):
-        """Override the setting of an attribute:
-
-        - dry_run: set this here and in the gpfs and posix instance fields.
-        - otherwise, call super's __setattr__()
-        """
-
-        if name == 'dry_run':
-            self.gpfs.dry_run = value
-            self.posix.dry_run = value
-
-        super(MukUser, self).__setattr__(name, value)
-
-
-
 class MukAccountpageUser(VscAccountPageUser):
     """A VSC user who is allowed to execute on the Tier 1 machine(s).
 
@@ -948,11 +785,16 @@ class MukAccountpageUser(VscAccountPageUser):
 
         try:
             all_quota = rest_client.account[self.user_id].quota.get()[1]
-            muk_quota = filter(lambda q: q['storage']['name'] == self.muk.storage_name, all_quota)
-            self.user_scratch_quota = muk_quota[0]['hard']
         except HTTPError:
-            logging.exception("Unable to retrieve quota information")
-            self.user_scratch_quota = 0
+            logging.exception("Unable to retrieve quota information from the accountpage")
+            self.user_scratch_storage = 0
+        else:
+            muk_quota = filter(lambda q: q['storage']['name'] == self.muk.storage_name, all_quota)
+            if muk_quota:
+                self.user_scratch_quota = muk_quota[0]['hard']
+            else:
+                self.user_scratch_quota = 250 * 1024 * 1024
+
 
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
@@ -1006,7 +848,10 @@ class MukAccountpageUser(VscAccountPageUser):
         a valid NFS mount point and avoid setting home on Muk.
         """
         path = self._scratch_path()
-        self.gpfs.populate_home_dir(int(self.vsc_id_number), int(self.gidNumber), path, self.pubkey)
+        self.gpfs.populate_home_dir(int(self.account.vsc_id_number),
+                                    int(self.usergroup.vsc_id_number),
+                                    path,
+                                    [p.pubkey for p in self.pubkeys])
 
     def create_home_dir(self):
         """Create the symlink to the real user's home dir that is
@@ -1015,27 +860,20 @@ class MukAccountpageUser(VscAccountPageUser):
         - has an AFM cache covering the real NFS mount
         - sits on scratch (as indicated by the LDAP attribute).
         """
-        try:
-            source = self.home_directory
-            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
-        except AttributeError, _:
-            logging.exception(""
-
+        source = self.account.home_directory
+        base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         target = None
-        try:
-            if self.mukHomeOnScratch and self.mukHomeOnScratch not in ('FALSE',):
-                logging.info("User %s has his home on Muk scratch" % (self.user_id))
-                target = self._scratch_path()
-            elif self.mukHomeOnAFM:
-                logging.info("User %s has his home on Muk AFM" % (self.user_id))
-                target = self.muk.user_afm_home_mount(self.user_id, self.institute)
-        except AttributeError, _:
-            pass
 
+        if 'VSC_MUK_SCRATCH' in [s.storage['name'] for s in self.home_on_scratch]:
+            logging.info("User %s has his home on Muk scratch" % (self.account.vsc_id))
+            target = self._scratch_path()
+        elif 'VSC_MUK_AFM' in [s.storage['name'] for s in self.home_on_scratch]:
+            logging.info("User %s has his home on Muk AFM" % (self.user_id))
+            target = self.muk.user_afm_home_mount(self.account.vsc_id, self.person.institute['site'])
 
         if target is None:
             # This is the default case
-            target = self.muk.user_nfs_home_mount(self.user_id, self.institute)
+            target = self.muk.user_nfs_home_mount(self.account.vsc_id, self.person.institute['site'])
 
         self.gpfs.ignorerealpathmismatch = True
         self.gpfs.make_dir(base_home_dir_hierarchy)
@@ -1046,15 +884,11 @@ class MukAccountpageUser(VscAccountPageUser):
                 raise
             else:
                 logging.info("Symlink from %s to %s already exists" % (source, target))
-
         self.gpfs.ignorerealpathmismatch = False
 
     def cleanup_home_dir(self):
         """Remove the symlink to the home dir for the user."""
-        try:
-            source = self.homeDirectory
-        except AttributeError, _:
-            loggging.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+        source = self.account.home_directory
 
         if self.gpfs.is_symlink(source):
             os.unlink(source)
@@ -1078,7 +912,7 @@ class MukAccountpageUser(VscAccountPageUser):
 
 cluster_user_pickle_location_map = {
     'delcatty': VscTier2AccountpageUser,
-    'muk': MukUser,
+    'muk': MukAccountpageUser,
 }
 
 cluster_user_pickle_store_map = {

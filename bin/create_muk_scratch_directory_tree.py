@@ -28,7 +28,7 @@ from vsc.filesystem.gpfs import GpfsOperations
 from vsc.ldap.filters import CnFilter
 from vsc.ldap.utils import LdapQuery
 from vsc.ldap.configuration import LumaConfiguration
-from vsc.administration.user import MukUser
+from vsc.administration.user import MukAccountpageUser
 from vsc.config.base import Muk
 from vsc.utils import fancylogger
 
@@ -124,7 +124,7 @@ def add_example_users():
 
     This creates paths and filesets for an UGent user with regular home on the gengar storage, NFS mounted
     """
-    u = MukUser('vsc40075')  # ageorges
+    u = MukAccountpageUser('vsc40075')  # ageorges
     u.create_scratch_fileset()
     u.populate_scratch_fallback()  # we should always do this, so we can shift the symlinks around at leisure.
     u.create_home_dir()  # this creates the symlink from the directory hierarchy in the scratch to the actual home
