@@ -793,8 +793,7 @@ class MukAccountpageUser(VscAccountPageUser):
             if muk_quota:
                 self.user_scratch_quota = muk_quota[0]['hard']
             else:
-                self.user_scratch_quota = 250 * 1024 * 1024
-
+                self.user_scratch_quota = 250 * 1024 * 1024 * 1024
 
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
