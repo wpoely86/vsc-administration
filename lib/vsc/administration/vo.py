@@ -31,6 +31,7 @@ from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
+from vsc.accountpage.wrappers import VscVo, VscVoSizeQuota
 from vsc.administration.user import VscAccount, VscUser
 from vsc.config.base import VSC, VscStorage
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
@@ -41,19 +42,6 @@ logger = fancylogger.getLogger(__name__)
 VO_PREFIX = 'gvo'
 DEFAULT_VO = 'gvo000012'
 INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
-
-VscVoRest = namedtuple("VscVoRest", [
-    'vsc_id',
-    'status',
-    'vsc_id_number',
-    'institute',
-    'fairshare',
-    'data_path',
-    'scratch_path',
-    'description',
-    'members',
-    'moderators',
-])
 
 
 class VscAccountPageVo(object):
@@ -69,7 +57,7 @@ class VscAccountPageVo(object):
 
         # We immediately retrieve this information
         try:
-            self.vo = VscVoRest(**(rest_client.vo[vo_id].get()[1]))
+            self.vo = VscVo(**(rest_client.vo[vo_id].get()[1]))
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -97,15 +85,15 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self.posix = PosixOperations()
 
         try:
-            all_quota = rest_client.vo[self.user_id].quota.get()[1]
-            institute_quota = filter(lambda q: q['storage']['institute'] == self.vo.institute['site'], all_quota)
-            self.vo_data_quota = filter(lambda q: q['storage']['storage_type'] in ('data',), institute_quota)
-            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
+            all_quota = [VscVoSizeQuota(**q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
         except HTTPError:
             logging.exception("Unable to retrieve quota information")
-            self.vo_home_quota = None
-            self.vo_data_quota = None
+            self.vo_data_quota = self.storage['VSC_DATA'].vo_quota
             self.vo_scratch_quota = None
+        else:
+            institute_quota = filter(lambda q: q['storage']['institute'] == self.vo.institute['site'], all_quota)
+            self.vo_data_quota = ([q.hard for q in institute_quota if q.storage['storage_type'] in ('data',)] or [self.storage['VSC_DATA'].vo_qouta])[0]
+            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)  # multiple values!
 
     def members(self):
         """Return a list with all the VO members in it."""
@@ -123,7 +111,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.error("mount_point (%s)is not login or gpfs" % (mount_point))
             raise Exception()
 
-        return os.path.join(mount_path, template[0], template[1](self.vo_id))
+        return os.path.join(mount_path, template[0], template[1](self.vo.vsc_id))
 
     def _data_path(self, mount_point="gpfs"):
         """Return the path to the VO data fileset on GPFS"""
@@ -146,7 +134,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
         """
         self.gpfs.list_filesets()
-        fileset_name = self.vo_id
+        fileset_name = self.vo.vsc_id
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
             logging.info("Creating new fileset on %s with name %s and path %s" %
@@ -160,7 +148,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             else:
                 self.gpfs.make_fileset(path, fileset_name, parent_fileset)
         else:
-            logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
+            logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo.vsc_id))
 
         self.gpfs.chmod(0770, path)
 
@@ -168,9 +156,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             moderator = VscAccount(**self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
             logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
-            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, int(self.vo.vsc_id_number), path)
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
         else:
-            self.gpfs.chown(int(moderator.vsc_id_number), int(self.vo.vsc_id_number), path)
+            self.gpfs.chown(moderator.vsc_id_number, self.vo.vsc_id_number, path)
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -205,7 +193,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         @param quota: soft quota limit expressed in KiB
         """
         try:
-            quota *= 1024
+            quota *= 1024  # expressed in bytes, retrieved in KiB from the backend
             soft = int(quota * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
@@ -218,10 +206,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.vo_data_quota:
-            self._set_quota(self._data_path(), int(self.vo_data_quota.hard))
+            self._set_quota(self._data_path(), int(self.vo_data_quota))
         else:
-            quota = 16 * 1024**2  # default not used from the filesystem_info/conf file at thes moment.
-            self._set_quota(self._data_path(), quota)
+            self._set_quota(self._data_path(), 16 * 1024)
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -241,13 +228,13 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def _set_member_quota(self, path, member, quota):
         """Set USER quota on the FS for the VO fileset
 
-        @type member: VscUser instance
+        @type member: VscTier2AccountpageUser
         """
         try:
             soft = int(quota * self.vsc.quota_soft_fraction)
-            self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
+            self.gpfs.set_user_quota(soft, int(member.account.vsc_id_number), path, quota * 1024)
         except GpfsOperationError:
-            logging.exception("Unable to set USR quota for member %s on path %s" % (member.user_id, path))
+            logging.exception("Unable to set USR quota for member %s on path %s" % (member.account.vsc_id, path))
             raise
 
     def set_member_data_quota(self, member):
@@ -258,10 +245,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if self.vo_data_quota and self.vo_data_quota.hard > 0:
-            quota = self.vo_data_quota.hard / 2 * 1024  # half the VO space expressed in bytes
+        if not quota:
+
+        if member.vo_data_quota:
+
         else:
-            quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
+            quota = 8 * 1024  # 4 MiB, with a replication factor of 2
 
         logging.info("Setting the data quota for VO %s member %s to %d GiB" %
                       (self.vo_id, member, quota / 1024 / 1024))
@@ -283,7 +272,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                           (self.vo.vsc_id, member, storage_name,))
             logging.info("Setting default VO %s member %s quota on storage %s to %d" %
                          (self.vo.vsc_id, member, storage_name, self.storage[storage_name].quota_vo))
-            self._set_member_quota(self._scratch_path(storage_name), member, 2 * 1024**2) # 2MiB, replication 2
+            self._set_member_quota(self._scratch_path(storage_name), member, 2 * 1024) # 2MiB, replication 2
             return
 
         logging.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
