@@ -26,21 +26,16 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 
 import copy
 import sys
-import urllib
-import urllib2
 
 
-from vsc.administration.user import VscUser
+from vsc.accountpage.client import AccountpageClient
+from vsc.administration.user import VscTier2AccountpageUser
 from vsc.administration.vo import VscVo
 from vsc.config.base import GENT, VscStorage, VSC
-from vsc.ldap.configuration import VscConfiguration
-from vsc.ldap.filters import CnFilter, InstituteFilter, NewerThanFilter
-from vsc.ldap.utils import LdapQuery
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
-from vsc.utils.rest_oauth import request_access_token, make_api_request
 from vsc.utils.script_tools import ExtendedSimpleOption
 
 NAGIOS_HEADER = "sync_ugent_users"
@@ -60,7 +55,7 @@ STORAGE_VO_LIMIT_WARNING = 1
 STORAGE_VO_LIMIT_CRITICAL = 10
 
 
-def notify_user_directory_created(user, options, opener, access_token, dry_run=True):
+def notify_user_directory_created(user, options, client, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -76,7 +71,8 @@ def notify_user_directory_created(user, options, opener, access_token, dry_run=T
 
     payload = '{"status": "active"}'
     if user.status == 'new':
-        response = make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
+        response = client.account[]
+            make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
         if response.get('status', None) not in ('active'):
             logger.error("Status for %s was not set to active" % (user.cn,))
         else:
@@ -113,7 +109,7 @@ def notify_vo_directory_created(vo, dry_run=True):
     else:
         logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
 
-def process_users(options, users, storage_name, opener, access_token):
+def process_users(options, account_ids, storage_name, client):
     """
     Process the users.
 
@@ -133,7 +129,9 @@ def process_users(options, users, storage_name, opener, access_token):
     error_users = []
     ok_users = []
 
-    for user in users:
+    for vsc_id in account_ids:
+
+        user = VscTier2AccountpageUser(vsc_id)
         if options.dry_run:
             user.dry_run = True
 
@@ -142,7 +140,7 @@ def process_users(options, users, storage_name, opener, access_token):
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
-                notify_user_directory_created(user, options, opener, access_token, options.dry_run)
+                notify_user_directory_created(user, options, client, options.dry_run)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
@@ -160,7 +158,7 @@ def process_users(options, users, storage_name, opener, access_token):
     return (ok_users, error_users)
 
 
-def process_vos(options, vos, storage, storage_name):
+def process_vos(options, vos, storage, storage_name, client):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -189,7 +187,7 @@ def process_vos(options, vos, storage, storage_name):
 
             for user in vo.memberUid:
                 try:
-                    member = VscUser(user)
+                    member = VscTier2AccountpageUser(user)
                     if storage_name in ['VSC_DATA']:
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
@@ -225,7 +223,6 @@ def main():
         'storage': ('storage systems on which to deploy users and vos', None, 'extend', []),
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
-        'account_page_url': ('Base URL of the account page', None, 'store', 'https://account.vscentrum.be/django'),
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
     }
 
@@ -233,11 +230,8 @@ def main():
     stats = {}
 
     try:
-        opener = urllib2.build_opener(urllib2.HTTPHandler)
-        access_token = opts.options.access_token
+        client = AccountpageClient(token=opts.options.access_token)
 
-
-        LdapQuery(VscConfiguration())  # Initialise LDAP binding
         vsc = VSC()
         storage = VscStorage()
 
@@ -248,25 +242,23 @@ def main():
             last_timestamp = "200901010000Z"
 
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
-        timestamp_filter = NewerThanFilter("objectClass=*", last_timestamp)
-        logger.debug("Timestamp filter = %s" % (timestamp_filter))
 
         (users_ok, users_fail) = ([], [])
         if opts.options.user:
-            ugent_users_filter = timestamp_filter & InstituteFilter(GENT)
-            logger.debug("Filter for looking up changed UGent users %s" % (ugent_users_filter))
+            ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp].get()
+            ugent_changed_pubkey_accounts = client.account.pubkey.institute['gent'].modified[last_timestamp].get()
 
-            ugent_users = VscUser.lookup(ugent_users_filter)
-            logger.info("Found %d UGent users that have changed in the LDAP since %s" %
-                        (len(ugent_users), last_timestamp))
-            logger.debug("Found the following UGent users: {users}".format(users=[u.user_id for u in ugent_users]))
+            logger.info("Found %d UGent accounts that have changed in the accountpage since %s" %
+                        (len(ugent_changed_accounts), last_timestamp))
+            logger.info("Found %d UGent accounts that have changed pubkeys in the accountpage since %s" %
+                        (len(ugent_changed_pubkey_accounts), last_timestamp))
 
+            ugent_accounts = ugent_changed_accounts + ugent_changed_pubkey_accounts
             for storage_name in opts.options.storage:
                 (users_ok, users_fail) = process_users(opts.options,
-                                                       ugent_users,
+                                                       ugent_accounts,
                                                        storage_name,
-                                                       opener,
-                                                       access_token)
+                                                       client)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
@@ -274,18 +266,17 @@ def main():
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
-            ugent_vo_filter = timestamp_filter & InstituteFilter(GENT) & CnFilter("gvo*")
-            logger.info("Filter for looking up changed UGent VOs = %s" % (ugent_vo_filter))
+            ugent_vos = client.vo.modified[last_timestamp].get()
 
-            ugent_vos = [vo for vo in VscVo.lookup(ugent_vo_filter) if vo.vo_id not in vsc.institute_vos.values()]
             logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
-            logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo.vo_id for vo in ugent_vos]))
+            logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo['vsc_id'] for vo in ugent_vos]))
 
             for storage_name in opts.options.storage:
                 (vos_ok, vos_fail) = process_vos(opts.options,
-                                                     ugent_vos,
-                                                     storage[storage_name],
-                                                     storage_name)
+                                                 ugent_vos,
+                                                 storage[storage_name],
+                                                 storage_name,
+                                                 client)
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
