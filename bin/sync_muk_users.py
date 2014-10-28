@@ -22,10 +22,9 @@ import os
 import sys
 import time
 
-from vsc.administration.group import Group
 from vsc.administration.user import MukAccountpageUser
 from vsc.accountpage.client import AccountpageClient
-from vsc.config.base import Muk, ANTWERPEN, BRUSSEL, GENT, LEUVEN
+from vsc.config.base import Muk, BRUSSEL
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
 from vsc.utils.mail import VscMail
