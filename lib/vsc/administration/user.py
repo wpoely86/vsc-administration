@@ -33,6 +33,7 @@ from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
+from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
@@ -46,49 +47,6 @@ from vsc.ldap.utils import LdapQuery
 
 
 log = fancylogger.getLogger(__name__)
-
-# Information we receive from the accountpage REST API
-# FIXME: Should we define these elsewhere? Probably, but where?
-
-VscAccount = namedtuple("VscAccount", [
-    'vsc_id',
-    'status',
-    'vsc_id_number',
-    'home_directory',
-    'data_directory',
-    'scratch_directory',
-    'login_shell',
-    'broken',
-    'email',
-    'create_timestamp',
-])
-
-VscAccountPerson = namedtuple("VscAccountPerson", [
-    'gecos',
-    'institute',
-    'institute_login',
-])
-
-VscAccountPubkey = namedtuple("VscAccountPubkey", [
-    'pubkey',
-    'deleted',
-    'vsc_id',
-])
-
-VscHomeOnScratch = namedtuple("VscHomeOnScratch", [
-    'account',
-    'storage',
-])
-
-VscUserGroup = namedtuple("VscUserGroup", [
-    'vsc_id',
-    'vsc_id_number',
-    'status',
-    'institute',
-    'members',
-    'moderators',
-    'description',
-])
 
 
 class VscAccountPageUser(object):
