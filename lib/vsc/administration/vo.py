@@ -23,12 +23,15 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 
-import errno
+import logging
 import os
 import pwd
 
+from collections import namedtuple
+from urllib2 import HTTPError
+
 from vsc import fancylogger
-from vsc.administration.user import VscUser
+from vsc.administration.user import VscAccount, VscUser
 from vsc.config.base import VSC, VscStorage
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
 from vsc.ldap.entities import VscLdapGroup
@@ -38,6 +41,301 @@ logger = fancylogger.getLogger(__name__)
 VO_PREFIX = 'gvo'
 DEFAULT_VO = 'gvo000012'
 INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
+
+VscVoRest = namedtuple("VscVoRest", [
+    'vsc_id',
+    'status',
+    'vsc_id_number',
+    'institute',
+    'fairshare',
+    'data_path',
+    'scratch_path',
+    'description',
+    'members',
+    'moderators',
+])
+
+
+class VscAccountPageVo(object):
+    """
+    A Vo that gets its own information from the accountpage through the REST API.
+    """
+    def __init__(self, vo_id, rest_client):
+        """
+        Initialise.
+        """
+        self.vo_id = vo_id
+        self.rest_client = rest_client
+
+        # We immediately retrieve this information
+        try:
+            self.vo = VscVoRest(**(rest_client.vo[vo_id].get()[1]))
+        except HTTPError:
+            logging.error("Cannot get information from the account page")
+            raise
+
+
+class VscTier2AccountpageVo(VscAccountPageVo):
+    """Class representing a VO in the VSC.
+
+    A VO is a special kind of group, identified mainly by its name.
+    """
+
+    def __init__(self, vo_id, storage=None, rest_client=None):
+        """Initialise"""
+        super(VscTier2AccountpageVo, self).__init__(vo_id, rest_client)
+
+        self.vo_id = vo_id
+        self.vsc = VSC()
+
+        if not storage:
+            self.storage = VscStorage()
+        else:
+            self.storage = storage
+
+        self.gpfs = GpfsOperations()
+        self.posix = PosixOperations()
+
+        try:
+            all_quota = rest_client.vo[self.user_id].quota.get()[1]
+            institute_quota = filter(lambda q: q['storage']['institute'] == self.vo.institute['site'], all_quota)
+            self.vo_data_quota = filter(lambda q: q['storage']['storage_type'] in ('data',), institute_quota)
+            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
+        except HTTPError:
+            logging.exception("Unable to retrieve quota information")
+            self.vo_home_quota = None
+            self.vo_data_quota = None
+            self.vo_scratch_quota = None
+
+    def members(self):
+        """Return a list with all the VO members in it."""
+        return self.vo.members
+
+    def _get_path(self, storage, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage."""
+
+        template = self.storage.path_templates[storage]['vo']
+        if mount_point == "login":
+            mount_path = self.storage[storage].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage].gpfs_mount_point
+        else:
+            logging.error("mount_point (%s)is not login or gpfs" % (mount_point))
+            raise Exception()
+
+        return os.path.join(mount_path, template[0], template[1](self.vo_id))
+
+    def _data_path(self, mount_point="gpfs"):
+        """Return the path to the VO data fileset on GPFS"""
+        return self._get_path('VSC_DATA', mount_point)
+
+    def _scratch_path(self, storage, mount_point="gpfs"):
+        """Return the path to the VO scratch fileset on GPFS.
+
+        @type storage: string
+        @param storage: name of the storage we are looking at.
+        """
+        return self._get_path(storage, mount_point)
+
+    def _create_fileset(self, filesystem_name, path, parent_fileset=None):
+        """Create a fileset for the VO on the data filesystem.
+
+        - creates the fileset if it does not already exist
+        - sets the (fixed) quota on this fileset for the VO
+
+        The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
+        """
+        self.gpfs.list_filesets()
+        fileset_name = self.vo_id
+
+        if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
+            logging.info("Creating new fileset on %s with name %s and path %s" %
+                         (filesystem_name, fileset_name, path))
+            base_dir_hierarchy = os.path.dirname(path)
+            self.gpfs.make_dir(base_dir_hierarchy)
+
+            # HACK to support versions older than 3.5 in our setup
+            if parent_fileset is None:
+                self.gpfs.make_fileset(path, fileset_name)
+            else:
+                self.gpfs.make_fileset(path, fileset_name, parent_fileset)
+        else:
+            logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo_id))
+
+        self.gpfs.chmod(0770, path)
+
+        try:
+            moderator = VscAccount(**self.rest_client.account[self.vo.moderators[0]].get()[1])
+        except HTTPError:
+            logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, int(self.vo.vsc_id_number), path)
+        else:
+            self.gpfs.chown(int(moderator.vsc_id_number), int(self.vo.vsc_id_number), path)
+
+    def create_data_fileset(self):
+        """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        try:
+            path = self._data_path()
+            self._create_fileset(self.storage['VSC_DATA'].filesystem, path)
+        except AttributeError:
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+        except KeyError:
+            logging.exception("Trying to access non-existent field 'VSC_DATA' in the storage dictionary")
+
+    def create_scratch_fileset(self, storage_name):
+        """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        try:
+            path = self._scratch_path(storage_name)
+            if self.storage[storage_name].version >= (3,5,0,0):
+                self._create_fileset(self.storage[storage_name].filesystem, path)
+            else:
+                self._create_fileset(self.storage[storage_name].filesystem, path, 'root')
+        except AttributeError:
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+        except KeyError:
+            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (storage_name))
+
+    def _create_vo_dir(self, path):
+        """Create a user owned directory on the GPFS."""
+        self.gpfs.make_dir(path)
+
+    def _set_quota(self, path, quota):
+        """Set FILESET quota on the FS for the VO fileset.
+        @type quota: int
+        @param quota: soft quota limit expressed in KiB
+        """
+        try:
+            quota *= 1024
+            soft = int(quota * self.vsc.quota_soft_fraction)
+
+            # LDAP information is expressed in KiB, GPFS wants bytes.
+            self.gpfs.set_fileset_quota(soft, path, self.vo_id, quota)
+            self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
+        except GpfsOperationError:
+            logging.exception("Unable to set quota on path %s" % (path))
+            raise
+
+    def set_data_quota(self):
+        """Set FILESET quota on the data FS for the VO fileset."""
+        if self.vo_data_quota:
+            self._set_quota(self._data_path(), int(self.vo_data_quota.hard))
+        else:
+            quota = 16 * 1024**2  # default not used from the filesystem_info/conf file at thes moment.
+            self._set_quota(self._data_path(), quota)
+
+    def set_scratch_quota(self, storage_name):
+        """Set FILESET quota on the scratch FS for the VO fileset."""
+        if self.vo_scratch_quota:
+            quota = filter(lambda q: q['storage']['name'] in (storage_name,), self.vo_scratch_quota)
+
+        if not self.vo_scratch_quota and not quota:
+            logging.error("No VO %s scratch quota information available for %s" % (self.vo.vsc_id, storage_name,))
+            logging.info("Setting default VO %s scratch quota on storage %s to %d" %
+                         (self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo))
+            self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
+            return
+
+        logging.info("Setting default VO %s quota on storage %s" % (self.vo.vsc_id, quota[0].hard))
+        self._set_quota(self._scratch_path(storage_name), quota[0].hard)
+
+    def _set_member_quota(self, path, member, quota):
+        """Set USER quota on the FS for the VO fileset
+
+        @type member: VscUser instance
+        """
+        try:
+            soft = int(quota * self.vsc.quota_soft_fraction)
+            self.gpfs.set_user_quota(soft, int(member.uidNumber), path, quota)
+        except GpfsOperationError:
+            logging.exception("Unable to set USR quota for member %s on path %s" % (member.user_id, path))
+            raise
+
+    def set_member_data_quota(self, member):
+        """Set the quota on the data FS for the member in the VO fileset.
+
+        @type member: VscUser instance
+
+        The user can have up to half of the VO quota.
+        FIXME: This should probably be some variable in a config setting instance
+        """
+        if self.vo_data_quota and self.vo_data_quota.hard > 0:
+            quota = self.vo_data_quota.hard / 2 * 1024  # half the VO space expressed in bytes
+        else:
+            quota = 2 * 1024**2 # 2 MiB, with a replication factor of 2
+
+        logging.info("Setting the data quota for VO %s member %s to %d GiB" %
+                      (self.vo_id, member, quota / 1024 / 1024))
+        self._set_member_quota(self._data_path(), member, quota)
+
+    def set_member_scratch_quota(self, storage_name, member):
+        """Set the quota on the scratch FS for the member in the VO fileset.
+
+        @type member: VscUser instance
+
+        The user can have up to half of the VO quota.
+        FIXME: This should probably be some variable in a config setting instance
+        """
+        if self.vo_scratch_quota:
+            quota = filter(lambda q: q['storage']['name'] in (storage_name,), self.vo_scratch_quota)
+
+        if not self.vo_scratch_quota and not quota:
+            logging.error("No VO %s member %s scratch quota information available for %s" %
+                          (self.vo.vsc_id, member, storage_name,))
+            logging.info("Setting default VO %s member %s quota on storage %s to %d" %
+                         (self.vo.vsc_id, member, storage_name, self.storage[storage_name].quota_vo))
+            self._set_member_quota(self._scratch_path(storage_name), member, 2 * 1024**2) # 2MiB, replication 2
+            return
+
+        logging.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
+                      (storage_name, self.vo_id, member, quota[0].hard / 1024 / 1024))
+        self._set_member_quota(self._scratch_path(storage_name), member, quota[0].hard)
+
+    def _set_member_symlink(self, member, origin, target, fake_target):
+        """Create a symlink for this user from origin to target"""
+        logging.info("Trying to create a symlink for %s from %s to %s [%s]. Deprecated. Not doing anything." % (member.user_id, origin, fake_target, target))
+
+    def _create_member_dir(self, member, target):
+        """Create a member-owned directory in the VO fileset."""
+        created = self.gpfs.make_dir(target)
+        self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+        if created:
+            self.gpfs.chmod(0700, target)
+
+        logging.info("Created directory %s for member %s" % (target, member.user_id))
+
+    def create_member_data_dir(self, member):
+        """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        target = os.path.join(self._data_path(), member.user_id)
+        self._create_member_dir(member, target)
+
+    def create_member_scratch_dir(self, storage_name, member):
+        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_SCRATCH_VO/<vscid>."""
+        target = os.path.join(self._scratch_path(storage_name), member.user_id)
+        self._create_member_dir(member, target)
+
+    def set_member_data_symlink(self, member):
+        """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
+        logging.warning("Trying to set a symlink for a VO member %s. Deprecated. Not doing anything" % (member,))
+
+    def set_member_scratch_symlink(self, storage_name, member):
+        """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>.
+
+        @deprecated. We should not create new symlinks.
+        """
+        logging.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything" % (storage_name,))
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - otherwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscTier2AccountpageVo, self).__setattr__(name, value)
 
 
 class VscVo(VscLdapGroup):
@@ -272,7 +570,7 @@ class VscVo(VscLdapGroup):
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        self.log.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything" % (storage_name,))
+        self.log.warning("Trying to set a symlink for a VO member %s on. Deprecated. Not doing anything" % (member,))
 
     def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>.

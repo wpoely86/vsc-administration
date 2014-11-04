@@ -26,9 +26,14 @@ The following actions are available for users:
 """
 
 import errno
+import logging
 import os
 
+from collections import namedtuple
+from urllib2 import HTTPError
+
 from vsc import fancylogger
+from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
@@ -45,21 +50,64 @@ log = fancylogger.getLogger(__name__)
 
 
 class VscAccountPageUser(object):
+    """
+    A user who gets his own information from the accountpage through the REST API.
+    """
 
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
+    def __init__(self, user_id, rest_client):
+        """
+        Initialise.
+        """
         self.user_id = user_id
         self.rest_client = rest_client
 
-        self.vsc = VSC()
+        # We immediately retrieve this information
+        try:
+            self.account = VscAccount(**(rest_client.account[user_id].get()[1]))
+            self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
+            self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
+                                                  if not p['deleted']]
+            self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
+            self.home_on_scratch = [VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]]
+        except HTTPError:
+            logging.error("Cannot get information from the account page")
+            raise
+
+
+class VscTier2AccountpageUser(VscAccountPageUser):
+    """
+    A user on each of our Tier-2 system, similar to the VscUser but now using the account page REST API
+    to retrieve its information.
+    """
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
+        """Initialisation.
+        @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
+        """
+        super(VscTier2AccountpageUser, self).__init__(user_id, rest_client)
+
+        self.pickle_storage = pickle_storage
         if not storage:
             self.storage = VscStorage()
         else:
             self.storage = storage
 
+        self.vsc = VSC()
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
-        self.pickle_storage = pickle_storage
+        try:
+            all_quota = rest_client.account[self.user_id].quota.get()[1]
+            institute_quota = filter(lambda q: q['storage']['institute'] == self.person.institute['site'], all_quota)
+            self.user_home_quota = filter(lambda q: q['storage']['storage_type'] in ('home',), institute_quota)
+            self.user_data_quota = filter(lambda q: q['storage']['storage_type'] in ('data',), institute_quota)
+            self.user_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
+        except HTTPError:
+            logging.exception("Unable to retrieve quota information")
+            self.user_home_quota = None
+            self.user_data_quota = None
+            self.user_scratch_quota = None
+
+        self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
@@ -73,13 +121,214 @@ class VscAccountPageUser(object):
                             template[1](self.user_id)
                            )
 
+    def _create_grouping_fileset(self, filesystem_name, path):
+        """Create a fileset for a group of 100 user accounts
+
+        - creates the fileset if it does not already exist
+        """
+        self.gpfs.list_filesets()
+        fileset_name = self.vsc.user_grouping(self.user_id)
+        logging.info("Trying to create the grouping fileset %s with link path %s" % (fileset_name, path))
+
+        if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
+            logging.info("Creating new fileset on %s with name %s and path %s" % (filesystem_name,
+                                                                                   fileset_name,
+                                                                                   path))
+            base_dir_hierarchy = os.path.dirname(path)
+            self.gpfs.make_dir(base_dir_hierarchy)
+            self.gpfs.make_fileset(path, fileset_name)
+        else:
+            logging.info("Fileset %s already exists for user group of %s ... not creating again." % (fileset_name, self.user_id))
+
+        self.gpfs.chmod(0755, path)
+
+    def _get_path(self, storage_name, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage_name."""
+
+        template = self.storage.path_templates[storage_name]['user']
+        if mount_point == "login":
+            mount_path = self.storage[storage_name].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage_name].gpfs_mount_point
+        else:
+            logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
+            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+    def _get_grouping_path(self, storage_name, mount_point="gpfs"):
+        """Get the path for the user group directory (and associated fileset)."""
+
+        template = self.storage.path_templates[storage_name]['user_grouping']
+        if mount_point == "login":
+            mount_path = self.storage[storage_name].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage_name].gpfs_mount_point
+        else:
+            logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
+            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
+
+        return os.path.join(mount_path, template[0], template[1](self.user_id))
+
+    def _home_path(self, mount_point="gpfs"):
+        """Return the path to the home dir."""
+        return self._get_path('VSC_HOME', mount_point)
+
+    def _data_path(self, mount_point="gpfs"):
+        """Return the path to the data dir."""
+        return self._get_path('VSC_DATA', mount_point)
+
+    def _scratch_path(self, storage_name, mount_point="gpfs"):
+        """Return the path to the scratch dir"""
+        return self._get_path(storage_name, mount_point)
+
+    def _grouping_home_path(self, mount_point="gpfs"):
+        """Return the path to the grouping fileset for the users on data."""
+        return self._get_grouping_path('VSC_HOME', mount_point)
+
+    def _grouping_data_path(self, mount_point="gpfs"):
+        """Return the path to the grouping fileset for the users on data."""
+        return self._get_grouping_path('VSC_DATA', mount_point)
+
+    def _grouping_scratch_path(self, storage_name, mount_point="gpfs"):
+        """Return the path to the grouping fileset for the users on the given scratch filesystem."""
+        return self._get_grouping_path(storage_name, mount_point)
+
+    def create_home_dir(self):
+        """Create all required files in the (future) user's home directory.
+
+        Requires to be run on a system where the appropriate GPFS is mounted.
+        Always set the quota.
+        """
+        try:
+            path = self._grouping_home_path()
+            self._create_grouping_fileset(self.storage['VSC_HOME'].filesystem, path)
+
+            path = self._home_path()
+            self._create_user_dir(path)
+        except Exception:
+            logging.exception("Could not create home dir for user %s" % (self.user_id))
+            raise
+
+    def create_data_dir(self):
+        """Create the user's directory on the HPC data filesystem.
+
+        Required to be run on a system where the appropriate GPFS is mounted."""
+        try:
+            path = self._grouping_data_path()
+            self._create_grouping_fileset(self.storage['VSC_DATA'].filesystem, path)
+
+            path = self._data_path()
+            self._create_user_dir(path)
+        except Exception:
+            logging.exception("Could not create data dir for user %s" % (self.user_id))
+            raise
+
+    def create_scratch_dir(self, storage_name):
+        """Create the user's directory on the given scratch filesystem
+
+        @type storage_name: string
+        @param storage_name: name of the storage system as defined in /etc/filesystem_info.conf
+        """
+        try:
+            if self.storage[storage_name].user_grouping_fileset:
+                path = self._grouping_scratch_path(storage_name)
+                self._create_grouping_fileset(self.storage[storage_name].filesystem, path)
+
+            path = self._scratch_path(storage_name)
+            self._create_user_dir(path)
+        except Exception:
+            logging.exception("Could not create scratch dir for user %s" % (self.user_id))
+            raise
+
+    def _create_user_dir(self, path):
+        """Create a user owned directory on the GPFS."""
+        if self.gpfs.is_symlink(path):
+            logging.warning("Trying to make a user dir, but a symlink already exists at %s" % (path,))
+            return
+
+        self.gpfs.make_dir(path)
+        self.gpfs.chmod(0700, path)
+        self.gpfs.chown(int(self.account.vsc_id_number), int(self.usergroup.vsc_id_number), path)
+
+    def _set_quota(self, storage_name, path, hard):
+        """Set the given quota on the target path.
+
+        @type path: path into a GPFS mount
+        @type hard: hard limit
+        """
+        if not hard:
+            logging.error("No user quota set for %s" % (storage_name))
+            return
+
+        quota = hard * 1024
+        soft = int(self.vsc.quota_soft_fraction * quota)
+
+        logging.info("Setting quota for %s on %s to %d" % (storage_name, path, quota))
+
+        # LDAP information is expressed in KiB, GPFS wants bytes.
+        self.gpfs.set_user_quota(soft, int(self.account.vsc_id_number), path, quota)
+        self.gpfs.set_user_grace(path, self.vsc.user_storage_grace_time)  # 7 days
+
+    def set_home_quota(self):
+        """Set USR quota on the home FS in the user fileset."""
+        path = self._home_path()
+        hard = self.user_home_quota.hard
+        self._set_quota('VSC_HOME', path, hard)
+
+    def set_data_quota(self):
+        """Set USR quota on the data FS in the user fileset."""
+        path = self._grouping_data_path()
+        hard = self.user_data_quota.hard
+        self._set_quota('VSC_DATA', path, hard)
+
+    def set_scratch_quota(self, storage_name):
+        """Set USR quota on the scratch FS in the user fileset."""
+        quota = filter(lambda q: q['storage']['name'] in (storage_name,), self.user_scratch_quota)
+        if not quota:
+            logging.error("No scratch quota information available for %s" % (storage_name,))
+            return
+
+        if self.storage[storage_name].user_grouping_fileset:
+            path = self._grouping_scratch_path(storage_name)
+        else:
+            # Hack; this should actually become the link path of the fileset
+            # that contains the path (the file, not the followed symlink)
+            path = os.path.normpath(os.path.join(self._scratch_path(storage_name), '..'))
+
+        self._set_quota(storage_name, path, quota[0].hard)
+
+    def populate_home_dir(self):
+        """Store the required files in the user's home directory.
+
+        Does not overwrite files that may contain user defined content.
+        """
+        path = self._home_path()
+        self.gpfs.populate_home_dir(int(self.account.vsc_id_number),
+                                    int(self.usergroup.vsc_id_number),
+                                    path,
+                                    [p.pubkey for p in self.pubkeys])
+
+    def __setattr__(self, name, value):
+        """Override the setting of an attribute:
+
+        - dry_run: set this here and in the gpfs and posix instance fields.
+        - otherwise, call super's __setattr__()
+        """
+
+        if name == 'dry_run':
+            self.gpfs.dry_run = value
+            self.posix.dry_run = value
+
+        super(VscTier2AccountpageUser, self).__setattr__(name, value)
+
+
 class VscUser(VscLdapUser):
     """Classs representing a user in the VSC administrative library.
 
     - add a user to the VSC LDAP
     - set up the user's directories
-    - FIXME: This should be revamped once we decide on the central location for the
-      user information (e.g., LDAP or a real DB, for example, the django backend.)
+    - FIXME: Usage of this class should be phased out.
     """
 
     # lock attributes on a class basis (should be reachable from static and class methods
@@ -138,7 +387,7 @@ class VscUser(VscLdapUser):
         @return: a VscUser instance or None if no such user exists
         """
         if not institute in VSC.institutes:
-            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
+            log.raiseException("Institute %s does not exist in the VSC." % (institute))
 
         login_filter = LoginFilter(login)
         institute_filter = InstituteFilter(institute)
@@ -172,7 +421,7 @@ class VscUser(VscLdapUser):
         """
         vsc = VSC()
         if not institute in vsc.institutes:
-            log.raiseException("Institute %s does not exist in the VSC." % (institute), NoSuchInstituteError)
+            log.raiseException("Institute %s does not exist in the VSC." % (institute))
 
         user = VscUser(None)  # placeholder, but defines the LdapQuery instance
 
@@ -452,7 +701,7 @@ class VscUser(VscLdapUser):
         super(VscUser, self).__setattr__(name, value)
 
 
-class MukUser(VscLdapUser):
+class MukAccountpageUser(VscAccountPageUser):
     """A VSC user who is allowed to execute on the Tier 1 machine(s).
 
     This class provides functionality for administrating users on the
@@ -473,12 +722,11 @@ class MukUser(VscLdapUser):
       deployed settings.
     """
 
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK'):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_MUK', rest_client=None):
         """Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        LdapQuery(VscConfiguration())
-        super(MukUser, self).__init__(user_id)
+        super(MukAccountpageUser, self).__init__(user_id, rest_client)
 
         if not storage:
             self.storage = VscStorage()
@@ -487,17 +735,24 @@ class MukUser(VscLdapUser):
 
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
+        self.ext = ExtOperations()
 
         self.pickle_storage = pickle_storage
 
-
         self.muk = Muk()
 
-        self.ext = ExtOperations()
-        self.gpfs = GpfsOperations()
-        self.posix = PosixOperations()
+        try:
+            all_quota = rest_client.account[self.user_id].quota.get()[1]
+        except HTTPError:
+            logging.exception("Unable to retrieve quota information from the accountpage")
+            self.user_scratch_storage = 0
+        else:
+            muk_quota = filter(lambda q: q['storage']['name'] == self.muk.storage_name, all_quota)
+            if muk_quota:
+                self.user_scratch_quota = muk_quota[0]['hard']
+            else:
+                self.user_scratch_quota = 250 * 1024 * 1024 * 1024
 
-        self.user_scratch_quota = 250 * 1024 * 1024 * 1024  # 250 GiB
         self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
 
     def pickle_path(self):
@@ -527,12 +782,12 @@ class MukUser(VscLdapUser):
         path = self._scratch_path()
 
         if not self.gpfs.get_fileset_info(self.muk.scratch_name, fileset_name):
-            self.log.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
+            logging.info("Creating new fileset on Muk scratch with name %s and path %s" % (fileset_name, path))
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            self.log.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
+            logging.info("Fileset %s already exists for user %s ... not doing anything." % (fileset_name, self.user_id))
 
         self.gpfs.set_fileset_quota(self.user_scratch_quota, path, fileset_name)
 
@@ -550,7 +805,10 @@ class MukUser(VscLdapUser):
         a valid NFS mount point and avoid setting home on Muk.
         """
         path = self._scratch_path()
-        self.gpfs.populate_home_dir(int(self.uidNumber), int(self.gidNumber), path, self.pubkey)
+        self.gpfs.populate_home_dir(int(self.account.vsc_id_number),
+                                    int(self.usergroup.vsc_id_number),
+                                    path,
+                                    [p.pubkey for p in self.pubkeys])
 
     def create_home_dir(self):
         """Create the symlink to the real user's home dir that is
@@ -559,27 +817,20 @@ class MukUser(VscLdapUser):
         - has an AFM cache covering the real NFS mount
         - sits on scratch (as indicated by the LDAP attribute).
         """
-        try:
-            source = self.homeDirectory
-            base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
-        except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
-
+        source = self.account.home_directory
+        base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         target = None
-        try:
-            if self.mukHomeOnScratch and self.mukHomeOnScratch not in ('FALSE',):
-                self.log.info("User %s has his home on Muk scratch" % (self.user_id))
-                target = self._scratch_path()
-            elif self.mukHomeOnAFM:
-                self.log.info("User %s has his home on Muk AFM" % (self.user_id))
-                target = self.muk.user_afm_home_mount(self.user_id, self.institute)
-        except AttributeError, _:
-            pass
 
+        if 'VSC_MUK_SCRATCH' in [s.storage['name'] for s in self.home_on_scratch]:
+            logging.info("User %s has his home on Muk scratch" % (self.account.vsc_id))
+            target = self._scratch_path()
+        elif 'VSC_MUK_AFM' in [s.storage['name'] for s in self.home_on_scratch]:
+            logging.info("User %s has his home on Muk AFM" % (self.user_id))
+            target = self.muk.user_afm_home_mount(self.account.vsc_id, self.person.institute['site'])
 
         if target is None:
             # This is the default case
-            target = self.muk.user_nfs_home_mount(self.user_id, self.institute)
+            target = self.muk.user_nfs_home_mount(self.account.vsc_id, self.person.institute['site'])
 
         self.gpfs.ignorerealpathmismatch = True
         self.gpfs.make_dir(base_home_dir_hierarchy)
@@ -589,22 +840,18 @@ class MukUser(VscLdapUser):
             if not err.errno in [errno.EEXIST]:
                 raise
             else:
-                self.log.info("Symlink from %s to %s already exists" % (source, target))
-
+                logging.info("Symlink from %s to %s already exists" % (source, target))
         self.gpfs.ignorerealpathmismatch = False
 
     def cleanup_home_dir(self):
         """Remove the symlink to the home dir for the user."""
-        try:
-            source = self.homeDirectory
-        except AttributeError, _:
-            self.log.raiseException("homeDirectory attribute missing in LDAP for user %s" % (self.user_id))  # FIXME: add the right exception type
+        source = self.account.home_directory
 
         if self.gpfs.is_symlink(source):
             os.unlink(source)
-            self.log.info("Removed the symbolic link %s" % (source,))
+            logging.info("Removed the symbolic link %s" % (source,))
         else:
-            self.log.error("Home dir cleanup wanted to remove a non-symlink %s")
+            logging.error("Home dir cleanup wanted to remove a non-symlink %s")
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
@@ -617,12 +864,12 @@ class MukUser(VscLdapUser):
             self.gpfs.dry_run = value
             self.posix.dry_run = value
 
-        super(MukUser, self).__setattr__(name, value)
+        super(MukAccountpageUser, self).__setattr__(name, value)
 
 
 cluster_user_pickle_location_map = {
-    'delcatty': VscAccountPageUser,
-    'muk': MukUser
+    'delcatty': VscTier2AccountpageUser,
+    'muk': MukAccountpageUser,
 }
 
 cluster_user_pickle_store_map = {
