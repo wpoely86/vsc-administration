@@ -107,8 +107,6 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             self.user_data_quota = None
             self.user_scratch_quota = None
 
-        self.scratch = self.gpfs.get_filesystem_info(self.muk.scratch_name)
-
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
 
