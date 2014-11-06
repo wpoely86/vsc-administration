@@ -69,6 +69,7 @@ class VscAccountPageUser(object):
             self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
                                                   if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
+                # TODO to be removed when magic site admin usergroups are pruged from code
                 self.usergroup = VscGroup(**(rest_client.group[user_id].get())[1])
             else:
                 self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
