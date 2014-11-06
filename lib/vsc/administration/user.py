@@ -68,8 +68,8 @@ class VscAccountPageUser(object):
             self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
             self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
                                                   if not p['deleted']]
-            if self.person.institute_login in ('admin', 'voadmin'):
-                self.usergroup = VscGroup(**(rest_client.group[user_id].get()))
+            if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
+                self.usergroup = VscGroup(**(rest_client.group[user_id].get())[1])
             else:
                 self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
             self.home_on_scratch = [VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]]
