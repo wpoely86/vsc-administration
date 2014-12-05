@@ -33,7 +33,8 @@ from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
-from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
+from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscGroup
+from vsc.accountpage.wrappers import VscHomeOnScratch, VscUserGroup
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
@@ -67,7 +68,11 @@ class VscAccountPageUser(object):
             self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
             self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
                                                   if not p['deleted']]
-            self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
+            if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
+                # TODO to be removed when magic site admin usergroups are pruged from code
+                self.usergroup = VscGroup(**(rest_client.group[user_id].get())[1])
+            else:
+                self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
             self.home_on_scratch = [VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]]
         except HTTPError:
             logging.error("Cannot get information from the account page")
