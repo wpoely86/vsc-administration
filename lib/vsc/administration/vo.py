@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: latin-1 -*-
 ##
 # Copyright 2012-2013 Ghent University
@@ -12,8 +11,6 @@
 #
 # All rights reserved.
 #
-##
-#!/usr/bin/env python
 ##
 """
 This file contains the utilities for dealing with VOs on the VSC.
@@ -31,7 +28,8 @@ from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
-from vsc.accountpage.wrappers import VscVo, VscVoSizeQuota
+from vsc.accountpage.wrappers import VscVoSizeQuota
+from vsc.accountpage.wrappers import VscVo as VscVoWrapper
 from vsc.administration.user import VscAccount, VscUser
 from vsc.config.base import VSC, VscStorage
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
@@ -57,7 +55,7 @@ class VscAccountPageVo(object):
 
         # We immediately retrieve this information
         try:
-            self.vo = VscVo(**(rest_client.vo[vo_id].get()[1]))
+            self.vo = VscVoWrapper(**(rest_client.vo[vo_id].get()[1]))
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -86,14 +84,18 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         try:
             all_quota = [VscVoSizeQuota(**q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
-        except HTTPError:
+        except HTTPError, err:
             logging.exception("Unable to retrieve quota information")
-            self.vo_data_quota = self.storage['VSC_DATA'].vo_quota
+            # to avoid reducing the quota in case of issues with the account page, we will NOT
+            # set quota when they cannot be retrieved.
+            self.vo_data_quota = None
             self.vo_scratch_quota = None
         else:
             institute_quota = filter(lambda q: q['storage']['institute'] == self.vo.institute['site'], all_quota)
-            self.vo_data_quota = ([q.hard for q in institute_quota if q.storage['storage_type'] in ('data',)] or [self.storage['VSC_DATA'].vo_qouta])[0]
-            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)  # multiple values!
+            self.vo_data_quota = ([q.hard for q in institute_quota
+                                          if q.storage['storage_type'] in ('data',)]
+                                          or [self.storage['VSC_DATA'].vo_qouta])[0]  # there can be only one :)
+            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
         """Return a list with all the VO members in it."""
@@ -229,6 +231,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Set USER quota on the FS for the VO fileset
 
         @type member: VscTier2AccountpageUser
+        @type quota: integer (hard value)
         """
         try:
             soft = int(quota * self.vsc.quota_soft_fraction)
@@ -240,21 +243,22 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_member_data_quota(self, member):
         """Set the quota on the data FS for the member in the VO fileset.
 
-        @type member: VscUser instance
+        @type member: VscTier2AccountPageUser instance
 
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if not quota:
+        if not self.vo_data_quota:
+            logging.warning("Not setting VO %s member %s data quota: no VO data quota info available" %
+                            (self.vo.vsc_id, member.account.vsc_id))
+            return
 
         if member.vo_data_quota:
-
+            logging.info("Setting the data quota for VO %s member %s to %d GiB" %
+                         (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota))
+            self._set_member_quota(self._data_path(), member, member.vo_data_quota)
         else:
-            quota = 8 * 1024  # 4 MiB, with a replication factor of 2
-
-        logging.info("Setting the data quota for VO %s member %s to %d GiB" %
-                      (self.vo_id, member, quota / 1024 / 1024))
-        self._set_member_quota(self._data_path(), member, quota)
+            logging.error("No VO %s data quota set for member %s" % (self.vo.vsc_id, member.account.vsc_id))
 
     def set_member_scratch_quota(self, storage_name, member):
         """Set the quota on the scratch FS for the member in the VO fileset.
@@ -264,20 +268,19 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
         """
-        if self.vo_scratch_quota:
-            quota = filter(lambda q: q['storage']['name'] in (storage_name,), self.vo_scratch_quota)
-
-        if not self.vo_scratch_quota and not quota:
-            logging.error("No VO %s member %s scratch quota information available for %s" %
-                          (self.vo.vsc_id, member, storage_name,))
-            logging.info("Setting default VO %s member %s quota on storage %s to %d" %
-                         (self.vo.vsc_id, member, storage_name, self.storage[storage_name].quota_vo))
-            self._set_member_quota(self._scratch_path(storage_name), member, 2 * 1024) # 2MiB, replication 2
+        if not self.vo_scratch_quota:
+            logging.warning("Not setting VO %s member %s scratch quota: no VO data quota info available" %
+                            (self.vo.vsc_id, member.account.vsc_id))
             return
 
-        logging.info("Setting the scratch quota on %s for VO %s member %s to %d GiB" %
-                      (storage_name, self.vo_id, member, quota[0].hard / 1024 / 1024))
-        self._set_member_quota(self._scratch_path(storage_name), member, quota[0].hard)
+        if member.vo_scratch_quota:
+            quota = filter(lambda q: q['storage']['name'] in (storage_name,), member.vo_scratch_quota)
+            logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s" %
+                         (self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name))
+            self._set_member_quota(self._scratch_path(storage_name), member, quota[0].hard)
+        else:
+            logging.error("No VO %s scratch quota set for member %s on %s" %
+                          (self.vo.vsc_id, member.account.vsc_id, storage_name))
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
