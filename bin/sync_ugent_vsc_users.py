@@ -30,7 +30,7 @@ import sys
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.administration.user import VscTier2AccountpageUser
-from vsc.administration.vo import VscVo
+from vsc.administration.vo import VscTier2AccountpageVo
 from vsc.config.base import GENT, VscStorage, VSC
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
@@ -54,6 +54,10 @@ STORAGE_USERS_LIMIT_CRITICAL = 10
 STORAGE_VO_LIMIT_WARNING = 1
 STORAGE_VO_LIMIT_CRITICAL = 10
 
+ACTIVE = 'active'
+MODIFIED = 'modified'
+MODIFY = 'modify'
+NEW = 'new'
 
 def notify_user_directory_created(user, options, client, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
@@ -69,22 +73,22 @@ def notify_user_directory_created(user, options, client, dry_run=True):
         logger.info("User %s has LDAP status %s. Dry-run so not changing anything" % (user.user_id, user.status))
         return
 
-    payload = '{"status": "active"}'
-    if user.status == 'new':
-        response = client.account[]
-            make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
-        if response.get('status', None) not in ('active'):
+    payload = {"status": ACTIVE}
+    if user.account.status == NEW:
+        response = client.account[user.user_id].patch(body=payload)
+        if response[0] != 200 or response[1].get('status', None) not in ('active'):
             logger.error("Status for %s was not set to active" % (user.cn,))
         else:
-            logger.info("User %s changed LDAP status from new to notify" % (user.user_id))
-    elif user.status in ('modify', 'modified'):
-        response = make_api_request(opener, "%s/api/account/%s/" % (options.account_page_url, user.cn), 'PATCH', payload, access_token)
-        if response.get('status', None) not in ('active'):
-            logger.error("Status for %s was not set to active" % (user.cn,))
+            logger.info("Account %s changed status from new to notify" % (user.user_id))
+    elif user.account['status'] in (MODIFIED, MODIFY):
+        response = client.account[user.user_id].patch(body=payload)
+        if response[0] != 200 or response[1].get('status', None) not in ('active'):
+            logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
-            logger.info("User %s changed LDAP status from modify to active" % (user.user_id))
+            logger.info("Account %s changed status from modify to active" % (user.user_id))
     else:
-        logger.info("User %s has LDAP status %s, not changing" % (user.user_id, user.status))
+        logger.info("Account %s has status %s, not changing" % (user.user_id, user.status))
+
 
 def notify_vo_directory_created(vo, dry_run=True):
     """Make sure the rest of the subsystems know that the VO status has changed.
@@ -97,7 +101,7 @@ def notify_vo_directory_created(vo, dry_run=True):
     - otherwise, the VO already was active in the past, and we simply have an idempotent script.
     """
     if dry_run:
-        logger.info("VO %s has LDAP status %s. Dry-run so not changing anything" % (vo.vo_id, vo.status))
+        logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.status))
         return
 
     if vo.status == 'new':
@@ -131,7 +135,7 @@ def process_users(options, account_ids, storage_name, client):
 
     for vsc_id in account_ids:
 
-        user = VscTier2AccountpageUser(vsc_id)
+        user = VscTier2AccountpageUser(vsc_id, rest_client=client)
         if options.dry_run:
             user.dry_run = True
 
@@ -158,7 +162,7 @@ def process_users(options, account_ids, storage_name, client):
     return (ok_users, error_users)
 
 
-def process_vos(options, vos, storage, storage_name, client):
+def process_vos(options, vo_ids, storage, storage_name, client):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -170,12 +174,14 @@ def process_vos(options, vos, storage, storage_name, client):
     ok_vos = MonoidDict(copy.deepcopy(listm))
     error_vos = MonoidDict(copy.deepcopy(listm))
 
-    for vo in vos:
+    for vo_id in vo_ids:
+
+        vo = VscTier2AccountpageVo(vo_id, rest_client=client)
+
         if options.dry_run:
             vo.dry_run = True
-        try:
-            vo.status  # force LDAP attribute load
 
+        try:
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
@@ -185,9 +191,9 @@ def process_vos(options, vos, storage, storage_name, client):
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
-            for user in vo.memberUid:
+            for user_id in vo.vo.members:
                 try:
-                    member = VscTier2AccountpageUser(user)
+                    member = VscTier2AccountpageUser(user_id)
                     if storage_name in ['VSC_DATA']:
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
@@ -196,14 +202,14 @@ def process_vos(options, vos, storage, storage_name, client):
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
-                    ok_vos[vo.vo_id] = [user]
+                    ok_vos[vo.vo_id] = [user_id]
                 except:
                     logger.exception("Failure at setting up the member %s of VO %s on %s" %
-                                     (user, vo.vo_id, storage_name))
-                    error_vos[vo.vo_id] = [user]
+                                     (user_id, vo.vo_id, storage_name))
+                    error_vos[vo.vo_id] = [user_id]
         except:
             logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
-            error_vos[vo.vo_id] = vo.memberUid
+            error_vos[vo.vo_id] = vo.members
 
     return (ok_vos, error_vos)
 
