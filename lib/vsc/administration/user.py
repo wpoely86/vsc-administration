@@ -34,7 +34,7 @@ from urllib2 import HTTPError
 
 from vsc import fancylogger
 from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
-from vsc.accountpage.wrappers import VscUserSizeQuota
+from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
