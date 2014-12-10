@@ -91,11 +91,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             self.vo_data_quota = None
             self.vo_scratch_quota = None
         else:
-            institute_quota = filter(lambda q: q['storage']['institute'] == self.vo.institute['site'], all_quota)
+            institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
             self.vo_data_quota = ([q.hard for q in institute_quota
                                           if q.storage['storage_type'] in ('data',)]
                                           or [self.storage['VSC_DATA'].vo_qouta])[0]  # there can be only one :)
-            self.vo_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
+            self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
         """Return a list with all the VO members in it."""
@@ -255,8 +255,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         if member.vo_data_quota:
             logging.info("Setting the data quota for VO %s member %s to %d GiB" %
-                         (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota))
-            self._set_member_quota(self._data_path(), member, member.vo_data_quota)
+                         (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota[0].hard))
+            self._set_member_quota(self._data_path(), member, member.vo_data_quota[0].hard)
         else:
             logging.error("No VO %s data quota set for member %s" % (self.vo.vsc_id, member.account.vsc_id))
 
