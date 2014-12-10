@@ -289,7 +289,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
         created = self.gpfs.make_dir(target)
-        self.gpfs.chown(int(member.uidNumber), int(member.gidNumber), target)
+        self.gpfs.chown(int(member.account.vsc_id_number), int(member.usergroup.vsc_id_number), target)
         if created:
             self.gpfs.chmod(0700, target)
 
