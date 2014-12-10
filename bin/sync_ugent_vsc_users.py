@@ -70,14 +70,14 @@ def notify_user_directory_created(user, options, client, dry_run=True):
     - otherwise, the user account already was active in the past, and we simply have an idempotent script.
     """
     if dry_run:
-        logger.info("User %s has LDAP status %s. Dry-run so not changing anything" % (user.user_id, user.status))
+        logger.info("User %s has account status %s. Dry-run so not changing anything" % (user.user_id, user.account.status))
         return
 
     payload = {"status": ACTIVE}
     if user.account.status == NEW:
         response = client.account[user.user_id].patch(body=payload)
         if response[0] != 200 or response[1].get('status', None) not in ('active'):
-            logger.error("Status for %s was not set to active" % (user.cn,))
+            logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
             logger.info("Account %s changed status from new to notify" % (user.user_id))
     elif user.account['status'] in (MODIFIED, MODIFY):
@@ -87,7 +87,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
         else:
             logger.info("Account %s changed status from modify to active" % (user.user_id))
     else:
-        logger.info("Account %s has status %s, not changing" % (user.user_id, user.status))
+        logger.info("Account %s has status %s, not changing" % (user.user_id, user.account.status))
 
 
 def notify_vo_directory_created(vo, dry_run=True):
@@ -182,6 +182,9 @@ def process_vos(options, vo_ids, storage, storage_name, client):
             vo.dry_run = True
 
         try:
+            if storage_name in ['VSC_HOME']:
+                continue
+
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
@@ -230,6 +233,7 @@ def main():
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
+        'account_page_url': ('URL of the account page REST API', None, 'store', None)
     }
 
     opts = ExtendedSimpleOption(options)
@@ -251,15 +255,15 @@ def main():
 
         (users_ok, users_fail) = ([], [])
         if opts.options.user:
-            ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp].get()
-            ugent_changed_pubkey_accounts = client.account.pubkey.institute['gent'].modified[last_timestamp].get()
+            ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp[:8]].get()[1]
+            ugent_changed_pubkey_accounts = client.account.pubkey.institute['gent'].modified[last_timestamp[:8]].get()[1]
 
             logger.info("Found %d UGent accounts that have changed in the accountpage since %s" %
                         (len(ugent_changed_accounts), last_timestamp))
             logger.info("Found %d UGent accounts that have changed pubkeys in the accountpage since %s" %
                         (len(ugent_changed_pubkey_accounts), last_timestamp))
 
-            ugent_accounts = ugent_changed_accounts + ugent_changed_pubkey_accounts
+            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts + ugent_changed_pubkey_accounts]
             for storage_name in opts.options.storage:
                 (users_ok, users_fail) = process_users(opts.options,
                                                        ugent_accounts,
@@ -272,10 +276,10 @@ def main():
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
-            ugent_vos = client.vo.modified[last_timestamp].get()
+            ugent_vos = [v['vsc_id'] for v in client.vo.modified[last_timestamp[:8]].get()[1]]
 
-            logger.info("Found %d UGent VOs that have changed in the LDAP since %s" % (len(ugent_vos), last_timestamp))
-            logger.debug("Found the following UGent VOs: {vos}".format(vos=[vo['vsc_id'] for vo in ugent_vos]))
+            logger.info("Found %d UGent VOs that have changed in the accountpage since %s" % (len(ugent_vos), last_timestamp))
+            logger.debug("Found the following UGent VOs: {vos}".format(vos=ugent_vos))
 
             for storage_name in opts.options.storage:
                 (vos_ok, vos_fail) = process_vos(opts.options,
