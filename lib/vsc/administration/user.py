@@ -116,15 +116,15 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # the user's personal quota are imposed on a grouping fileset on all our Tier2 filesystems
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
         user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
-        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or [self.storage['VSC_HOME'].user_quota])[0]
-        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or [self.storage['VSC_DATA'].user_quota])[0]
+        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or [self.storage['VSC_HOME'].quota_user])[0]
+        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or [self.storage['VSC_DATA'].quota_user])[0]
         self.user_scratch_quota = filter(lambda q: user_proposition(q,'scratch',), institute_quota)  # multiple values!
 
         # the users' VO quota (if any) are on a fileset that starts with 'gvo'
         fileset_name = 'gvo'
         user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
-        self.vo_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or [self.storage['VSC_DATA'].vo_quota / 2])[0]
-        self.vo_scratch_quota = filter(lambda q: user_proposition(q,'scratch',), institute_quota)  # multiple values!
+        self.vo_data_quota = [q for q in institute_quota if user_proposition(q, 'data')]  # max 1 value
+        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q,'scratch')]  # multiple values!
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
