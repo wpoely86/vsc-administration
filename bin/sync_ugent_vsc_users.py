@@ -58,6 +58,7 @@ ACTIVE = 'active'
 MODIFIED = 'modified'
 MODIFY = 'modify'
 NEW = 'new'
+NOTIFY = 'notify'
 
 def notify_user_directory_created(user, options, client, dry_run=True):
     """Make sure the rest of the subsystems know the user status has changed.
@@ -76,13 +77,13 @@ def notify_user_directory_created(user, options, client, dry_run=True):
     payload = {"status": ACTIVE}
     if user.account.status == NEW:
         response = client.account[user.user_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) not in ('active'):
+        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
             logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
             logger.info("Account %s changed status from new to notify" % (user.user_id))
     elif user.account['status'] in (MODIFIED, MODIFY):
         response = client.account[user.user_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) not in ('active'):
+        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
             logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
             logger.info("Account %s changed status from modify to active" % (user.user_id))
@@ -90,7 +91,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
         logger.info("Account %s has status %s, not changing" % (user.user_id, user.account.status))
 
 
-def notify_vo_directory_created(vo, dry_run=True):
+def notify_vo_directory_created(vo, client, dry_run=True):
     """Make sure the rest of the subsystems know that the VO status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -101,17 +102,26 @@ def notify_vo_directory_created(vo, dry_run=True):
     - otherwise, the VO already was active in the past, and we simply have an idempotent script.
     """
     if dry_run:
-        logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.status))
+        logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.vo.status))
         return
 
-    if vo.status == 'new':
-        vo.status = 'notify'
-        logger.info("VO %s changed LDAP status from new to notify" % (vo.vo_id))
-    elif vo.status in ('modify', 'modified'):
-        vo.status = 'active'
-        logger.info("VO %s changed LDAP status from modify to active" % (vo.vo_id))
+    if vo.vo.status == NEW:
+        payload = {"status": NOTIFY }
+        response = client.vo[vo.vo_id].patch(body=payload)
+        if response[0] != 200 or response[1].get('status', None) != NOTIFY:
+            logger.error("Status for %s was not set to notify" % (vo.vo_id,))
+        else:
+            logger.info("VO %s changed accountpage status from new to notify" % (vo.vo_id))
+    elif vo.status in (MODIFIED, MODIFY):
+        payload = {"status": ACTIVE }
+        response = client.vo[vo.vo_id].patch(body=payload)
+        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
+            logger.error("Status for %s was not set to active" % (vo.vo_id,))
+        else:
+            logger.info("VO %s changed accountpage status from modify to active" % (vo.vo_id))
     else:
-        logger.info("VO %s has LDAP status %s, not changing" % (vo.vo_id, vo.status))
+        logger.info("VO %s has accountpage status %s, not changing" % (vo.vo_id, vo.vo.status))
+
 
 def process_users(options, account_ids, storage_name, client):
     """
@@ -177,9 +187,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
     for vo_id in vo_ids:
 
         vo = VscTier2AccountpageVo(vo_id, rest_client=client)
-
-        if options.dry_run:
-            vo.dry_run = True
+        vo.dry_run = options.dry_run
 
         try:
             if storage_name in ['VSC_HOME']:
@@ -196,7 +204,8 @@ def process_vos(options, vo_ids, storage, storage_name, client):
 
             for user_id in vo.vo.members:
                 try:
-                    member = VscTier2AccountpageUser(user_id)
+                    member = VscTier2AccountpageUser(user_id, rest_client=client)
+                    member.dry_run = options.dry_run
                     if storage_name in ['VSC_DATA']:
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
