@@ -33,18 +33,16 @@ from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc import fancylogger
-from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscGroup
-from vsc.accountpage.wrappers import VscHomeOnScratch, VscUserGroup
+from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
+from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC, Muk, VscStorage
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.filters import InstituteFilter, LoginFilter
 from vsc.ldap import NoSuchUserError
 from vsc.ldap.entities import VscLdapUser
-from vsc.ldap.utils import LdapQuery
 
 
 log = fancylogger.getLogger(__name__)
@@ -100,17 +98,33 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
+        self._init_quota(rest_client)
+
+    def _init_quota(self, rest_client):
+
         try:
-            all_quota = rest_client.account[self.user_id].quota.get()[1]
-            institute_quota = filter(lambda q: q['storage']['institute'] == self.person.institute['site'], all_quota)
-            self.user_home_quota = filter(lambda q: q['storage']['storage_type'] in ('home',), institute_quota)
-            self.user_data_quota = filter(lambda q: q['storage']['storage_type'] in ('data',), institute_quota)
-            self.user_scratch_quota = filter(lambda q: q['storage']['storage_type'] in ('scratch',), institute_quota)
+            all_quota = [VscUserSizeQuota(**q) for q in rest_client.account[self.user_id].quota.get()[1]]
         except HTTPError:
-            logging.exception("Unable to retrieve quota information")
-            self.user_home_quota = None
-            self.user_data_quota = None
+            logging.exception("Unable to retrieve quota information. Falling back to static info for home and data")
+            self.user_home_quota = self.storage['VSC_HOME'].user_quota
+            self.user_data_quota = self.storage['VSC_DATA'].user_quota
             self.user_scratch_quota = None
+            return
+
+        institute_quota = filter(lambda q: q.storage['institute'] == self.person.institute['site'], all_quota)
+
+        # the user's personal quota are imposed on a grouping fileset on all our Tier2 filesystems
+        fileset_name = self.vsc.user_grouping(self.account.vsc_id)
+        user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
+        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or [self.storage['VSC_HOME'].quota_user])[0]
+        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or [self.storage['VSC_DATA'].quota_user])[0]
+        self.user_scratch_quota = filter(lambda q: user_proposition(q,'scratch',), institute_quota)  # multiple values!
+
+        # the users' VO quota (if any) are on a fileset that starts with 'gvo'
+        fileset_name = 'gvo'
+        user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
+        self.vo_data_quota = [q for q in institute_quota if user_proposition(q, 'data')]  # max 1 value
+        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q,'scratch')]  # multiple values!
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
@@ -121,7 +135,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         template = self.storage.path_templates[self.pickle_storage]['user']
         return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
                             template[0],
-                            template[1](self.user_id)
+                            template[1](self.account.vsc_id)
                            )
 
     def _create_grouping_fileset(self, filesystem_name, path):
@@ -130,7 +144,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         - creates the fileset if it does not already exist
         """
         self.gpfs.list_filesets()
-        fileset_name = self.vsc.user_grouping(self.user_id)
+        fileset_name = self.vsc.user_grouping(self.account.vsc_id)
         logging.info("Trying to create the grouping fileset %s with link path %s" % (fileset_name, path))
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
@@ -141,7 +155,8 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            logging.info("Fileset %s already exists for user group of %s ... not creating again." % (fileset_name, self.user_id))
+            logging.info("Fileset %s already exists for user group of %s ... not creating again." %
+                         (fileset_name, self.account.vsc_id))
 
         self.gpfs.chmod(0755, path)
 
@@ -157,7 +172,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
 
-        return os.path.join(mount_path, template[0], template[1](self.user_id))
+        return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
 
     def _get_grouping_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the user group directory (and associated fileset)."""
@@ -171,7 +186,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
 
-        return os.path.join(mount_path, template[0], template[1](self.user_id))
+        return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
 
     def _home_path(self, mount_point="gpfs"):
         """Return the path to the home dir."""
@@ -210,7 +225,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._home_path()
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create home dir for user %s" % (self.user_id))
+            logging.exception("Could not create home dir for user %s" % (self.account.vsc_id))
             raise
 
     def create_data_dir(self):
@@ -224,7 +239,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._data_path()
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create data dir for user %s" % (self.user_id))
+            logging.exception("Could not create data dir for user %s" % (self.account.vsc_id))
             raise
 
     def create_scratch_dir(self, storage_name):
@@ -241,7 +256,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._scratch_path(storage_name)
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create scratch dir for user %s" % (self.user_id))
+            logging.exception("Could not create scratch dir for user %s" % (self.account.vsc_id))
             raise
 
     def _create_user_dir(self, path):
@@ -276,18 +291,18 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     def set_home_quota(self):
         """Set USR quota on the home FS in the user fileset."""
         path = self._home_path()
-        hard = self.user_home_quota.hard
+        hard = self.user_home_quota
         self._set_quota('VSC_HOME', path, hard)
 
     def set_data_quota(self):
         """Set USR quota on the data FS in the user fileset."""
         path = self._grouping_data_path()
-        hard = self.user_data_quota.hard
+        hard = self.user_data_quota
         self._set_quota('VSC_DATA', path, hard)
 
     def set_scratch_quota(self, storage_name):
         """Set USR quota on the scratch FS in the user fileset."""
-        quota = filter(lambda q: q['storage']['name'] in (storage_name,), self.user_scratch_quota)
+        quota = filter(lambda q: q.storage['name'] in (storage_name,), self.user_scratch_quota)
         if not quota:
             logging.error("No scratch quota information available for %s" % (storage_name,))
             return
@@ -752,7 +767,7 @@ class MukAccountpageUser(VscAccountPageUser):
         else:
             muk_quota = filter(lambda q: q['storage']['name'] == self.muk.storage_name, all_quota)
             if muk_quota:
-                self.user_scratch_quota = muk_quota[0]['hard']
+                self.user_scratch_quota = muk_quota[0]['hard'] * 1024
             else:
                 self.user_scratch_quota = 250 * 1024 * 1024 * 1024
 
