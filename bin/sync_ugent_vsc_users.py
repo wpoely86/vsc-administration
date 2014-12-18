@@ -81,7 +81,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
             logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
             logger.info("Account %s changed status from new to notify" % (user.user_id))
-    elif user.account['status'] in (MODIFIED, MODIFY):
+    elif user.account.status in (MODIFIED, MODIFY):
         response = client.account[user.user_id].patch(body=payload)
         if response[0] != 200 or response[1].get('status', None) != ACTIVE:
             logger.error("Status for %s was not set to active" % (user.user_id,))
@@ -112,7 +112,7 @@ def notify_vo_directory_created(vo, client, dry_run=True):
             logger.error("Status for %s was not set to notify" % (vo.vo_id,))
         else:
             logger.info("VO %s changed accountpage status from new to notify" % (vo.vo_id))
-    elif vo.status in (MODIFIED, MODIFY):
+    elif vo.vo.status in (MODIFIED, MODIFY):
         payload = {"status": ACTIVE }
         response = client.vo[vo.vo_id].patch(body=payload)
         if response[0] != 200 or response[1].get('status', None) != ACTIVE:
