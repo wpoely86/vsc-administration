@@ -196,7 +196,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
-                notify_vo_directory_created(vo)
+                notify_vo_directory_created(vo, client)
 
             if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                 vo.create_scratch_fileset(storage_name)
