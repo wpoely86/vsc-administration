@@ -146,8 +146,7 @@ def process_users(options, account_ids, storage_name, client):
     for vsc_id in account_ids:
 
         user = VscTier2AccountpageUser(vsc_id, rest_client=client)
-        if options.dry_run:
-            user.dry_run = True
+        user.dry_run = options.dry_run
 
         try:
             if storage_name in ['VSC_HOME']:
