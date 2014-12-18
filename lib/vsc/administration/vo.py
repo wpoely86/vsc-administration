@@ -35,8 +35,6 @@ from vsc.config.base import VSC, VscStorage
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
 from vsc.ldap.entities import VscLdapGroup
 
-logger = fancylogger.getLogger(__name__)
-
 VO_PREFIX = 'gvo'
 DEFAULT_VO = 'gvo000012'
 INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
@@ -234,8 +232,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         @type quota: integer (hard value)
         """
         try:
-            soft = int(quota * self.vsc.quota_soft_fraction)
-            self.gpfs.set_user_quota(soft, int(member.account.vsc_id_number), path, quota * 1024)
+            soft = int(quota * self.vsc.quota_soft_fraction) * 1024
+            self.gpfs.set_user_quota(soft, int(member.account.vsc_id_number), path, hard = quota * 1024)
         except GpfsOperationError:
             logging.exception("Unable to set USR quota for member %s on path %s" % (member.account.vsc_id, path))
             raise
