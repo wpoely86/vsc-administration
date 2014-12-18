@@ -60,7 +60,7 @@ MODIFY = 'modify'
 NEW = 'new'
 NOTIFY = 'notify'
 
-def notify_user_directory_created(user, options, client, dry_run=True):
+def notify_user_directory_created(user, options, client):
     """Make sure the rest of the subsystems know the user status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -70,7 +70,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
         change the state to active
     - otherwise, the user account already was active in the past, and we simply have an idempotent script.
     """
-    if dry_run:
+    if user.dry_run:
         logger.info("User %s has account status %s. Dry-run so not changing anything" % (user.user_id, user.account.status))
         return
 
@@ -81,7 +81,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
             logger.error("Status for %s was not set to active" % (user.user_id,))
         else:
             logger.info("Account %s changed status from new to notify" % (user.user_id))
-    elif user.account['status'] in (MODIFIED, MODIFY):
+    elif user.account.status in (MODIFIED, MODIFY):
         response = client.account[user.user_id].patch(body=payload)
         if response[0] != 200 or response[1].get('status', None) != ACTIVE:
             logger.error("Status for %s was not set to active" % (user.user_id,))
@@ -91,7 +91,7 @@ def notify_user_directory_created(user, options, client, dry_run=True):
         logger.info("Account %s has status %s, not changing" % (user.user_id, user.account.status))
 
 
-def notify_vo_directory_created(vo, client, dry_run=True):
+def notify_vo_directory_created(vo, client):
     """Make sure the rest of the subsystems know that the VO status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -101,7 +101,7 @@ def notify_vo_directory_created(vo, client, dry_run=True):
         change the state to active
     - otherwise, the VO already was active in the past, and we simply have an idempotent script.
     """
-    if dry_run:
+    if vo.dry_run:
         logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.vo.status))
         return
 
@@ -112,7 +112,7 @@ def notify_vo_directory_created(vo, client, dry_run=True):
             logger.error("Status for %s was not set to notify" % (vo.vo_id,))
         else:
             logger.info("VO %s changed accountpage status from new to notify" % (vo.vo_id))
-    elif vo.status in (MODIFIED, MODIFY):
+    elif vo.vo.status in (MODIFIED, MODIFY):
         payload = {"status": ACTIVE }
         response = client.vo[vo.vo_id].patch(body=payload)
         if response[0] != 200 or response[1].get('status', None) != ACTIVE:
@@ -154,7 +154,7 @@ def process_users(options, account_ids, storage_name, client):
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
-                notify_user_directory_created(user, options, client, options.dry_run)
+                notify_user_directory_created(user, options, client)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
@@ -196,7 +196,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
-                notify_vo_directory_created(vo, options.dry_run)
+                notify_vo_directory_created(vo, client)
 
             if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                 vo.create_scratch_fileset(storage_name)
