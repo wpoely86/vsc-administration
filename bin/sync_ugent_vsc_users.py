@@ -274,7 +274,8 @@ def main():
             logger.info("Found %d UGent accounts that have changed quota in the accountpage since %s" %
                         (len(ugent_changed_quota), last_timestamp[:8]))
 
-            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts + ugent_changed_pubkey_accounts] \
+            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
+                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] \
                            + [u['user'] for u in ugent_changed_quota]
             ugent_accounts = nub(ugent_accounts)
 
