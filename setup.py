@@ -36,7 +36,7 @@ shared_setup.SHARED_TARGET.update({
 
 PACKAGE = {
     'name': 'vsc-administration',
-    'version': '0.21.7',
+    'version': '0.22',
     'author': [ag],
     'maintainer': [ag],
     'packages': ['vsc', 'vsc.administration'],
@@ -56,6 +56,7 @@ PACKAGE = {
         'bin/create_tier2_ugent_home_data_directory_tree.py',
         'bin/get_overview_users.py',
         'bin/replicate_scratch_tree.py',
+        'bin/sync_django_ldap.py',
         'bin/sync_ugent_vsc_users.py',
         'bin/sync_muk_users.py',
         'bin/sync_muk_projects.py',
