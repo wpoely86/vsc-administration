@@ -67,9 +67,7 @@ def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
     ldap_entries = VscLdapKlass.lookup(CnFilter(cn))
     if not ldap_entries:
         # add the entry
-        _log.info("add a new entry (%s) %s to LDAP with attributes %s" % (VscLdapKlass.__name__,
-                                                                                         cn,
-                                                                                         ldap_attributes))
+        _log.debug("add new entry %s %s with the attributes %s", VscLdapKlass.__name__, cn, ldap_attributes)
 
         if not dry_run:
             try:
@@ -82,10 +80,9 @@ def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
         return NEW
     else:
         ldap_entries[0].status
-        _log.info("update existing entry %s %s with the attributes %s -- old entry: %s" % (VscLdapKlass.__name__,
-                                                                                           cn,
-                                                                                           ldap_attributes,
-                                                                                           ldap_entries[0].ldap_info))
+        _log.debug("update existing entry %s %s with the attributes %s -- old entry: %s",
+                   VscLdapKlass.__name__, cn, ldap_attributes, ldap_entries[0].ldap_info)
+
         if not dry_run:
             try:
                 ldap_entries[0].modify_ldap(ldap_attributes)
@@ -112,7 +109,7 @@ def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
     deleted_pubkeys = [p for p in changed_pubkeys if p.deleted]
 
     _log.warning("Deleted pubkeys %s" % (deleted_pubkeys,))
-    _log.debug("New pubkeys %s" % (new_pubkeys,))
+    _log.debug("New pubkeys %s", new_pubkeys)
 
     for p in changed_pubkeys:
 
@@ -124,10 +121,10 @@ def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
         try:
             account = p.user.account
         except User.DoesNotExist:
-            _log.error("No user found for the given public key %d" % (p.pk,))
+            _log.warning("No user found for the given public key %d" % (p.pk,))
             continue
         except Account.DoesNotExist:
-            _log.error("No account for the user %s corresponding to the public key %d" % (p.user.username, p.pk))
+            _log.warning("No account for the user %s corresponding to the public key %d" % (p.user.username, p.pk))
             continue
 
         if account in processed_accounts[NEW] or account in processed_accounts[UPDATED]:
@@ -202,7 +199,7 @@ def sync_altered_accounts(last, now, dry_run=True):
     _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
                                                                        last.strftime("%Y%m%d%H%M%SZ"),
                                                                        now.strftime("%Y%m%d%H%M%SZ")))
-    _log.info("Modified accounts: %s" % ([a.vsc_id for a in sync_accounts],))
+    _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
 
 
     for account in sync_accounts:
@@ -212,10 +209,10 @@ def sync_altered_accounts(last, now, dry_run=True):
             home_quota = UserSizeQuota.objects.get(user=account, storage=home_storage).hard
         except UserSizeQuota.DoesNotExist:
             home_quota = 0
-            _log.error("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, home_storage.name))
+            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, home_storage.name))
         except Storage.DoesNotExist:
             home_quota = 0
-            _log.error("No home storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
+            _log.warning("No home storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
         except User.DoesNotExist:
             _log.error("No corresponding User for account %s" % (account.vsc_id,))
             continue
@@ -234,10 +231,10 @@ def sync_altered_accounts(last, now, dry_run=True):
                 data_quota = data_quota_[0].hard
         except (UserSizeQuota.DoesNotExist, IndexError):
             data_quota = 0
-            _log.error("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, data_storage.name))
+            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, data_storage.name))
         except Storage.DoesNotExist:
             data_quota = 0
-            _log.error("No data storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
+            _log.warning("No data storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
 
         try:
             scratch_storage = Storage.objects.filter(storage_type=settings.SCRATCH, institute=account.user.person.institute)
@@ -258,10 +255,10 @@ def sync_altered_accounts(last, now, dry_run=True):
                 scratch_quota = scratch_quota_[0].hard
         except (UserSizeQuota.DoesNotExist, IndexError):
             scratch_quota = 0
-            _log.error("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, scratch_storage.name))
+            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, scratch_storage.name))
         except Storage.DoesNotExist:
             scratch_quota = 0
-            _log.error("No scratch storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
+            _log.warning("No scratch storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
 
         try:
             try:
@@ -365,7 +362,7 @@ def sync_altered_user_groups(last, now, dry_run=True):
                                                                          last.strftime("%Y%m%d%H%M%SZ"),
                                                                          now.strftime("%Y%m%d%H%M%SZ")))
 
-    _log.info("Modified usergroups: %s" % ([g.vsc_id for g in changed_usergroups],))
+    _log.debug("Modified usergroups: %s", [g.vsc_id for g in changed_usergroups])
 
     groups = {
         NEW: set(),
@@ -395,7 +392,7 @@ def sync_altered_autogroups(dry_run=True):
     changed_autogroups = Autogroup.objects.all() # we always sync autogroups since we cannot know beforehand if their membership list changed
 
     _log.info("Found %d autogroups" % (len(changed_autogroups),))
-    _log.info("Autogroups: %s" % ([a.vsc_id for a in changed_autogroups],))
+    _log.debug("Autogroups: %s", [a.vsc_id for a in changed_autogroups])
 
     groups = {
         NEW: set(),
@@ -415,7 +412,7 @@ def sync_altered_autogroups(dry_run=True):
             'autogroup': [str(s.vsc_id) for s in autogroup.sources.all()],
         }
 
-        _log.info("Proposed changes for autogroup %s: %s" % (autogroup.vsc_id, ldap_attributes))
+        _log.debug("Proposed changes for autogroup %s: %s", autogroup.vsc_id, ldap_attributes)
 
         result = add_or_update(VscLdapGroup, autogroup.vsc_id, ldap_attributes, dry_run)
         groups[result].add(autogroup)
@@ -432,7 +429,7 @@ def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
     _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
                                                                       last.strftime("%Y%m%d%H%M%SZ"),
                                                                       now.strftime("%Y%m%d%H%M%SZ")))
-    _log.info("Modified members: %s" % ([m.account.vsc_id for m in changed_members],))
+    _log.debug("Modified members: %s", [m.account.vsc_id for m in changed_members])
 
     members = {
         NEW: set(),
@@ -475,7 +472,7 @@ def sync_altered_groups(last, now, dry_run=True):
     _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
                                                                      last.strftime("%Y%m%d%H%M%SZ"),
                                                                      now.strftime("%Y%m%d%H%M%SZ")))
-    _log.info("Modified groups: %s" % ([g.vsc_id for g in changed_groups],))
+    _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
     groups = {
         NEW: set(),
         UPDATED: set(),
@@ -492,7 +489,7 @@ def sync_altered_groups(last, now, dry_run=True):
             'status': [str(group.status)],
         }
 
-        _log.info("Proposed changes for group %s: %s" % (group.vsc_id, ldap_attributes))
+        _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
         result = add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
         groups[result].add(group)
@@ -509,7 +506,7 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
     _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
                                                                       last.strftime("%Y%m%d%H%M%SZ"),
                                                                       now.strftime("%Y%m%d%H%M%SZ")))
-    _log.info("Modified VO members: %s" % ([m.account.vsc_id for m in changed_members],))
+    _log.debug("Modified VO members: %s", [m.account.vsc_id for m in changed_members])
     members = {
         NEW: set(),
         UPDATED: set(),
@@ -550,7 +547,7 @@ def sync_altered_VO(last, now, dry_run=True):
     _log.info("Found %d modified vos in the range %s until %s" % (len(changed_vos),
                                                                   last.strftime("%Y%m%d%H%M%SZ"),
                                                                   now.strftime("%Y%m%d%H%M%SZ")))
-    _log.info("Modified VOs: %s" % ([v.vsc_id for v in changed_vos],))
+    _log.debug("Modified VOs: %s", [v.vsc_id for v in changed_vos])
 
     vos = {
         NEW: set(),
@@ -565,20 +562,20 @@ def sync_altered_VO(last, now, dry_run=True):
             data_quota = VirtualOrganisationSizeQuota.objects.get(virtual_organisation=vo, storage=data_storage, fileset=vo.vsc_id).hard
         except (VirtualOrganisationSizeQuota.DoesNotExist, IndexError):
             data_quota = 0
-            _log.error("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
+            _log.warning("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
         except Storage.DoesNotExist:
             data_quota = 0
-            _log.error("No VO data storage for institute %s defined, setting quota to 0" % (vo.institute,))
+            _log.warning("No VO data storage for institute %s defined, setting quota to 0" % (vo.institute,))
 
         try:
             scratch_storage = Storage.objects.filter(storage_type=settings.SCRATCH, institute=vo.institute)
             scratch_quota = VirtualOrganisationSizeQuota.objects.get(virtual_organisation=vo, storage=scratch_storage[0], fileset=vo.vsc_id).hard  # take the first one
         except (VirtualOrganisationSizeQuota.DoesNotExist, IndexError):
             scratch_quota = 0
-            _log.error("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
+            _log.warning("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
         except Storage.DoesNotExist:
             scratch_quota = 0
-            _log.error("No VO scratch storage for institute %s defined, setting quota to 0" % (vo.institute,))
+            _log.warning("No VO scratch storage for institute %s defined, setting quota to 0" % (vo.institute,))
 
         # Hack to deal with the anomaly that the VO admin actually 'belongs' to multiple VOs, only in the LDAP
         # the moderator need not be a member
@@ -602,7 +599,7 @@ def sync_altered_VO(last, now, dry_run=True):
             'scratchQuota': [str(scratch_quota)],
         }
 
-        _log.info("Proposed changes for VO %s: %s" % (vo.vsc_id, ldap_attributes))
+        _log.debug("Proposed changes for VO %s: %s", vo.vsc_id, ldap_attributes)
 
         result = add_or_update(VscLdapGroup, vo.vsc_id, ldap_attributes, dry_run)
         vos[result].add(vo)
