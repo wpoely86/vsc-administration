@@ -242,7 +242,7 @@ def sync_altered_accounts(last, now, dry_run=True):
                 raise Storage.DoesNotExist("No scratch storage for institute %s" % (account.user.person.institute,))
 
             if account.user.person.institute in (Site.objects.get(site=GENT),):
-                scratch_storage = scratch_storage.filter(name='VSC_SCRATCH_GENGAR')[0]  # TODO: This can be ignored once we go to sync from django, skipping the LDAP completely
+                scratch_storage = scratch_storage.filter(name='VSC_SCRATCH_DELCATTY')[0]  # TODO: This can be ignored once we go to sync from django, skipping the LDAP completely
             else:
                 scratch_storage = scratch_storage[0]
 
