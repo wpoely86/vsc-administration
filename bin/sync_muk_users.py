@@ -18,9 +18,12 @@ For these, the home and other shizzle should be set up.
 @author Andy Georges
 """
 
+import logging
 import os
 import sys
 import time
+
+from urllib2 import HTTPError
 
 from vsc.administration.user import MukAccountpageUser
 from vsc.accountpage.client import AccountpageClient
@@ -134,8 +137,7 @@ def process(options, users, client):
     error_users = []
     for user_id in users:
         user = MukAccountpageUser(user_id, rest_client=client)
-        if options.dry_run:
-            user.dry_run = True
+        user.dry_run = options.dry_run
         try:
             user.create_scratch_fileset()
             user.populate_scratch_fallback()
@@ -170,13 +172,15 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
     Remove users from purgees if they are in the current users list.
     """
     purgees_undone = 0
-    for user in current_users:
-        logger.debug("Checking if %s is in purgees", (user,))
-        if user in purgees:
-            del purgees[user]
+    for user_id in current_users:
+        logger.debug("Checking if %s is in purgees", (user_id,))
+        if user_id in purgees:
+            del purgees[user_id]
             purgees_undone += 1
-            logger.info("Removed %s from the list of purgees: found in list of current users" % (user,))
-            notify_reinstatement(MukAccountpageUser(user, rest_client=client), dry_run)
+            logger.info("Removed %s from the list of purgees: found in list of current users" % (user_id,))
+            user = MukAccountpageUser(user_id, rest_client=client)
+            user.dry_run = dry_run
+            notify_reinstatement(user)
 
     return purgees_undone
 
@@ -186,14 +190,27 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
     Add the users that are out to the purgees
     """
     purgees_first_notify = 0
-    for user in previous_users:
-        if not user in current_users and not user in purgees:
-            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), now, now, dry_run)
-            purgees[user] = (now, None, None)
+    for user_id in previous_users:
+        user = MukAccountpageUser(user_id, rest_client=client)
+        user.dry_run = dry_run
+        if not user_id in current_users and not user_id in purgees:
+            if not user.dry_run:
+                group_name = "%st1_mukgraceusers" % user.account.institute[0]
+                try:
+                    client.group[group_name].member[user_id.account.vsc_id].add.get()
+                except HTTPError, err:
+                    logging.error("Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
+                                  err.code, user_id.account.vsc_id, group_name, err.reason)
+                    continue
+                else:
+                    logging.info("Account %s added to group %s", user_id.account.vsc_id, group_name)
+            notify_user_of_purge(user, now, now)
+            purgees[user_id] = (now, None, None)  # in a dry run we will not store these in the cache
             purgees_first_notify += 1
-            logger.info("Added %s to the list of purgees with timestamp %s" % (user, (now, None, None)))
+            logger.info("Added %s to the list of purgees with timestamp %s" % (user_id, (now, None, None)))
+
         else:
-            logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user,))
+            logger.info("User %s in both previous users and current users lists, not eligible for purge." % (user_id,))
 
     return purgees_first_notify
 
@@ -246,27 +263,28 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     purgees_undone = cleanup_purgees(current_users, purgees, client, dry_run)
 
     # warn those still on the purge list if needed
-    for (user, (first_warning, second_warning, final_warning)) in purgees.items():
-        logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user, now, now - first_warning)
+    for (user_id, (first_warning, second_warning, final_warning)) in purgees.items():
+        logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user_id, now, now - first_warning)
 
+        user = MukAccountpageUser(user_id, rest_client=client)
+        user.dry_run = dry_run
         if now - first_warning > PURGE_DEADLINE_TIME:
-            m_user = MukAccountpageUser(user, rest_client=client)
-            notify_user_of_purge(m_user, first_warning, now, dry_run)
-            purge_user(m_user, dry_run)
-            del purgees[user]
+            notify_user_of_purge(user, first_warning, now)
+            purge_user(user, client)
+            del purgees[user_id]
             purgees_begone += 1
-            logger.info("Removed %s from the list of purgees - time's up " % (user, ))
+            logger.info("Removed %s from the list of purgees - time's up " % (user_id, ))
         elif not second_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[0]:
-            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), first_warning, now, dry_run)
-            purgees[user] = (first_warning, now, None)
+            notify_user_of_purge(user, first_warning, now)
+            purgees[user_id] = (first_warning, now, None)
             purgees_second_notify += 1
-            logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, now, None)))
+            logger.info("Updated %s in the list of purgees with timestamps %s" % (user_id, (first_warning, now, None)))
         elif not final_warning and now - first_warning > PURGE_NOTIFICATION_TIMES[1]:
-            notify_user_of_purge(MukAccountpageUser(user, rest_client=client), first_warning, now, dry_run)
-            purgees[user] = (first_warning, second_warning, now)
+            notify_user_of_purge(user, first_warning, now)
+            purgees[user_id] = (first_warning, second_warning, now)
             purgees_final_notify += 1
-            logger.info("Updated %s in the list of purgees with timestamps %s" % (user, (first_warning, second_warning,
-                                                                                         now)))
+            logger.info("Updated %s in the list of purgees with timestamps %s" %
+                        (user_id, (first_warning, second_warning, now)))
         else:
             logger.info("Time difference does not warrant sending a new mail already.")
 
@@ -282,8 +300,6 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
 
     cache.close()
 
-
-
     return {
         'purgees_undone': purgees_undone,
         'purgees_first_notify': purgees_first_notify,
@@ -293,7 +309,7 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     }
 
 
-def notify_user_of_purge(user, grace_time, current_time, dry_run):
+def notify_user_of_purge(user, grace_time, current_time):
     """
     Send out a notification mail to the user letting him know he will be purged in n days or k hours.
 
@@ -315,12 +331,12 @@ def notify_user_of_purge(user, grace_time, current_time, dry_run):
 
     logger.info("Sending notification mail to %s - time time_left before purge %d %s" % (user, time_left, left_unit))
     if time_left:
-        notify_purge(user, time_left, left_unit, dry_run)
+        notify_purge(user, time_left, left_unit)
     else:
-        notify_purge(user, None, None, dry_run)
+        notify_purge(user, None, None)
 
 
-def notify_reinstatement(user, dry_run):
+def notify_reinstatement(user):
     """
     Send out a mail notifying the user who was removed from grace and back to regular mode on muk.
 
@@ -333,7 +349,7 @@ def notify_reinstatement(user, dry_run):
                                         })
     mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.account.vsc_id})
 
-    if dry_run:
+    if user.dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
     else:
         mail.sendTextMail(mail_to=user.account.email,
@@ -345,8 +361,7 @@ def notify_reinstatement(user, dry_run):
                     (user.account.vsc_id, user.person.gecos, mail_subject))
 
 
-
-def notify_purge(user, grace=0, grace_unit="", dry_run=True):
+def notify_purge(user, grace=0, grace_unit=""):
     """Send out the actual notification"""
     mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
 
@@ -363,7 +378,7 @@ def notify_purge(user, grace=0, grace_unit="", dry_run=True):
                                     })
         mail_subject = "%(user_id)s compute time on the VSC Tier-1 expired" % ({'user_id': user.account.vsc_id})
 
-    if dry_run:
+    if user.dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user.account.vsc_id, message,))
     else:
         mail.sendTextMail(mail_to=user.account.email,
@@ -375,13 +390,23 @@ def notify_purge(user, grace=0, grace_unit="", dry_run=True):
                     (user.account.vsc_id, user.person.gecos, mail_subject))
 
 
-def purge_user(user, dry_run):
+def purge_user(user, client):
     """
     Really purge the user by removing the symlink to his home dir.
     """
-    logger.info("Purging %s" % (user.account.vsc_id,))
-    if dry_run:
-        user.dry_run = True
+    if not user.dry_run:
+        logger.info("Purging %s" % (user.account.vsc_id,))
+        # remove the user from the grace users
+        institute = user.person.institute
+        group_name = "%st1_mukgraceusers" % institute[0]
+        try:
+            client.group[group_name].member[user.account.vsc_id].delete.get()
+        except HTTPError, err:
+            logging.error("Return code %d: could not remove %s from group %s [%s]",
+                          err.code, user.account.vsc_id, group_name, err.reason)
+        else:
+            logging.info("Account %s removed from group %s", user.account.vsc_id, group_name)
+
     user.cleanup_home_dir()
 
 
