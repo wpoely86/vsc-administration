@@ -92,7 +92,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
             self.vo_data_quota = ([q.hard for q in institute_quota
                                           if q.storage['storage_type'] in ('data',)]
-                                          or [self.storage['VSC_DATA'].vo_qouta])[0]  # there can be only one :)
+                                          or [self.storage['VSC_DATA'].quota_vo])[0]  # there can be only one :)
             self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
@@ -156,6 +156,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             moderator = VscAccount(**self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
             logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
+        except IndexError:
+            logging.error("There is no moderator available for VO %s" % (self.vo.vsc_id,))
             self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
         else:
             self.gpfs.chown(moderator.vsc_id_number, self.vo.vsc_id_number, path)
