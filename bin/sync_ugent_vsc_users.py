@@ -188,7 +188,6 @@ def process_vos(options, vo_ids, storage, storage_name, client):
 
     for vo_id in vo_ids:
 
-
         vo = VscTier2AccountpageVo(vo_id, rest_client=client)
         vo.dry_run = options.dry_run
 
