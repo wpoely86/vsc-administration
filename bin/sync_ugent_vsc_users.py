@@ -163,6 +163,9 @@ def process_users(options, account_ids, storage_name, client):
                 user.create_scratch_dir(storage_name)
                 user.set_scratch_quota(storage_name)
 
+            if storage_name in ['VSC_SCRATCH_PHANPY']:
+                user.create_scratch_dir(storage_name)
+
             ok_users.append(user)
         except:
             logger.exception("Cannot process user %s" % (user.user_id))
@@ -185,6 +188,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
 
     for vo_id in vo_ids:
 
+
         vo = VscTier2AccountpageVo(vo_id, rest_client=client)
         vo.dry_run = options.dry_run
 
@@ -201,6 +205,13 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
+            if storage_name in ['VSC_SCRATCH_PHANPY']:
+                vo.create_scratch_fileset(storage_name)
+
+            if vo_id in VSC().institute_vos.values():
+                logger.info("Not deploying default VO %s members" % (vo_id,))
+                continue
+
             for user_id in vo.vo.members:
                 try:
                     member = VscTier2AccountpageUser(user_id, rest_client=client)
@@ -212,6 +223,10 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                     if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
+
+                    if storage_name in ['VSC_SCRATCH_PHANPY']:
+                        vo.create_member_scratch_dir(storage_name, member)
+
 
                     ok_vos[vo.vo_id] = [user_id]
                 except:
