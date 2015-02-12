@@ -27,6 +27,7 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 import copy
 import sys
 
+from datetime import datetime
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.administration.user import VscTier2AccountpageUser
@@ -262,6 +263,9 @@ def main():
     stats = {}
 
     try:
+
+        now = datetime.utcnow()
+
         client = AccountpageClient(token=opts.options.access_token)
 
         vsc = VSC()
@@ -329,7 +333,7 @@ def main():
                 stats["%s_vos_sync_fail_critical" % (storage_name,)] = STORAGE_VO_LIMIT_CRITICAL
 
         if not (users_fail or vos_fail):
-            (_, ldap_timestamp) = convert_timestamp()
+            (_, ldap_timestamp) = convert_timestamp(now)
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
     except Exception, err:
