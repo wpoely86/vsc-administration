@@ -653,6 +653,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
 
 def main():
     _log = fancylogger.getLogger(NAGIOS_HEADER)
+    now = datetime.utcnow().replace(tzinfo=utc)
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
@@ -702,7 +703,6 @@ def main():
                 _log.raiseException("Could not drop privileges")
 
             last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=utc)
-            now = datetime.utcnow().replace(tzinfo=utc)
 
             altered_accounts = sync_altered_accounts(last, now, opts.options.dry_run)
             altered_pubkeys = sync_altered_pubkeys(last, now, altered_accounts, opts.options.dry_run)
@@ -767,7 +767,7 @@ def main():
         _log.info("Child exited with exit code %d" % (result,))
 
         if not result and not opts.options.dry_run and not opts.options.start_timestamp:
-            (_, ldap_timestamp) = convert_timestamp()
+            (_, ldap_timestamp) = convert_timestamp(now)
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             else:
