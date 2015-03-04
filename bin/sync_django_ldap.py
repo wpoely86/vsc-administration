@@ -75,7 +75,7 @@ def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
                 entry.add(ldap_attributes)
                 _log.info("Added a new user %s to LDAP" % (cn,))
             except LDAPError:
-                _log.exception("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
+                _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
                 return ERROR
         return NEW
     else:
@@ -88,7 +88,7 @@ def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
                 ldap_entries[0].modify_ldap(ldap_attributes)
                 _log.info("Modified %s %s in LDAP" % (VscLdapKlass.__name__, cn,))
             except LDAPError:
-                _log.exception("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
+                _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
                 return ERROR
         return UPDATED
 
@@ -139,7 +139,7 @@ def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
             processed_accounts[UPDATED].add(account)
             pubkeys[UPDATED].add(p)
         except Exception:
-            _log.exception("Cannot add pubkey for account %s to LDAP" % (account.vsc_id,))
+            _log.warning("Cannot add pubkey for account %s to LDAP" % (account.vsc_id,))
             pubkeys[ERROR].add(p)
 
     return pubkeys
@@ -172,7 +172,7 @@ def sync_altered_users(last, now, processed_accounts, dry_run=True):
             processed_accounts[UPDATED].add(u.account)
             users[UPDATED].add(u)
         except Exception:
-            _log.exception("Cannot change email address to %s for %s in LDAP" % (u.email, u.account.vsc_id))
+            _log.warning("Cannot change email address to %s for %s in LDAP" % (u.email, u.account.vsc_id))
             users[ERROR].add(u)
 
     return users
@@ -342,7 +342,7 @@ def sync_altered_user_quota(last, now, altered_accounts, dry_run=True):
                 _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
 
         except Exception:
-            _log.exception("Cannot update quota %s" % (quota,))
+            _log.warning("Cannot update quota %s" % (quota,))
             quotas[ERROR].add(quota)
 
     return quotas
@@ -453,7 +453,7 @@ def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in Membership.objects.filter(group=member.group)]
         except Exception:
-            _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
+            _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
         else:
             newly_processed_groups.add(member.group)
@@ -529,7 +529,7 @@ def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
             ldap_group.status
             ldap_group.memberUid = [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=member.group)]
         except Exception:
-            _log.exception("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
+            _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
             members[ERROR].add(member)
         else:
             newly_processed_vos.add(member.group)
@@ -646,7 +646,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
                 _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
 
         except Exception:
-            _log.exception("Cannot update quota %s" % (quota,))
+            _log.warning("Cannot update quota %s" % (quota,))
             quotas[ERROR].add(quota)
 
     return quotas
@@ -669,7 +669,7 @@ def main():
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
-            _log.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
+            _log.warning("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "201404230000Z"
             _log.warning("We will resync from the beginning of the account page era, i.e. %s" % (last_timestamp,))
 
