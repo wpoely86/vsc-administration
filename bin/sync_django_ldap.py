@@ -269,7 +269,7 @@ def sync_altered_accounts(last, now, dry_run=True):
                 gecos = account.user.person.gecos.encode('ascii', 'ignore')
                 _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
 
-            public_keys = [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)],
+            public_keys = [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)]
             if not public_keys:
                 public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
 
