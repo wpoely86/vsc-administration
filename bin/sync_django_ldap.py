@@ -49,6 +49,8 @@ NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
+ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING="THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
+
 fancylogger.setLogLevelInfo()
 fancylogger.logToScreen(True)
 
@@ -267,6 +269,10 @@ def sync_altered_accounts(last, now, dry_run=True):
                 gecos = account.user.person.gecos.encode('ascii', 'ignore')
                 _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
 
+            public_keys = [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)],
+            if not public_keys:
+                public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
+
             ldap_attributes = {
                 'cn': str(account.vsc_id),
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
@@ -281,7 +287,7 @@ def sync_altered_accounts(last, now, dry_run=True):
                 'homeQuota': ["%d" % (home_quota,)],
                 'dataQuota': ["%d" % (data_quota,)],
                 'scratchQuota': ["%d" % (scratch_quota,)],
-                'pubkey': [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)],
+                'pubkey': public_keys,
                 'gidNumber': ["%s" % (account.usergroup.vsc_id_number,)],
                 'loginShell': [str(account.login_shell)],
                 # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
