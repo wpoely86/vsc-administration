@@ -197,7 +197,7 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
             if not user.dry_run:
                 group_name = "%st1_mukgraceusers" % user.account.institute[0]
                 try:
-                    client.group[group_name].member[user_id.account.vsc_id].add.get()
+                    client.group[group_name].member[user_id.account.vsc_id].post()
                 except HTTPError, err:
                     logging.error("Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
                                   err.code, user_id.account.vsc_id, group_name, err.reason)
@@ -400,14 +400,17 @@ def purge_user(user, client):
         institute = user.person.institute
         group_name = "%st1_mukgraceusers" % institute[0]
         try:
-            client.group[group_name].member[user.account.vsc_id].delete.get()
+            client.group[group_name].member[user.account.vsc_id].delete()
         except HTTPError, err:
             logging.error("Return code %d: could not remove %s from group %s [%s]",
                           err.code, user.account.vsc_id, group_name, err.reason)
         else:
             logging.info("Account %s removed from group %s", user.account.vsc_id, group_name)
 
-    user.cleanup_home_dir()
+        user.cleanup_home_dir()
+    else:
+        logging.info("Dry-run: not removing user %s from grace group" % (user.account.vsc_id,))
+        logging.info("Dry-run: not cleaning up home dir symlink for user %s" % (user.account.vsc_id))
 
 
 def main():
