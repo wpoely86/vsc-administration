@@ -182,6 +182,21 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
             user.dry_run = dry_run
             notify_reinstatement(user)
 
+            # remove user from the grace group as well.
+            group_name = "%st1_mukgraceusers" % user.account.institute[0]
+            if not user.dry_run:
+                try:
+                    client.group[group_name].member[user_id.account.vsc_id].delete()
+                except HTTPError, err:
+                    logging.error("Return code %d: could not remove %s from group %s [%s].",
+                                  err.code, user_id.account.vsc_id, group_name, err.reason)
+                    continue
+                else:
+                    logging.info("Account %s removed to group %s", user_id.account.vsc_id, group_name)
+            else:
+                logging.info("Dry-run: not removing user %s from grace users group %s" %
+                             (user.account.vsc_id, group_name))
+
     return purgees_undone
 
 
@@ -259,7 +274,7 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     logger.debug("Previous users: %s", (previous_users,))
     logger.debug("Purgees: %s", (purgees,))
 
-    # if a user is added again before his grace ran out, remove him from the purgee list
+    # if a user is added again before his grace ran out, remove him from the purgee list and from the grace group
     purgees_undone = cleanup_purgees(current_users, purgees, client, dry_run)
 
     # warn those still on the purge list if needed
