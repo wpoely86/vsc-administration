@@ -183,7 +183,7 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
             notify_reinstatement(user)
 
             # remove user from the grace group as well.
-            group_name = "%st1_mukgraceusers" % user.account.institute[0]
+            group_name = "%st1_mukgraceusers" % user.person.institute['site']
             if not user.dry_run:
                 try:
                     client.group[group_name].member[user_id.account.vsc_id].delete()
@@ -210,7 +210,7 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
         user.dry_run = dry_run
         if not user_id in current_users and not user_id in purgees:
             if not user.dry_run:
-                group_name = "%st1_mukgraceusers" % user.account.institute[0]
+                group_name = "%st1_mukgraceusers" % user.person.institute['site']
                 try:
                     client.group[group_name].member[user_id.account.vsc_id].post()
                 except HTTPError, err:
