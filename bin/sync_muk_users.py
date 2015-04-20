@@ -212,13 +212,13 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
             if not user.dry_run:
                 group_name = "%st1_mukgraceusers" % user.person.institute['site']
                 try:
-                    client.group[group_name].member[user_id.account.vsc_id].post()
+                    client.group[group_name].member[user_id].post()
                 except HTTPError, err:
                     logging.error("Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
-                                  err.code, user_id.account.vsc_id, group_name, err.reason)
+                                  err.code, user_id, group_name, err.reason)
                     continue
                 else:
-                    logging.info("Account %s added to group %s", user_id.account.vsc_id, group_name)
+                    logging.info("Account %s added to group %s", user_id, group_name)
             notify_user_of_purge(user, now, now)
             purgees[user_id] = (now, None, None)  # in a dry run we will not store these in the cache
             purgees_first_notify += 1
