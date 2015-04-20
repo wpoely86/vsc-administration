@@ -210,7 +210,7 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
         user.dry_run = dry_run
         if not user_id in current_users and not user_id in purgees:
             if not user.dry_run:
-                group_name = "%st1_mukgraceusers" % user.person.institute['site']
+                group_name = "%st1_mukgraceusers" % user.person.institute['site'][0]
                 try:
                     client.group[group_name].member[user_id].post()
                 except HTTPError, err:
