@@ -30,6 +30,7 @@ import sys
 from datetime import datetime
 
 from vsc.accountpage.client import AccountpageClient
+from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.administration.user import VscTier2AccountpageUser
 from vsc.administration.vo import VscTier2AccountpageVo
 from vsc.config.base import GENT, VscStorage, VSC
@@ -62,34 +63,31 @@ NEW = 'new'
 NOTIFY = 'notify'
 
 def notify_user_directory_created(user, options, client):
-    """Make sure the rest of the subsystems know the user status has changed.
-
-    Currently, this is tailored to our LDAP-based setup.
-    - if the LDAP state is new:
-        change the state to notify
-    - if the LDAP state is modify:
-        change the state to active
-    - otherwise, the user account already was active in the past, and we simply have an idempotent script.
+    """
+    Change the status of the user's account in the account page to active. Do the same for the corresponding UserGroup.
     """
     if user.dry_run:
         logger.info("User %s has account status %s. Dry-run so not changing anything" % (user.user_id, user.account.status))
         return
 
-    payload = {"status": ACTIVE}
-    if user.account.status == NEW:
-        response = client.account[user.user_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
-            logger.error("Status for %s was not set to active" % (user.user_id,))
-        else:
-            logger.info("Account %s changed status from new to notify" % (user.user_id))
-    elif user.account.status in (MODIFIED, MODIFY):
-        response = client.account[user.user_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
-            logger.error("Status for %s was not set to active" % (user.user_id,))
-        else:
-            logger.info("Account %s changed status from modify to active" % (user.user_id))
-    else:
+    if user.account.status not in (NEW, MODIFIED, MODIFY):
         logger.info("Account %s has status %s, not changing" % (user.user_id, user.account.status))
+        return
+
+    payload = {"status": ACTIVE}
+    response_account = client.account[user.user_id].patch(body=payload)
+    if response_account[0] == 200 and mkVscAccount(response_account[1]).status == ACTIVE:
+        logger.info("Account %s status changed to %s" % (user.user_id, ACTIVE))
+        response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
+
+        if response_usergroup[0] == 200 and mkUserGroup(response_usergroup[1]).status == ACTIVE:
+            logger.info("UserGroup %s status changed to %s" % (user.user_id, ACTIVE))
+            return
+        else:
+            logger.error("UserGroup %s status was not changed", user.user_id)
+    else:
+        logger.error("Account %s status was not changed", user.user_id)
+        logger.error("UserGroup %s status was not changed", user.user_id)
 
 
 def notify_vo_directory_created(vo, client):
