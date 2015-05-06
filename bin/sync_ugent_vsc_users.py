@@ -28,9 +28,10 @@ import copy
 import sys
 
 from datetime import datetime
+from urllib2 import HTTPError
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkVo
 from vsc.administration.user import VscTier2AccountpageUser
 from vsc.administration.vo import VscTier2AccountpageVo
 from vsc.config.base import GENT, VscStorage, VSC
@@ -62,7 +63,20 @@ MODIFY = 'modify'
 NEW = 'new'
 NOTIFY = 'notify'
 
-def notify_user_directory_created(user, options, client):
+
+class UserStatusUpdateError(Exception):
+    pass
+
+
+class VoStatusUpdateError(Exception):
+    pass
+
+
+class UserGroupStatusUpdateError(Exception):
+    pass
+
+
+def update_user_status(user, options, client):
     """
     Change the status of the user's account in the account page to active. Do the same for the corresponding UserGroup.
     """
@@ -75,22 +89,36 @@ def notify_user_directory_created(user, options, client):
         return
 
     payload = {"status": ACTIVE}
-    response_account = client.account[user.user_id].patch(body=payload)
-    if response_account[0] == 200 and mkVscAccount(response_account[1]).status == ACTIVE:
-        logger.info("Account %s status changed to %s" % (user.user_id, ACTIVE))
-        response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
-
-        if response_usergroup[0] == 200 and mkUserGroup(response_usergroup[1]).status == ACTIVE:
-            logger.info("UserGroup %s status changed to %s" % (user.user_id, ACTIVE))
-            return
-        else:
-            logger.error("UserGroup %s status was not changed", user.user_id)
-    else:
+    try:
+        response_account = client.account[user.user_id].patch(body=payload)
+    except HTTPError, err:
         logger.error("Account %s status was not changed", user.user_id)
         logger.error("UserGroup %s status was not changed", user.user_id)
+        raise UserStatusUpdateError("Account %s status was not changed - received HTTP code %d" % err.code)
+    else:
+        account = mkVscAccount(response_account[1])
+        if account.status == ACTIVE:
+            logger.info("Account %s status changed to %s" % (user.user_id, ACTIVE))
+        else:
+            logger.error("Account %s status was not changed", user.user_id)
+            raise UserStatusUpdateError("Account %s status was not changed, still at %s" %
+                                        (user.user_id, account.status))
+    try:
+        response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
+    except HTTPError, err:
+        logger.error("UserGroup %s status was not changed", user.user_id)
+        raise UserStatusUpdateError("UserGroup %s status was not changed - received HTTP code %d" % err.code)
+    else:
+        usergroup = mkUserGroup(response_usergroup[1])
+        if usergroup.status == ACTIVE:
+            logger.info("UserGroup %s status changed to %s" % (user.user_id, ACTIVE))
+        else:
+            logger.error("UserGroup %s status was not changed", user.user_id)
+            raise UserStatusUpdateError("UserGroup %s status was not changed, still at %s" %
+                                        (user.user_id, usergroup.status))
 
 
-def notify_vo_directory_created(vo, client):
+def update_vo_status(vo, client):
     """Make sure the rest of the subsystems know that the VO status has changed.
 
     Currently, this is tailored to our LDAP-based setup.
@@ -104,22 +132,24 @@ def notify_vo_directory_created(vo, client):
         logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.vo.status))
         return
 
-    if vo.vo.status == NEW:
-        payload = {"status": NOTIFY }
+    if vo.vo.status not in (NEW, MODIFIED, MODIFY):
+        logger.info("Account %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
+        return
+
+    payload = {"status": ACTIVE }
+    try:
         response = client.vo[vo.vo_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) != NOTIFY:
-            logger.error("Status for %s was not set to notify" % (vo.vo_id,))
-        else:
-            logger.info("VO %s changed accountpage status from new to notify" % (vo.vo_id))
-    elif vo.vo.status in (MODIFIED, MODIFY):
-        payload = {"status": ACTIVE }
-        response = client.vo[vo.vo_id].patch(body=payload)
-        if response[0] != 200 or response[1].get('status', None) != ACTIVE:
-            logger.error("Status for %s was not set to active" % (vo.vo_id,))
-        else:
-            logger.info("VO %s changed accountpage status from modify to active" % (vo.vo_id))
+    except HTTPError, err:
+        logger.error("VO %s status was not changed", vo.vo_id)
+        raise VoStatusUpdateError("Vo %s status was not changed - received HTTP code %d" % err.code)
     else:
-        logger.info("VO %s has accountpage status %s, not changing" % (vo.vo_id, vo.vo.status))
+        virtual_organisation = mkVo(response)
+        if virtual_organisation.status == ACTIVE:
+            logger.info("VO %s status changed to %s" % (vo.vo_id, ACTIVE))
+        else:
+            logger.error("VO %s status was not changed", vo.vo_id)
+            raise UserStatusUpdateError("VO %s status was not changed, still at %s" %
+                                        (vo.vo_id, virtual_organisation.status))
 
 
 def process_users(options, account_ids, storage_name, client):
@@ -152,7 +182,7 @@ def process_users(options, account_ids, storage_name, client):
                 user.create_home_dir()
                 user.set_home_quota()
                 user.populate_home_dir()
-                notify_user_directory_created(user, options, client)
+                update_user_status(user, options, client)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
@@ -197,7 +227,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 vo.create_data_fileset()
                 vo.set_data_quota()
-                notify_vo_directory_created(vo, client)
+                update_vo_status(vo, client)
 
             if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
                 vo.create_scratch_fileset(storage_name)
