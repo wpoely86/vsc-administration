@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
 ##
-# Copyright 2009-2015 Ghent University
+# Copyright 2015-2015 Ghent University
 #
-# This file is part of vsc-postgres,
+# This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
 # the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
