@@ -413,12 +413,12 @@ def purge_user(user, client):
         logger.info("Purging %s" % (user.account.vsc_id,))
         # remove the user from the grace users
         institute = user.person.institute
-        group_name = "%st1_mukgraceusers" % institute[0]
+        group_name = "%st1_mukgraceusers" % institute['site'][0]
         try:
             client.group[group_name].member[user.account.vsc_id].delete()
         except HTTPError, err:
-            logging.error("Return code %d: could not remove %s from group %s [%s]",
-                          err.code, user.account.vsc_id, group_name, err.reason)
+            logging.error("Return code %d: could not remove %s from group %s",
+                          err.code, user.account.vsc_id, group_name)
         else:
             logging.info("Account %s removed from group %s", user.account.vsc_id, group_name)
 
