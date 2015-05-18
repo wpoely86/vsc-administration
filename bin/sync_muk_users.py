@@ -48,7 +48,7 @@ fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
 TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
-UGENT_SMTP_ADDRESS="smtp.ugent.be"
+UGENT_SMTP_ADDRESS = "smtp.ugent.be"
 
 REINSTATEMENT_MESSAGE = """
 Dear %(gecos)s,
@@ -98,6 +98,7 @@ Kind regards,
 -- The UGent HPC team
 """
 
+
 def process_institute(options, institute, institute_users, client):
     """
     Sync the users from the given institute to the system
@@ -120,9 +121,10 @@ def process_institute(options, institute, institute_users, client):
     fail_usercount = len(error_users)
     ok_usercount = len(institute_users) - fail_usercount
 
-    return { 'ok': ok_usercount,
-             'fail': fail_usercount
-           }
+    return {
+        'ok': ok_usercount,
+        'fail': fail_usercount,
+        }
 
 
 def process(options, users, client):
@@ -167,6 +169,7 @@ def force_nfs_mounts(muk):
 
     return nfs_mounts
 
+
 def cleanup_purgees(current_users, purgees, client, dry_run):
     """
     Remove users from purgees if they are in the current users list.
@@ -208,14 +211,15 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
     for user_id in previous_users:
         user = MukAccountpageUser(user_id, rest_client=client)
         user.dry_run = dry_run
-        if not user_id in current_users and not user_id in purgees:
+        if user_id not in current_users and user_id not in purgees:
             if not user.dry_run:
                 group_name = "%st1_mukgraceusers" % user.person.institute['site'][0]
                 try:
                     client.group[group_name].member[user_id].post()
                 except HTTPError, err:
-                    logging.error("Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
-                                  err.code, user_id, group_name, err.reason)
+                    logging.error(
+                        "Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
+                        err.code, user_id, group_name, err)
                     continue
                 else:
                     logging.info("Account %s added to group %s", user_id, group_name)
@@ -318,7 +322,7 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     return {
         'purgees_undone': purgees_undone,
         'purgees_first_notify': purgees_first_notify,
-        'purgees_second_notify' :purgees_second_notify,
+        'purgees_second_notify': purgees_second_notify,
         'purgees_final_notify': purgees_final_notify,
         'purgees_begone': purgees_begone,
     }
@@ -417,8 +421,8 @@ def purge_user(user, client):
         try:
             client.group[group_name].member[user.account.vsc_id].delete()
         except HTTPError, err:
-            logging.error("Return code %d: could not remove %s from group %s",
-                          err.code, user.account.vsc_id, group_name)
+            logging.error("Return code %d: could not remove %s from group %s [%s]",
+                          err.code, user.account.vsc_id, group_name, err)
         else:
             logging.info("Account %s removed from group %s", user.account.vsc_id, group_name)
 
@@ -470,11 +474,11 @@ def main():
                 continue
 
             total_institute_users = len(muk_institute_users)
-            stats["%s_users_sync" % (institute,)] = users_ok.get('ok',0)
+            stats["%s_users_sync" % (institute,)] = users_ok.get('ok', 0)
             stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)  # 20% of all users want to get on
             stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)  # 30% of all users want to get on
-            stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail',0)
-            stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail',0)
+            stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail', 0)
+            stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail', 0)
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
 
