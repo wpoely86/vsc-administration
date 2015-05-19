@@ -47,6 +47,7 @@ logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
+TIER1_GRACE_GROUP_SUFFIX = "t1_mukgraceusers"
 TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
 UGENT_SMTP_ADDRESS = "smtp.ugent.be"
 
@@ -186,7 +187,7 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
             notify_reinstatement(user)
 
             # remove user from the grace group as well.
-            group_name = "%st1_mukgraceusers" % user.person.institute['site']
+            group_name = user.get_institute_prefix() + TIER1_GRACE_GROUP_SUFFIX
             if not user.dry_run:
                 try:
                     client.group[group_name].member[user_id.account.vsc_id].delete()
@@ -416,8 +417,7 @@ def purge_user(user, client):
     if not user.dry_run:
         logger.info("Purging %s" % (user.account.vsc_id,))
         # remove the user from the grace users
-        institute = user.person.institute
-        group_name = "%st1_mukgraceusers" % institute['site'][0]
+        group_name = user.get_institute_prefix() + TIER1_GRACE_GROUP_SUFFIX
         try:
             client.group[group_name].member[user.account.vsc_id].delete()
         except HTTPError, err:
