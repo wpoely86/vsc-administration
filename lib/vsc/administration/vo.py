@@ -200,7 +200,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             soft = int(hard * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
-            self.gpfs.set_fileset_quota(soft, path, self.vo_id, quota)
+            self.gpfs.set_fileset_quota(soft, path, self.vo_id, hard)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
         except GpfsOperationError:
             logging.exception("Unable to set quota on path %s" % (path))
