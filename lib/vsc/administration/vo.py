@@ -31,7 +31,7 @@ from vsc import fancylogger
 from vsc.accountpage.wrappers import VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
 from vsc.administration.user import VscAccount, VscUser
-from vsc.config.base import VSC, VscStorage
+from vsc.config.base import VSC, VscStorage, VSC_DATA
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
 from vsc.ldap.entities import VscLdapGroup
 
@@ -92,7 +92,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
             self.vo_data_quota = ([q.hard for q in institute_quota
                                           if q.storage['storage_type'] in ('data',)]
-                                          or [self.storage['VSC_DATA'].quota_vo])[0]  # there can be only one :)
+                                          or [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
             self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
@@ -115,7 +115,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _data_path(self, mount_point="gpfs"):
         """Return the path to the VO data fileset on GPFS"""
-        return self._get_path('VSC_DATA', mount_point)
+        return self._get_path(VSC_DATA, mount_point)
 
     def _scratch_path(self, storage, mount_point="gpfs"):
         """Return the path to the VO scratch fileset on GPFS.
@@ -167,11 +167,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
             path = self._data_path()
-            self._create_fileset(self.storage['VSC_DATA'].filesystem, path)
+            self._create_fileset(self.storage[VSC_DATA].filesystem, path)
         except AttributeError:
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
-            logging.exception("Trying to access non-existent field 'VSC_DATA' in the storage dictionary")
+            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA,))
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -190,17 +190,17 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-    def _set_quota(self, path, quota):
+    def _set_quota(self, storage_name, path, quota):
         """Set FILESET quota on the FS for the VO fileset.
         @type quota: int
         @param quota: soft quota limit expressed in KiB
         """
         try:
-            quota *= 1024  # expressed in bytes, retrieved in KiB from the backend
-            soft = int(quota * self.vsc.quota_soft_fraction)
+            hard = quota * 1024 * self.storage[storage_name].data_replication_factor # expressed in bytes, retrieved in KiB from the backend
+            soft = int(hard * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
-            self.gpfs.set_fileset_quota(soft, path, self.vo_id, quota)
+            self.gpfs.set_fileset_quota(soft, path, self.vo_id, hard)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
         except GpfsOperationError:
             logging.exception("Unable to set quota on path %s" % (path))
@@ -209,9 +209,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_data_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.vo_data_quota:
-            self._set_quota(self._data_path(), int(self.vo_data_quota))
+            self._set_quota(VSC_DATA, self._data_path(), int(self.vo_data_quota))
         else:
-            self._set_quota(self._data_path(), 16 * 1024)
+            self._set_quota(VSC_DATA, self._data_path(), 16 * 1024)
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -224,21 +224,23 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.error("No VO %s scratch quota information available for %s" % (self.vo.vsc_id, storage_name,))
             logging.info("Setting default VO %s scratch quota on storage %s to %d" %
                          (self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo))
-            self._set_quota(self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
+            self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
 
         logging.info("Setting default VO %s quota on storage %s" % (self.vo.vsc_id, quota[0].hard))
-        self._set_quota(self._scratch_path(storage_name), quota[0].hard)
+        self._set_quota(storage_name, self._scratch_path(storage_name), quota[0].hard)
 
-    def _set_member_quota(self, path, member, quota):
+    def _set_member_quota(self, storage_name, path, member, quota):
         """Set USER quota on the FS for the VO fileset
 
         @type member: VscTier2AccountpageUser
         @type quota: integer (hard value)
         """
         try:
-            soft = int(quota * self.vsc.quota_soft_fraction) * 1024
-            self.gpfs.set_user_quota(soft, int(member.account.vsc_id_number), path, hard = quota * 1024)
+            hard = quota * 1024 * self.storage[storage_name].data_replication_factor
+            soft = int(hard * self.vsc.quota_soft_fraction)
+
+            self.gpfs.set_user_quota(soft=soft, user=int(member.account.vsc_id_number), obj=path, hard=hard)
         except GpfsOperationError:
             logging.exception("Unable to set USR quota for member %s on path %s" % (member.account.vsc_id, path))
             raise
@@ -253,13 +255,13 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """
         if not self.vo_data_quota:
             logging.warning("Not setting VO %s member %s data quota: no VO data quota info available" %
-                            (self.vo.vsc_id, member.account.vsc_id))
+                            (VSC_DATA, self.vo.vsc_id, member.account.vsc_id))
             return
 
         if member.vo_data_quota:
             logging.info("Setting the data quota for VO %s member %s to %d GiB" %
                          (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota[0].hard))
-            self._set_member_quota(self._data_path(), member, member.vo_data_quota[0].hard)
+            self._set_member_quota(VSC_DATA, self._data_path(), member, member.vo_data_quota[0].hard)
         else:
             logging.error("No VO %s data quota set for member %s" % (self.vo.vsc_id, member.account.vsc_id))
 
@@ -280,7 +282,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             quota = filter(lambda q: q.storage['name'] in (storage_name,), member.vo_scratch_quota)
             logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s" %
                          (self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name))
-            self._set_member_quota(self._scratch_path(storage_name), member, quota[0].hard)
+            self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
         else:
             logging.error("No VO %s scratch quota set for member %s on %s" %
                           (self.vo.vsc_id, member.account.vsc_id, storage_name))
@@ -380,7 +382,7 @@ class VscVo(VscLdapGroup):
 
     def _data_path(self, mount_point="gpfs"):
         """Return the path to the VO data fileset on GPFS"""
-        return self._get_path('VSC_DATA', mount_point)
+        return self._get_path(VSC_DATA, mount_point)
 
     def _scratch_path(self, storage, mount_point="gpfs"):
         """Return the path to the VO scratch fileset on GPFS.
@@ -429,11 +431,11 @@ class VscVo(VscLdapGroup):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
             path = self._data_path()
-            self._create_fileset(self.storage['VSC_DATA'].filesystem, path)
+            self._create_fileset(self.storage[VSC_DATA].filesystem, path)
         except AttributeError:
             self.log.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
-            self.log.exception("Trying to access non-existent field 'VSC_DATA' in the storage dictionary")
+            self.log.exception("Trying to access non-existent field %s in the storage dictionary" %(VSC_DATA,))
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -586,5 +588,3 @@ class VscVo(VscLdapGroup):
             self.posix.dry_run = value
 
         super(VscVo, self).__setattr__(name, value)
-
-
