@@ -76,6 +76,12 @@ class VscAccountPageUser(object):
             logging.error("Cannot get information from the account page")
             raise
 
+    def get_institute_prefix(self):
+        """
+        Get the first letter of the institute the user belongs to.
+        """
+        return self.person.institutep['site'][0]
+
 
 class VscTier2AccountpageUser(VscAccountPageUser):
     """
