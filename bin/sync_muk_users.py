@@ -138,7 +138,7 @@ def process(options, users, client):
     """
 
     error_users = []
-    for user_id in users:
+    for user_id in sorted(users):
         user = MukAccountpageUser(user_id, rest_client=client)
         user.dry_run = options.dry_run
         try:
