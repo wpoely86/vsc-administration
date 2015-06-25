@@ -144,7 +144,7 @@ def process_users(options, account_ids, storage_name, client):
     error_users = []
     ok_users = []
 
-    for vsc_id in account_ids:
+    for vsc_id in sorted(account_ids):
 
         user = VscTier2AccountpageUser(vsc_id, rest_client=client)
         user.dry_run = options.dry_run
@@ -187,7 +187,7 @@ def process_vos(options, vo_ids, storage, storage_name, client):
     ok_vos = MonoidDict(copy.deepcopy(listm))
     error_vos = MonoidDict(copy.deepcopy(listm))
 
-    for vo_id in vo_ids:
+    for vo_id in sorted(vo_ids):
 
         vo = VscTier2AccountpageVo(vo_id, rest_client=client)
         vo.dry_run = options.dry_run
