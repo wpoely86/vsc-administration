@@ -28,6 +28,7 @@ The following actions are available for users:
 import errno
 import logging
 import os
+import stat
 
 from collections import namedtuple
 from urllib2 import HTTPError
@@ -271,9 +272,20 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.warning("Trying to make a user dir, but a symlink already exists at %s" % (path,))
             return
 
-        self.gpfs.make_dir(path)
-        self.gpfs.chmod(0700, path)
-        self.gpfs.chown(int(self.account.vsc_id_number), int(self.usergroup.vsc_id_number), path)
+        try:
+            statinfo = os.stat()
+        except OSError:
+            created = self.gpfs.make_dir(path)
+
+        if created or stat.S_IMODE(statinfo.st_mode) != 0700:
+            self.gpfs.chmod(0700, path)
+        else:
+            logging.info("Path %s already exists with correct permissions" % (path,))
+
+        if created or statinfo.st_uid != self.account.vsc_id_number or statinfo.st_gid != self.usergroup.vsc_id_number:
+            self.gpfs.chown(int(self.account.vsc_id_number), int(self.usergroup.vsc_id_number), path)
+        else:
+            logging.info("Path %s already exists with correct ownership" % (path,))
 
     def _set_quota(self, storage_name, path, hard):
         """Set the given quota on the target path.

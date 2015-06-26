@@ -23,6 +23,7 @@ Original Perl code by Stijn De Weirdt
 import logging
 import os
 import pwd
+import stat
 
 from collections import namedtuple
 from urllib2 import HTTPError
@@ -293,12 +294,23 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
-        created = self.gpfs.make_dir(target)
-        self.gpfs.chown(int(member.account.vsc_id_number), int(member.usergroup.vsc_id_number), target)
-        if created:
-            self.gpfs.chmod(0700, target)
 
-        logging.info("Created directory %s for member %s" % (target, member.user_id))
+        try:
+            statinfo = os.stat(target)
+        except OSError:
+            created = self.gpfs.make_dir(target)
+            logging.info("Created directory %s for member %s" % (target, member.user_id))
+
+        if created or stat.S_IMODE(statinfo.st_mode) != 0700:
+            self.gpfs.chmod(0700, target)
+        else:
+            logging.info("Path %s already exists with correct permissions" % (target,))
+
+        if created or statinfo.st_uid != self.account.vsc_id_number or statinfo.st_gid != self.usergroup.vsc_id_number:
+            self.gpfs.chown(int(member.account.vsc_id_number), int(member.usergroup.vsc_id_number), target)
+        else:
+            logging.info("Path %s already exists with correct ownership" % (target,))
+
 
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
