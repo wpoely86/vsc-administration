@@ -31,6 +31,7 @@ from urllib2 import HTTPError
 from vsc import fancylogger
 from vsc.accountpage.wrappers import VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
+from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscAccount, VscUser
 from vsc.config.base import VSC, VscStorage, VSC_DATA
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
@@ -294,23 +295,13 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
-
-        try:
-            statinfo = os.stat(target)
-        except OSError:
-            created = self.gpfs.make_dir(target)
-            logging.info("Created directory %s for member %s" % (target, member.user_id))
-
-        if created or stat.S_IMODE(statinfo.st_mode) != 0700:
-            self.gpfs.chmod(0700, target)
-        else:
-            logging.info("Path %s already exists with correct permissions" % (target,))
-
-        if created or statinfo.st_uid != self.account.vsc_id_number or statinfo.st_gid != self.usergroup.vsc_id_number:
-            self.gpfs.chown(int(member.account.vsc_id_number), int(member.usergroup.vsc_id_number), target)
-        else:
-            logging.info("Path %s already exists with correct ownership" % (target,))
-
+        create_stat_directory(
+            target,
+            0700,
+            int(member.account.vsc_id_number),
+            int(member.usergroup.vsc_id_number),
+            self.gpfs
+        )
 
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""

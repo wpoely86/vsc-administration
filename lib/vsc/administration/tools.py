@@ -20,23 +20,17 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 
-__author__ = 'ageorges'
-__date__ = 'May 8, 2012'
-
 import logging
 import os
+import stat
 
 from lockfile.pidlockfile import PIDLockFile
-from vsc import fancylogger
 from vsc.util.mail import VscMail
 
 from vsc.administration.group import Group
 from vsc.administration.user import User
 from vsc.administration.vo import Vo
 from vsc.administration.institute import Institute
-
-logger = fancylogger.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 mailer = VscMail()
 
@@ -119,4 +113,27 @@ def reject_user(user, message=None):
     ])
 
 
+def create_stat_directory(path, permissions, uid, gid, gpfs):
+    """
+    Create a new directory if it does not exist and set permissions, ownership. Otherwise,
+    check the permissions and ownership and change if needed.
+    """
 
+    created = None
+    try:
+        statinfo = os.stat(path)
+    except OSError:
+        created = gpfs.make_dir(path)
+        logging.info("Created directory at %s" % (path,))
+
+    if created or stat.S_IMODE(statinfo.st_mode) != permissions:
+        gpfs.chmod(permissions, path)
+    else:
+        logging.info("Path %s already exists with correct permissions" % (path,))
+
+    if created or statinfo.st_uid != uid or statinfo.st_gid != gid:
+        gpfs.chown(uid, gid, path)
+    else:
+        logging.info("Path %s already exists with correct ownership" % (path,))
+
+    return created
