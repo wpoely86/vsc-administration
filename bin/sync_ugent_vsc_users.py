@@ -42,7 +42,7 @@ from vsc.utils.script_tools import ExtendedSimpleOption
 NAGIOS_HEADER = "sync_ugent_users"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
-SYNC_TIMESTAMP_FILENAME = "/var/run/%s.timestamp" % (NAGIOS_HEADER)
+SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
 
 logger = fancylogger.getLogger(__name__)
