@@ -81,7 +81,7 @@ def update_user_status(user, options, client):
     Change the status of the user's account in the account page to active. Do the same for the corresponding UserGroup.
     """
     if user.dry_run:
-        logger.info("User %s has account status %s. Dry-run so not changing anything" % (user.user_id, user.account.status))
+        logger.info("User %s has account status %s. Dry-run, not changing anything", user.user_id, user.account.status)
         return
 
     if user.account.status not in (NEW, MODIFIED, MODIFY):
@@ -92,8 +92,7 @@ def update_user_status(user, options, client):
     try:
         response_account = client.account[user.user_id].patch(body=payload)
     except HTTPError, err:
-        logger.error("Account %s status was not changed", user.user_id)
-        logger.error("UserGroup %s status was not changed", user.user_id)
+        logger.error("Account %s and UserGroup %s status were not changed", user.user_id, user.user_id)
         raise UserStatusUpdateError("Account %s status was not changed - received HTTP code %d" % err.code)
     else:
         account = mkVscAccount(response_account[1])
@@ -136,7 +135,7 @@ def update_vo_status(vo, client):
         logger.info("Account %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
         return
 
-    payload = {"status": ACTIVE }
+    payload = {"status": ACTIVE}
     try:
         response = client.vo[vo.vo_id].patch(body=payload)
     except HTTPError, err:
@@ -255,7 +254,6 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                     if storage_name in ['VSC_SCRATCH_PHANPY']:
                         vo.create_member_scratch_dir(storage_name, member)
 
-
                     ok_vos[vo.vo_id] = [user_id]
                 except:
                     logger.exception("Failure at setting up the member %s of VO %s on %s" %
@@ -320,9 +318,9 @@ def main():
             logger.info("Found %d UGent accounts that have changed quota in the accountpage since %s" %
                         (len(ugent_changed_quota), last_timestamp[:8]))
 
-            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
-                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] \
-                           + [u['user'] for u in ugent_changed_quota]
+            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] +
+                [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] +
+                [u['user'] for u in ugent_changed_quota]
             ugent_accounts = nub(ugent_accounts)
 
             for storage_name in opts.options.storage:
@@ -340,8 +338,8 @@ def main():
             ugent_changed_vos = client.vo.modified[last_timestamp[:8]].get()[1]
             ugent_changed_vo_quota = client.quota.vo.modified[last_timestamp[:8]].get()[1]
 
-            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] \
-                      + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
+            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] +
+                [v['virtual_organisation'] for v in ugent_changed_vo_quota]
 
             logger.info("Found %d UGent VOs that have changed in the accountpage since %s" %
                         (len(ugent_changed_vos), last_timestamp[:8]))
