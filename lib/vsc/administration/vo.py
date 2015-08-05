@@ -23,6 +23,7 @@ Original Perl code by Stijn De Weirdt
 import logging
 import os
 import pwd
+import stat
 
 from collections import namedtuple
 from urllib2 import HTTPError
@@ -30,6 +31,7 @@ from urllib2 import HTTPError
 from vsc import fancylogger
 from vsc.accountpage.wrappers import VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
+from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscAccount, VscUser
 from vsc.config.base import VSC, VscStorage, VSC_DATA
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
@@ -293,12 +295,13 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
-        created = self.gpfs.make_dir(target)
-        self.gpfs.chown(int(member.account.vsc_id_number), int(member.usergroup.vsc_id_number), target)
-        if created:
-            self.gpfs.chmod(0700, target)
-
-        logging.info("Created directory %s for member %s" % (target, member.user_id))
+        create_stat_directory(
+            target,
+            0700,
+            int(member.account.vsc_id_number),
+            int(member.usergroup.vsc_id_number),
+            self.gpfs
+        )
 
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""

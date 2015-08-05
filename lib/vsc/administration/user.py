@@ -28,6 +28,7 @@ The following actions are available for users:
 import errno
 import logging
 import os
+import stat
 
 from collections import namedtuple
 from urllib2 import HTTPError
@@ -36,6 +37,7 @@ from vsc import fancylogger
 from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
 from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
 from vsc.administration.institute import Institute
+from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
@@ -271,9 +273,13 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.warning("Trying to make a user dir, but a symlink already exists at %s" % (path,))
             return
 
-        self.gpfs.make_dir(path)
-        self.gpfs.chmod(0700, path)
-        self.gpfs.chown(int(self.account.vsc_id_number), int(self.usergroup.vsc_id_number), path)
+        create_stat_directory(
+            path,
+            0700,
+            int(self.account.vsc_id_number),
+            int(self.usergroup.vsc_id_number),
+            self.gpfs
+        )
 
     def _set_quota(self, storage_name, path, hard):
         """Set the given quota on the target path.
