@@ -113,7 +113,7 @@ def reject_user(user, message=None):
     ])
 
 
-def create_stat_directory(path, permissions, uid, gid, gpfs):
+def create_stat_directory(path, permissions, uid, gid, posix):
     """
     Create a new directory if it does not exist and set permissions, ownership. Otherwise,
     check the permissions and ownership and change if needed.
@@ -122,18 +122,21 @@ def create_stat_directory(path, permissions, uid, gid, gpfs):
     created = None
     try:
         statinfo = os.stat(path)
+        login.debug("Path %s found.", path)
     except OSError:
-        created = gpfs.make_dir(path)
+        created = posix.make_dir(path)
         logging.info("Created directory at %s" % (path,))
 
     if created or stat.S_IMODE(statinfo.st_mode) != permissions:
-        gpfs.chmod(permissions, path)
+        posix.chmod(permissions, path)
+        login.info("Permissions changed for path %s to %s", path, permissions)
     else:
-        logging.info("Path %s already exists with correct permissions" % (path,))
+        logging.debug("Path %s already exists with correct permissions" % (path,))
 
     if created or statinfo.st_uid != uid or statinfo.st_gid != gid:
-        gpfs.chown(uid, gid, path)
+        posix.chown(uid, gid, path)
+        login.info("Ownership changed for path %s to %d, %d", path, uid, gid)
     else:
-        logging.info("Path %s already exists with correct ownership" % (path,))
+        logging.debug("Path %s already exists with correct ownership" % (path,))
 
     return created
