@@ -184,7 +184,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
         try:
             path = self._scratch_path(storage_name)
-            if self.storage[storage_name].version >= (3,5,0,0):
+            if self.storage[storage_name].version >= (3, 5, 0, 0):
                 self._create_fileset(self.storage[storage_name].filesystem, path)
             else:
                 self._create_fileset(self.storage[storage_name].filesystem, path, 'root')
@@ -203,7 +203,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         @param quota: soft quota limit expressed in KiB
         """
         try:
-            hard = quota * 1024 * self.storage[storage_name].data_replication_factor # expressed in bytes, retrieved in KiB from the backend
+            # expressed in bytes, retrieved in KiB from the backend
+            hard = quota * 1024 * self.storage[storage_name].data_replication_factor
             soft = int(hard * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
@@ -275,7 +276,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_member_scratch_quota(self, storage_name, member):
         """Set the quota on the scratch FS for the member in the VO fileset.
 
-        @type member: VscUser instance
+        @type member: VscTier2AccountpageUser instance
 
         The user can have up to half of the VO quota.
         FIXME: This should probably be some variable in a config setting instance
@@ -296,7 +297,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
-        logging.info("Trying to create a symlink for %s from %s to %s [%s]. Deprecated. Not doing anything." % (member.user_id, origin, fake_target, target))
+        logging.info("Trying to create a symlink for %s from %s to %s [%s]. Deprecated. Not doing anything.",
+                     member.user_id, origin, fake_target, target)
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
@@ -310,25 +312,27 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         )
 
     def create_member_data_dir(self, member):
-        """Create a directory on data in the VO fileset that is owned by the member with name $VSC_DATA_VO/<vscid>."""
+        """Create a directory on data in the VO fileset that is owned
+        by the member with name $VSC_DATA_VO/<vscid>."""
         target = os.path.join(self._data_path(), member.user_id)
         self._create_member_dir(member, target)
 
     def create_member_scratch_dir(self, storage_name, member):
-        """Create a directory on scratch in the VO fileset that is owned by the member with name $VSC_SCRATCH_VO/<vscid>."""
+        """Create a directory on scratch in the VO fileset that is owned
+        by the member with name $VSC_SCRATCH_VO/<vscid>."""
         target = os.path.join(self._scratch_path(storage_name), member.user_id)
         self._create_member_dir(member, target)
 
     def set_member_data_symlink(self, member):
         """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        logging.warning("Trying to set a symlink for a VO member %s. Deprecated. Not doing anything" % (member,))
+        logging.warning("Trying to set a symlink for a VO member %s. Deprecated. Not doing anything", member)
 
     def set_member_scratch_symlink(self, storage_name, member):
         """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>.
 
         @deprecated. We should not create new symlinks.
         """
-        logging.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything" % (storage_name,))
+        logging.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything", storage_name)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:

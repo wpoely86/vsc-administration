@@ -35,16 +35,12 @@ from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
-from vsc.administration.institute import Institute
 from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-from vsc.ldap.filters import InstituteFilter, LoginFilter
-from vsc.ldap import NoSuchUserError
-from vsc.ldap.entities import VscLdapUser
 
 
 log = fancylogger.getLogger(__name__)
@@ -71,13 +67,15 @@ class VscAccountPageUser(object):
             self.account = VscAccount(**(rest_client.account[user_id].get()[1]))
             self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
             self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
-                                                  if not p['deleted']]
+                            if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
                 # TODO to be removed when magic site admin usergroups are pruged from code
                 self.usergroup = VscGroup(**(rest_client.group[user_id].get())[1])
             else:
                 self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
-            self.home_on_scratch = [VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]]
+            self.home_on_scratch = [
+                VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
+            ]
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -128,15 +126,17 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # the user's personal quota are imposed on a grouping fileset on all our Tier2 filesystems
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
         user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
-        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or [self.storage[VSC_HOME].quota_user])[0]
-        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or [self.storage[VSC_DATA].quota_user])[0]
-        self.user_scratch_quota = filter(lambda q: user_proposition(q,'scratch',), institute_quota)  # multiple values!
+        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or
+                                [self.storage[VSC_HOME].quota_user])[0]
+        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or
+                                [self.storage[VSC_DATA].quota_user])[0]
+        self.user_scratch_quota = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)  # multiple values!
 
         # the users' VO quota (if any) are on a fileset that starts with 'gvo'
         fileset_name = 'gvo'
         user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
         self.vo_data_quota = [q for q in institute_quota if user_proposition(q, 'data')]  # max 1 value
-        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q,'scratch')]  # multiple values!
+        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q, 'scratch')]  # multiple values!
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
@@ -148,7 +148,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
                             template[0],
                             template[1](self.account.vsc_id)
-                           )
+                            )
 
     def _create_grouping_fileset(self, filesystem_name, path):
         """Create a fileset for a group of 100 user accounts
@@ -157,18 +157,16 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """
         self.gpfs.list_filesets()
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
-        logging.info("Trying to create the grouping fileset %s with link path %s" % (fileset_name, path))
+        logging.info("Trying to create the grouping fileset %s with link path %s", fileset_name, path)
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
-            logging.info("Creating new fileset on %s with name %s and path %s" % (filesystem_name,
-                                                                                   fileset_name,
-                                                                                   path))
+            logging.info("Creating new fileset on %s with name %s and path %s", filesystem_name, fileset_name, path)
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
             self.gpfs.make_fileset(path, fileset_name)
         else:
-            logging.info("Fileset %s already exists for user group of %s ... not creating again." %
-                         (fileset_name, self.account.vsc_id))
+            logging.info("Fileset %s already exists for user group of %s ... not creating again.",
+                         fileset_name, self.account.vsc_id)
 
         self.gpfs.chmod(0755, path)
 
@@ -181,7 +179,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         elif mount_point == "gpfs":
             mount_path = self.storage[storage_name].gpfs_mount_point
         else:
-            logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
+            logging.error("mount_point (%s) is not login or gpfs", mount_point)
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
 
         return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
@@ -195,7 +193,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         elif mount_point == "gpfs":
             mount_path = self.storage[storage_name].gpfs_mount_point
         else:
-            logging.error("mount_point (%s) is not login or gpfs" % (mount_point))
+            logging.error("mount_point (%s) is not login or gpfs", mount_point)
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
 
         return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
@@ -237,7 +235,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._home_path()
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create home dir for user %s" % (self.account.vsc_id))
+            logging.exception("Could not create home dir for user %s", self.account.vsc_id)
             raise
 
     def create_data_dir(self):
@@ -251,7 +249,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._data_path()
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create data dir for user %s" % (self.account.vsc_id))
+            logging.exception("Could not create data dir for user %s", self.account.vsc_id)
             raise
 
     def create_scratch_dir(self, storage_name):
@@ -268,13 +266,13 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             path = self._scratch_path(storage_name)
             self._create_user_dir(path)
         except Exception:
-            logging.exception("Could not create scratch dir for user %s" % (self.account.vsc_id))
+            logging.exception("Could not create scratch dir for user %s", self.account.vsc_id)
             raise
 
     def _create_user_dir(self, path):
         """Create a user owned directory on the GPFS."""
         if self.gpfs.is_symlink(path):
-            logging.warning("Trying to make a user dir, but a symlink already exists at %s" % (path,))
+            logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
             return
 
         create_stat_directory(
@@ -292,13 +290,13 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         @type hard: hard limit
         """
         if not hard:
-            logging.error("No user quota set for %s" % (storage_name))
+            logging.error("No user quota set for %s", storage_name)
             return
 
         quota = hard * 1024 * self.storage[storage_name].data_replication_factor
         soft = int(self.vsc.quota_soft_fraction * quota)
 
-        logging.info("Setting quota for %s on %s to %d" % (storage_name, path, quota))
+        logging.info("Setting quota for %s on %s to %d", storage_name, path, quota)
 
         # LDAP information is expressed in KiB, GPFS wants bytes.
         self.gpfs.set_user_quota(soft, int(self.account.vsc_id_number), path, quota)
@@ -320,7 +318,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """Set USR quota on the scratch FS in the user fileset."""
         quota = filter(lambda q: q.storage['name'] in (storage_name,), self.user_scratch_quota)
         if not quota:
-            logging.error("No scratch quota information available for %s" % (storage_name,))
+            logging.error("No scratch quota information available for %s", storage_name)
             return
 
         if self.storage[storage_name].user_grouping_fileset:
@@ -493,7 +491,7 @@ class MukAccountpageUser(VscAccountPageUser):
         try:
             os.symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
         except OSError, err:
-            if not err.errno in [errno.EEXIST]:
+            if err.errno not in [errno.EEXIST]:
                 raise
             else:
                 logging.info("Symlink from %s to %s already exists" % (source, target))
