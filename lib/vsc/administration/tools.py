@@ -40,20 +40,20 @@ def create_stat_directory(path, permissions, uid, gid, posix):
     created = None
     try:
         statinfo = os.stat(path)
-        login.debug("Path %s found.", path)
+        logging.debug("Path %s found.", path)
     except OSError:
         created = posix.make_dir(path)
         logging.info("Created directory at %s" % (path,))
 
     if created or stat.S_IMODE(statinfo.st_mode) != permissions:
         posix.chmod(permissions, path)
-        login.info("Permissions changed for path %s to %s", path, permissions)
+        logging.info("Permissions changed for path %s to %s", path, permissions)
     else:
         logging.debug("Path %s already exists with correct permissions" % (path,))
 
     if created or statinfo.st_uid != uid or statinfo.st_gid != gid:
         posix.chown(uid, gid, path)
-        login.info("Ownership changed for path %s to %d, %d", path, uid, gid)
+        logging.info("Ownership changed for path %s to %d, %d", path, uid, gid)
     else:
         logging.debug("Path %s already exists with correct ownership" % (path,))
 
