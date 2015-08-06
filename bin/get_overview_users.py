@@ -24,18 +24,27 @@ from collections import namedtuple
 from sqlalchemy import MetaData, Table, create_engine, select
 from urllib2 import HTTPError
 
+from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscPerson
 from vsc.config.base import GENT
+from vsc.config.options import VscOptions
 from vsc.ldap.configuration import UGentLdapConfiguration
+from vsc.ldap.filters import LdapFilter
 from vsc.ldap.utils import LdapQuery
-from vsc.utils.missing import Monoid, MonoidDict
 from vsc.utils import fancylogger
+from vsc.utils.missing import Monoid, MonoidDict
+from vsc.utils.script_tools import ExtendedSimpleOption
 
 User = namedtuple('User', ['vscid', 'ugentid', 'active', 'employee', 'student'])
 
 log = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.logLevelInfo()
+
+CONFIG_FILE = '/etc/vsc_conf.cfg'
+PASSWD_FILE = '/etc/vsc_passwd.cfg'
+DATABASE_NAME = "hpccollector"
+DATABASE_USER = "hpccollector"
 
 
 def get_hpc_collector_users(db, members):
@@ -79,11 +88,18 @@ class UGentLdapQuery(LdapQuery):
 
 
 def main():
+    options = {
+        'account_page_url': ('Base URL of the account page', None, 'store', 'https://account.vscentrum.be/django'),
+        'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
+    }
+    opts = ExtendedSimpleOption(options)
+
+    global log
+    log = opts.log
 
     vsc_options = VscOptions(go_args=[], go_configfiles=[CONFIG_FILE, PASSWD_FILE])
 
     client = AccountpageClient(token=opts.options.access_token)
-    ugent_ldap = LdapQuery(UGentLdapConfiguration("collector"))
 
     db_password = getattr(vsc_options.options, 'hpccollector_hpccollector')
     db_engine = create_engine('postgresql://%s:%s@localhost/%s' % (DATABASE_USER, db_password, DATABASE_NAME))
@@ -93,7 +109,7 @@ def main():
     member = Table('member', meta, autoload=True, autoload_with=db_engine)
 
     users = get_hpc_collector_users(db_connection, member)
-    users = [u._replace(ugentid=get_ugent_id(opts, hpc_ldap_query, u.vscid)) for u in users]
+    users = [u._replace(ugentid=get_ugent_id(opts, client, u.vscid)) for u in users]
 
     ugent_ldap_query = UGentLdapQuery(UGentLdapConfiguration("collector"))  # Initialise the LDAP connection
     users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in
