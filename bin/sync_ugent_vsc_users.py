@@ -86,11 +86,8 @@ def main():
     stats = {}
 
     try:
-
         now = datetime.utcnow()
-
         client = AccountpageClient(token=opts.options.access_token)
-
         storage = VscStorage()
 
         try:
@@ -140,7 +137,8 @@ def main():
             ugent_changed_vos = client.vo.modified[last_timestamp[:12]].get()[1]
             ugent_changed_vo_quota = client.quota.vo.modified[last_timestamp[:12]].get()[1]
 
-            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
+            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] \
+                      + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
 
             logger.info("Found %d UGent VOs that have changed in the accountpage since %s" %
                         (len(ugent_changed_vos), last_timestamp[:12]))
