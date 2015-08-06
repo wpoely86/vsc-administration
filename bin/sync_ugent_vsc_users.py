@@ -318,9 +318,9 @@ def main():
             logger.info("Found %d UGent accounts that have changed quota in the accountpage since %s" %
                         (len(ugent_changed_quota), last_timestamp[:8]))
 
-            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] +
-                [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] +
-                [u['user'] for u in ugent_changed_quota]
+            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
+                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] \
+                           + [u['user'] for u in ugent_changed_quota]
             ugent_accounts = nub(ugent_accounts)
 
             for storage_name in opts.options.storage:
@@ -338,8 +338,7 @@ def main():
             ugent_changed_vos = client.vo.modified[last_timestamp[:8]].get()[1]
             ugent_changed_vo_quota = client.quota.vo.modified[last_timestamp[:8]].get()[1]
 
-            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] +
-                [v['virtual_organisation'] for v in ugent_changed_vo_quota]
+            ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
 
             logger.info("Found %d UGent VOs that have changed in the accountpage since %s" %
                         (len(ugent_changed_vos), last_timestamp[:8]))
