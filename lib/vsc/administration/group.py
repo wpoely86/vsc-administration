@@ -24,7 +24,7 @@ Original Perl code by Stijn De Weirdt
 
 from lockfile.pidlockfile import PIDLockFile
 
-from vsc import fancylogger
+from vsc.utils import fancylogger
 
 from vsc.administration.institute import Institute
 from vsc.config.base import VSC

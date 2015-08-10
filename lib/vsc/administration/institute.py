@@ -36,7 +36,7 @@ The following functionality is available for institutes:
 ## LDAP: use the right one, since there are three: VSC, UGent, and replicas on the masters
 
 from lockfile.pidlockfile import PIDLockFile
-from vsc import fancylogger
+from vsc.utils import fancylogger
 
 from vsc.ldap.utils import LdapQuery
 

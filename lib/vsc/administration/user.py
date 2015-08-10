@@ -33,7 +33,7 @@ import stat
 from collections import namedtuple
 from urllib2 import HTTPError
 
-from vsc import fancylogger
+from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
 from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
 from vsc.administration.institute import Institute

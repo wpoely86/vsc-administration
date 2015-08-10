@@ -28,7 +28,7 @@ import stat
 from collections import namedtuple
 from urllib2 import HTTPError
 
-from vsc import fancylogger
+from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
 from vsc.administration.tools import create_stat_directory
