@@ -27,7 +27,7 @@ from urllib2 import HTTPError
 
 from vsc.administration.user import MukAccountpageUser
 from vsc.accountpage.client import AccountpageClient
-from vsc.config.base import Muk, BRUSSEL
+from vsc.config.base import Muk
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
 from vsc.utils.mail import VscMail
@@ -159,9 +159,6 @@ def force_nfs_mounts(muk):
 
     nfs_mounts = []
     for institute in muk.institutes:
-        if institute == BRUSSEL:
-            logger.warning("Not performing any action for institute %s" % (BRUSSEL,))
-            continue
         try:
             os.stat(muk.nfs_link_pathnames[institute]['home'])
             nfs_mounts.append(institute)
@@ -265,7 +262,6 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     else:
         logger.warning("Purge cache has no previous_users")
         previous_users = []
-        previous_users_timestamp = now
 
     purgees = cache.load('purgees')
     if purgees:
@@ -273,7 +269,6 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
     else:
         logger.warning("Purge cache has no purgees")
         purgees = dict()
-        purgees_timestamp = now
 
     logger.info("Starting purge at time %s" % (now,))
     logger.debug("Previous users: %s", (previous_users,))
@@ -284,7 +279,7 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
 
     # warn those still on the purge list if needed
     for (user_id, (first_warning, second_warning, final_warning)) in purgees.items():
-        logger.debug("Checking if we should warn %s at %d, time since purge entry %d", user_id, now, now - first_warning)
+        logger.debug("Checking if we should warn %s at %d, time since purge: %d", user_id, now, now - first_warning)
 
         user = MukAccountpageUser(user_id, rest_client=client)
         user.dry_run = dry_run
@@ -390,7 +385,7 @@ def notify_purge(user, grace=0, grace_unit=""):
                                     'grace_time': "%d %s" % (grace, grace_unit),
                                     'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
                                     })
-        mail_subject = "%(user_id)s compute on the VSC Tier-1 entering grace period" % ({'user_id': user.account.vsc_id})
+        mail_subject = "%s compute on the VSC Tier-1 entering grace period" % user.account.vsc_id
 
     else:
         message = FINAL_MESSAGE % ({'gecos': user.person.gecos,
@@ -475,9 +470,11 @@ def main():
 
             total_institute_users = len(muk_institute_users)
             stats["%s_users_sync" % (institute,)] = users_ok.get('ok', 0)
-            stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)  # 20% of all users want to get on
-            stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)  # 30% of all users want to get on
-            stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail', 0)
+            # 20% of all users want to get on
+            stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)
+            # 30% of all users want to get on
+            stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)
+                      stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail', 0)
             stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail', 0)
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
