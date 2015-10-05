@@ -34,7 +34,7 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkVo
 from vsc.administration.user import VscTier2AccountpageUser
 from vsc.administration.vo import VscTier2AccountpageVo
-from vsc.config.base import GENT, VscStorage, VSC
+from vsc.config.base import VscStorage, VSC
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import Monoid, MonoidDict, nub
@@ -106,7 +106,8 @@ def update_user_status(user, options, client):
         response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
     except HTTPError, err:
         logger.error("UserGroup %s status was not changed", user.user_id)
-        raise UserStatusUpdateError("UserGroup %s status was not changed - received HTTP code %d" % err.code)
+        raise UserStatusUpdateError("UserGroup %s status was not changed - received HTTP code %d" % (user.user_id, err.code))
+
     else:
         usergroup = mkUserGroup(response_usergroup[1])
         if usergroup.status == ACTIVE:
@@ -294,7 +295,6 @@ def main():
 
         client = AccountpageClient(token=opts.options.access_token)
 
-        vsc = VSC()
         storage = VscStorage()
 
         try:
