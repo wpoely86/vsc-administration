@@ -1,7 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: latin-1 -*-
-##
-# Copyright 2012-2013 Ghent University
+#
+# Copyright 2012-2015 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -10,9 +9,10 @@
 # the Hercules foundation (http://www.herculesstichting.be/in_English)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
+# https://github.com/hpcugent/vsc-administration
+#
 # All rights reserved.
 #
-##
 """
 This module contains the utilities for dealing with users on the VSC.
 
@@ -20,6 +20,10 @@ This module contains the utilities for dealing with users on the VSC.
 
 @created Apr 23, 2012
 """
+#the vsc namespace is used in different folders allong the system
+#so explicitly declare this is also the vsc namespace
+import pkg_resources
+pkg_resources.declare_namespace(__name__)
 
 __author__ = 'ageorges'
 __date__ = 'Apr 24, 2012'

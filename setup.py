@@ -18,50 +18,27 @@ vsc-administration distribution setup.py
 
 @author: Andy Georges (Ghent University)
 """
-import shared_setup
-from shared_setup import ag
 
-
-def remove_bdist_rpm_source_file():
-    """List of files to remove from the (source) RPM."""
-    return ['lib/vsc/__init__.py']
-
-
-shared_setup.remove_extra_bdist_rpm_files = remove_bdist_rpm_source_file
-shared_setup.SHARED_TARGET.update({
-    'url': 'https://github.ugent.be/hpcugent/vsc-administration',
-    'download_url': 'https://github.ugent.be/hpcugent/vsc-administration'
-})
-
+from vsc.install import shared_setup
+from vsc.install.shared_setup import ag
 
 PACKAGE = {
-    'name': 'vsc-administration',
-    'version': '0.28.1',
+    'version': '0.28.2',
     'author': [ag],
     'maintainer': [ag],
-    'packages': ['vsc', 'vsc.administration'],
-    'namespace_packages': ['vsc'],
     'install_requires': [
         'vsc-accountpage-clients >= 0.2',
-        'vsc-base >= 1.9.3',
+        'vsc-base >= 2.4.16',
         'vsc-config >= 1.20',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
+        # following dependencies are intentionally not declared until #11 is addressed
+        #'vsc-postgres',
+        #'django',
     ],
-    'scripts': [
-        'bin/create_muk_scratch_directory_tree.py',
-        'bin/create_tier2_ugent_home_data_directory_tree.py',
-        'bin/get_overview_users.py',
-        'bin/replicate_scratch_tree.py',
-        'bin/sync_django_ldap.py',
-        'bin/sync_ugent_vsc_users.py',
-        'bin/sync_muk_users.py',
-        'bin/sync_muk_projects.py',
-    ],
-    'provides': ['python-vsc-administration = 0.7'],
 }
 
 

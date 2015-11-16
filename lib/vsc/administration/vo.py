@@ -1,6 +1,6 @@
 # -*- coding: latin-1 -*-
-##
-# Copyright 2012-2013 Ghent University
+#
+# Copyright 2012-2015 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -9,9 +9,10 @@
 # the Hercules foundation (http://www.herculesstichting.be/in_English)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
+# https://github.com/hpcugent/vsc-administration
+#
 # All rights reserved.
 #
-##
 """
 This file contains the utilities for dealing with VOs on the VSC.
 Original Perl code by Stijn De Weirdt
