@@ -1,14 +1,18 @@
 #!/usr/bin/env python
-##
 #
-# Copyright 2012-2013 Ghent University
+# Copyright 2012-2015 Ghent University
 #
-# This file is part of the tools originally by the HPC team of
-# Ghent University (http://ugent.be/hpc).
+# This file is part of vsc-administration,
+# originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
+# with support of Ghent University (http://ugent.be/hpc),
+# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Hercules foundation (http://www.herculesstichting.be/in_English)
+# and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
-# This is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation v2.
+# https://github.com/hpcugent/vsc-administration
+#
+# All rights reserved.
+#
 """
 This script checks the users entries in the LDAP that have changed since a given timestamp
 and that are in the muk autogroup.
@@ -474,7 +478,7 @@ def main():
             stats["%s_users_sync_warning" % (institute,)] = int(total_institute_users / 5)
             # 30% of all users want to get on
             stats["%s_users_sync_critical" % (institute,)] = int(total_institute_users / 2)
-                      stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail', 0)
+            stats["%s_users_sync_fail" % (institute,)] = users_ok.get('fail', 0)
             stats["%s_users_sync_fail_warning" % (institute,)] = users_ok.get('fail', 0)
             stats["%s_users_sync_fail_warning" % (institute,)] = 1
             stats["%s_users_sync_fail_critical" % (institute,)] = 3
