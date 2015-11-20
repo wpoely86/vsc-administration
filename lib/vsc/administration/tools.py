@@ -37,7 +37,7 @@ def create_stat_directory(path, permissions, uid, gid, posix, override_permissio
     check the permissions and ownership and change if needed.
     """
 
-    created = None
+    created = False
     try:
         statinfo = os.stat(path)
         logging.debug("Path %s found.", path)
