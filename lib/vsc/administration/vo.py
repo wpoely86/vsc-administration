@@ -301,7 +301,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             0700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
-            self.gpfs
+            self.gpfs,
+            False  # we should not override permissions on an existing dir where users may have changed them
         )
 
     def create_member_data_dir(self, member):

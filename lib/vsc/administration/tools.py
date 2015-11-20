@@ -31,13 +31,13 @@ from vsc.utils.mail import VscMail
 mailer = VscMail()
 
 
-def create_stat_directory(path, permissions, uid, gid, posix):
+def create_stat_directory(path, permissions, uid, gid, posix, override_permissions=True):
     """
     Create a new directory if it does not exist and set permissions, ownership. Otherwise,
     check the permissions and ownership and change if needed.
     """
 
-    created = None
+    created = False
     try:
         statinfo = os.stat(path)
         logging.debug("Path %s found.", path)
@@ -45,7 +45,7 @@ def create_stat_directory(path, permissions, uid, gid, posix):
         created = posix.make_dir(path)
         logging.info("Created directory at %s" % (path,))
 
-    if created or stat.S_IMODE(statinfo.st_mode) != permissions:
+    if created or (override_permissions and stat.S_IMODE(statinfo.st_mode) != permissions):
         posix.chmod(permissions, path)
         logging.info("Permissions changed for path %s to %s", path, permissions)
     else:
