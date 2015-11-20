@@ -187,17 +187,16 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
             user.dry_run = dry_run
             notify_reinstatement(user)
 
-            # remove user from the grace group as well.
-            group_name = user.get_institute_prefix() + TIER1_GRACE_GROUP_SUFFIX
+            group_name = "%st1_mukgraceusers" % user.person.institute['site']
             if not user.dry_run:
                 try:
-                    client.group[group_name].member[user_id.account.vsc_id].delete()
+                    client.group[group_name].member[user.account.vsc_id].delete()
                 except HTTPError, err:
                     logging.error("Return code %d: could not remove %s from group %s [%s].",
-                                  err.code, user_id.account.vsc_id, group_name, err.reason)
+                                  err.code, user.account.vsc_id, group_name, err)
                     continue
                 else:
-                    logging.info("Account %s removed to group %s", user_id.account.vsc_id, group_name)
+                    logging.info("Account %s removed to group %s", user.account.vsc_id, group_name)
             else:
                 logging.info("Dry-run: not removing user %s from grace users group %s" %
                              (user.account.vsc_id, group_name))
