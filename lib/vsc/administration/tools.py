@@ -25,9 +25,30 @@ import os
 import stat
 
 from lockfile.pidlockfile import PIDLockFile
+from urllib2 import HTTPError
+
+from vsc.utils import fancylogger
 from vsc.utils.mail import VscMail
 
 
+TIER1_GRACE_GROUP_SUFFIX = "t1_mukgraceusers"
+TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
+UGENT_SMTP_ADDRESS = "smtp.ugent.be"
+
+REINSTATEMENT_MESSAGE = """
+Dear %(gecos)s,
+
+You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
+again submit jobs to the scheduler.
+
+Should you have any questions, please contact us at %(tier1_helpdesk)s or reply to
+this email which will open a ticket in our helpdesk system for you.
+
+Kind regards,
+-- The UGent HPC team
+"""
+
+logger = fancylogger.getLogger(__name__)
 mailer = VscMail()
 
 
@@ -58,3 +79,61 @@ def create_stat_directory(path, permissions, uid, gid, posix, override_permissio
         logging.debug("Path %s already exists with correct ownership" % (path,))
 
     return created
+
+
+def notify_reinstatement(user):
+    """
+    Send out a mail notifying the user who was removed from grace and back to regular mode on muk.
+
+    @type user: MukAccountpageUser
+    """
+    mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
+
+    message = REINSTATEMENT_MESSAGE % ({'gecos': user.person.gecos,
+                                        'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
+                                        })
+    mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.account.vsc_id})
+
+    if user.dry_run:
+        logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
+    else:
+        mail.sendTextMail(mail_to=user.account.email,
+                          mail_from=TIER1_HELPDESK_ADDRESS,
+                          reply_to=TIER1_HELPDESK_ADDRESS,
+                          mail_subject=mail_subject,
+                          message=message)
+        logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
+                    (user.account.vsc_id, user.person.gecos, mail_subject))
+
+
+def cleanup_purgees(current_users, purgees, client, dry_run):
+    """
+    Remove users from purgees if they are in the current users list.
+    """
+    from vsc.administration.user import MukAccountpageUser
+    purgees_undone = 0
+    for user_id in current_users:
+        logger.debug("Checking if %s is in purgees", (user_id,))
+        if user_id in purgees:
+            purgees.remove(user_id)
+            purgees_undone += 1
+            logger.info("Removed %s from the list of purgees: found in list of current users" % (user_id,))
+            user = MukAccountpageUser(user_id, rest_client=client)
+            user.dry_run = dry_run
+            notify_reinstatement(user)
+
+            group_name = "%st1_mukgraceusers" % user.person.institute['site']
+            if not user.dry_run:
+                try:
+                    client.group[group_name].member[user.account.vsc_id].delete()
+                except HTTPError, err:
+                    logging.error("Return code %d: could not remove %s from group %s [%s].",
+                                  err.code, user.account.vsc_id, group_name, err)
+                    continue
+                else:
+                    logging.info("Account %s removed to group %s", user.account.vsc_id, group_name)
+            else:
+                logging.info("Dry-run: not removing user %s from grace users group %s" %
+                             (user.account.vsc_id, group_name))
+
+    return purgees_undone

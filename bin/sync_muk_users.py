@@ -29,8 +29,10 @@ import time
 
 from urllib2 import HTTPError
 
-from vsc.administration.user import MukAccountpageUser
 from vsc.accountpage.client import AccountpageClient
+from vsc.administration.user import MukAccountpageUser
+from vsc.administration.tools import cleanup_purgees
+from vsc.administration.tools import TIER1_GRACE_GROUP_SUFFIX, TIER1_HELPDESK_ADDRESS, UGENT_SMTP_ADDRESS
 from vsc.config.base import Muk
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
@@ -51,22 +53,6 @@ logger = fancylogger.getLogger(__name__)
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
-TIER1_GRACE_GROUP_SUFFIX = "t1_mukgraceusers"
-TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
-UGENT_SMTP_ADDRESS = "smtp.ugent.be"
-
-REINSTATEMENT_MESSAGE = """
-Dear %(gecos)s,
-
-You have been reinstated to regular status on the VSC Tier-1 cluster at Ghent. This means you can
-again submit jobs to the scheduler.
-
-Should you have any questions, please contact us at %(tier1_helpdesk)s or reply to
-this email which will open a ticket in our helpdesk system for you.
-
-Kind regards,
--- The UGent HPC team
-"""
 
 GRACE_MESSAGE = """
 Dear %(gecos)s,
@@ -170,39 +156,6 @@ def force_nfs_mounts(muk):
             logger.exception("Cannot stat %s, not adding institute" % muk.nfs_link_pathnames[institute]['home'])
 
     return nfs_mounts
-
-
-def cleanup_purgees(current_users, purgees, client, dry_run):
-    """
-    Remove users from purgees if they are in the current users list.
-    """
-    purgees_undone = 0
-    for user_id in current_users:
-        logger.debug("Checking if %s is in purgees", (user_id,))
-        if user_id in purgees:
-            del purgees[user_id]
-            purgees_undone += 1
-            logger.info("Removed %s from the list of purgees: found in list of current users" % (user_id,))
-            user = MukAccountpageUser(user_id, rest_client=client)
-            user.dry_run = dry_run
-            notify_reinstatement(user)
-
-            # remove user from the grace group as well.
-            group_name = user.get_institute_prefix() + TIER1_GRACE_GROUP_SUFFIX
-            if not user.dry_run:
-                try:
-                    client.group[group_name].member[user_id.account.vsc_id].delete()
-                except HTTPError, err:
-                    logging.error("Return code %d: could not remove %s from group %s [%s].",
-                                  err.code, user_id.account.vsc_id, group_name, err.reason)
-                    continue
-                else:
-                    logging.info("Account %s removed to group %s", user_id.account.vsc_id, group_name)
-            else:
-                logging.info("Dry-run: not removing user %s from grace users group %s" %
-                             (user.account.vsc_id, group_name))
-
-    return purgees_undone
 
 
 def add_users_to_purgees(previous_users, current_users, purgees, now, client, dry_run):
@@ -353,31 +306,6 @@ def notify_user_of_purge(user, grace_time, current_time):
         notify_purge(user, time_left, left_unit)
     else:
         notify_purge(user, None, None)
-
-
-def notify_reinstatement(user):
-    """
-    Send out a mail notifying the user who was removed from grace and back to regular mode on muk.
-
-    @type user: MukAccountpageUser
-    """
-    mail = VscMail(mail_host=UGENT_SMTP_ADDRESS)
-
-    message = REINSTATEMENT_MESSAGE % ({'gecos': user.person.gecos,
-                                        'tier1_helpdesk': TIER1_HELPDESK_ADDRESS,
-                                        })
-    mail_subject = "%(user_id)s VSC Tier-1 access reinstated" % ({'user_id': user.account.vsc_id})
-
-    if user.dry_run:
-        logger.info("Dry-run, would send the following message to %s: %s" % (user, message,))
-    else:
-        mail.sendTextMail(mail_to=user.account.email,
-                          mail_from=TIER1_HELPDESK_ADDRESS,
-                          reply_to=TIER1_HELPDESK_ADDRESS,
-                          mail_subject=mail_subject,
-                          message=message)
-        logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
-                    (user.account.vsc_id, user.person.gecos, mail_subject))
 
 
 def notify_purge(user, grace=0, grace_unit=""):
