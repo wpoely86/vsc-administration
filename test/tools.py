@@ -25,10 +25,9 @@ import stat
 from collections import namedtuple
 
 import vsc.filesystem.posix
-
+import vsc.administration.tools
 
 from vsc.accountpage.wrappers import mkVscAccount
-from vsc.administration import tools
 from vsc.administration.tools import create_stat_directory, cleanup_purgees
 
 from vsc.install.testing import TestCase
@@ -191,5 +190,5 @@ class PurgeesTest(TestCase):
 
         purgees_undone = cleanup_purgees(test_current_users, test_current_purgees, mock_client, False)
 
-        mock_notify_reinstatement.assert_called()
+        self.assertNotEqual(mock_notify_reinstatement.calls, [])
         self.assertTrue(purgees_undone == 2)
