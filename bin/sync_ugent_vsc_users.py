@@ -240,8 +240,12 @@ def process_vos(options, vo_ids, storage, storage_name, client):
             if storage_name in ['VSC_SCRATCH_PHANPY']:
                 vo.create_scratch_fileset(storage_name)
 
-            if vo_id in VSC().institute_vos.values():
+            if vo_id in (VSC().institute_vos[GENT],):
                 logger.info("Not deploying default VO %s members" % (vo_id,))
+                continue
+
+            if vo_id in (VSC().insitute_vos.values()) and storage_name in ('VSC_HOME', 'VSC_DATA'):
+                logger.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
             for user_id in vo.vo.members:
