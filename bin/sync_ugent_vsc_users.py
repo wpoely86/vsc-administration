@@ -35,13 +35,12 @@ from datetime import datetime
 from urllib2 import HTTPError
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkVo
+from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.administration.user import VscTier2AccountpageUser
-from vsc.administration.vo import VscTier2AccountpageVo
-from vsc.config.base import VscStorage, VSC
+from vsc.config.base import VscStorage, NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
-from vsc.utils.missing import Monoid, MonoidDict, nub
+from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
@@ -51,29 +50,17 @@ NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
 
-logger = fancylogger.getLogger(__name__)
+logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
-
 
 STORAGE_USERS_LIMIT_WARNING = 1
 STORAGE_USERS_LIMIT_CRITICAL = 10
 STORAGE_VO_LIMIT_WARNING = 1
-STORAGE_VO_LIMIT_CRITICAL = 10
-
-ACTIVE = 'active'
-MODIFIED = 'modified'
-MODIFY = 'modify'
-NEW = 'new'
-NOTIFY = 'notify'
 
 
-class UserStatusUpdateError(Exception):
-    pass
 
 
-class VoStatusUpdateError(Exception):
-    pass
 
 
 class UserGroupStatusUpdateError(Exception):
@@ -120,40 +107,6 @@ def update_user_status(user, options, client):
             logger.error("UserGroup %s status was not changed", user.user_id)
             raise UserStatusUpdateError("UserGroup %s status was not changed, still at %s" %
                                         (user.user_id, usergroup.status))
-
-
-def update_vo_status(vo, client):
-    """Make sure the rest of the subsystems know that the VO status has changed.
-
-    Currently, this is tailored to our LDAP-based setup.
-    - if the LDAP state is new:
-        change the state to notify
-    - if the LDAP state is modify:
-        change the state to active
-    - otherwise, the VO already was active in the past, and we simply have an idempotent script.
-    """
-    if vo.dry_run:
-        logger.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.vo.status))
-        return
-
-    if vo.vo.status not in (NEW, MODIFIED, MODIFY):
-        logger.info("Account %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
-        return
-
-    payload = {"status": ACTIVE}
-    try:
-        response = client.vo[vo.vo_id].patch(body=payload)
-    except HTTPError, err:
-        logger.error("VO %s status was not changed", vo.vo_id)
-        raise VoStatusUpdateError("Vo %s status was not changed - received HTTP code %d" % err.code)
-    else:
-        virtual_organisation = mkVo(response)
-        if virtual_organisation.status == ACTIVE:
-            logger.info("VO %s status changed to %s" % (vo.vo_id, ACTIVE))
-        else:
-            logger.error("VO %s status was not changed", vo.vo_id)
-            raise UserStatusUpdateError("VO %s status was not changed, still at %s" %
-                                        (vo.vo_id, virtual_organisation.status))
 
 
 def process_users(options, account_ids, storage_name, client):
@@ -205,74 +158,6 @@ def process_users(options, account_ids, storage_name, client):
             error_users.append(user)
 
     return (ok_users, error_users)
-
-
-def process_vos(options, vo_ids, storage, storage_name, client):
-    """Process the virtual organisations.
-
-    - make the fileset per VO
-    - set the quota for the complete fileset
-    - set the quota on a per-user basis for all VO members
-    """
-
-    listm = Monoid([], lambda xs, ys: xs + ys)
-    ok_vos = MonoidDict(copy.deepcopy(listm))
-    error_vos = MonoidDict(copy.deepcopy(listm))
-
-    for vo_id in sorted(vo_ids):
-
-        vo = VscTier2AccountpageVo(vo_id, rest_client=client)
-        vo.dry_run = options.dry_run
-
-        try:
-            if storage_name in ['VSC_HOME']:
-                continue
-
-            if storage_name in ['VSC_DATA']:
-                vo.create_data_fileset()
-                vo.set_data_quota()
-                update_vo_status(vo, client)
-
-            if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
-                vo.create_scratch_fileset(storage_name)
-                vo.set_scratch_quota(storage_name)
-
-            if storage_name in ['VSC_SCRATCH_PHANPY']:
-                vo.create_scratch_fileset(storage_name)
-
-            if vo_id in (VSC().institute_vos[GENT],):
-                logger.info("Not deploying default VO %s members" % (vo_id,))
-                continue
-
-            if vo_id in (VSC().insitute_vos.values()) and storage_name in ('VSC_HOME', 'VSC_DATA'):
-                logger.info("Not deploying default VO %s members on %s", vo_id, storage_name)
-                continue
-
-            for user_id in vo.vo.members:
-                try:
-                    member = VscTier2AccountpageUser(user_id, rest_client=client)
-                    member.dry_run = options.dry_run
-                    if storage_name in ['VSC_DATA']:
-                        vo.set_member_data_quota(member)  # half of the VO quota
-                        vo.create_member_data_dir(member)
-
-                    if storage_name in ['VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GULPIN']:
-                        vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
-                        vo.create_member_scratch_dir(storage_name, member)
-
-                    if storage_name in ['VSC_SCRATCH_PHANPY']:
-                        vo.create_member_scratch_dir(storage_name, member)
-
-                    ok_vos[vo.vo_id] = [user_id]
-                except:
-                    logger.exception("Failure at setting up the member %s of VO %s on %s" %
-                                     (user_id, vo.vo_id, storage_name))
-                    error_vos[vo.vo_id] = [user_id]
-        except:
-            logger.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
-            error_vos[vo.vo_id] = vo.members
-
-    return (ok_vos, error_vos)
 
 
 def main():

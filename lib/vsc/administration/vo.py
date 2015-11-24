@@ -21,26 +21,30 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 
+import copy
 import logging
 import os
 import pwd
-import stat
 
-from collections import namedtuple
 from urllib2 import HTTPError
 
-from vsc.utils import fancylogger
-from vsc.accountpage.wrappers import VscVoSizeQuota
+from vsc.accountpage.wrappers import mkVo, VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
 from vsc.administration.tools import create_stat_directory
-from vsc.administration.user import VscAccount, VscUser
-from vsc.config.base import VSC, VscStorage, VSC_DATA
-from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations, PosixOperationError
+from vsc.administration.user import VscAccount, VscUser, VscTier2AccountpageUser, UserStatusUpdateError
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_MUK, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
+from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
+from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.ldap.entities import VscLdapGroup
+from vsc.utils.missing import Monoid, MonoidDict
 
 VO_PREFIX = 'gvo'
-DEFAULT_VO = 'gvo000012'
-INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']
+DEFAULT_VO = 'gvo000012'  # no longer needed?
+INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']  # no longer needed?
+
+
+class VoStatusUpdateError(Exception):
+    pass
 
 
 class VscAccountPageVo(object):
@@ -85,7 +89,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         try:
             all_quota = [VscVoSizeQuota(**q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
-        except HTTPError, err:
+        except HTTPError:
             logging.exception("Unable to retrieve quota information")
             # to avoid reducing the quota in case of issues with the account page, we will NOT
             # set quota when they cannot be retrieved.
@@ -593,3 +597,99 @@ class VscVo(VscLdapGroup):
             self.posix.dry_run = value
 
         super(VscVo, self).__setattr__(name, value)
+
+
+def update_vo_status(vo, client):
+    """Make sure the rest of the subsystems know that the VO status has changed.
+
+    Currently, this is tailored to our LDAP-based setup.
+    - if the LDAP state is new:
+        change the state to notify
+    - if the LDAP state is modify:
+        change the state to active
+    - otherwise, the VO already was active in the past, and we simply have an idempotent script.
+    """
+    if vo.dry_run:
+        logging.info("VO %s has status %s. Dry-run so not changing anything" % (vo.vo_id, vo.vo.status))
+        return
+
+    if vo.vo.status not in (NEW, MODIFIED, MODIFY):
+        logging.info("Account %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
+        return
+
+    payload = {"status": ACTIVE}
+    try:
+        response = client.vo[vo.vo_id].patch(body=payload)
+    except HTTPError, err:
+        logging.error("VO %s status was not changed", vo.vo_id)
+        raise VoStatusUpdateError("Vo %s status was not changed - received HTTP code %d" % err.code)
+    else:
+        virtual_organisation = mkVo(response)
+        if virtual_organisation.status == ACTIVE:
+            logging.info("VO %s status changed to %s" % (vo.vo_id, ACTIVE))
+        else:
+            logging.error("VO %s status was not changed", vo.vo_id)
+            raise UserStatusUpdateError("VO %s status was not changed, still at %s" %
+                                        (vo.vo_id, virtual_organisation.status))
+
+
+def process_vos(options, vo_ids, storage, storage_name, client):
+    """Process the virtual organisations.
+
+    - make the fileset per VO
+    - set the quota for the complete fileset
+    - set the quota on a per-user basis for all VO members
+    """
+
+    listm = Monoid([], lambda xs, ys: xs + ys)
+    ok_vos = MonoidDict(copy.deepcopy(listm))
+    error_vos = MonoidDict(copy.deepcopy(listm))
+
+    for vo_id in sorted(vo_ids):
+
+        vo = VscTier2AccountpageVo(vo_id, rest_client=client)
+        vo.dry_run = options.dry_run
+
+        try:
+            if storage_name in [VSC_HOME]:
+                continue
+
+            if storage_name in [VSC_DATA] and vo_id not in VSC().institute_vos.values():
+                vo.create_data_fileset()
+                vo.set_data_quota()
+                update_vo_status(vo, client)
+
+            if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
+                vo.create_scratch_fileset(storage_name)
+                vo.set_scratch_quota(storage_name)
+
+            if vo_id in (VSC().institute_vos[GENT],):
+                logging.info("Not deploying default VO %s members" % (vo_id,))
+                continue
+
+            if vo_id in (VSC().institute_vos.values()) and storage_name in (VSC_HOME, VSC_DATA):
+                logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
+                continue
+
+            for user_id in vo.vo.members:
+                try:
+                    member = VscTier2AccountpageUser(user_id, rest_client=client)
+                    member.dry_run = options.dry_run
+                    if storage_name in [VSC_DATA]:
+                        vo.set_member_data_quota(member)  # half of the VO quota
+                        vo.create_member_data_dir(member)
+
+                    if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
+                        vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
+                        vo.create_member_scratch_dir(storage_name, member)
+
+                    ok_vos[vo.vo_id] = [user_id]
+                except:
+                    logging.exception("Failure at setting up the member %s of VO %s on %s" %
+                                     (user_id, vo.vo_id, storage_name))
+                    error_vos[vo.vo_id] = [user_id]
+        except:
+            logging.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
+            error_vos[vo.vo_id] = vo.members
+
+    return (ok_vos, error_vos)

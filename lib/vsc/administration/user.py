@@ -28,9 +28,7 @@ The following actions are available for users:
 import errno
 import logging
 import os
-import stat
 
-from collections import namedtuple
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
@@ -48,6 +46,10 @@ from vsc.ldap.entities import VscLdapUser
 
 
 log = fancylogger.getLogger(__name__)
+
+
+class UserStatusUpdateError(Exception):
+    pass
 
 
 class VscAccountPageUser(object):
