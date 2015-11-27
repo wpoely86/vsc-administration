@@ -48,40 +48,40 @@ class VoDeploymentTest(TestCase):
         storage = None  # not used anymore, it seems
 
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
-            with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo, \
-                 mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user, \
-                 mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
+            with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
+                with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
+                    with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
 
-                mock_vo.return_value = mock.MagicMock()
-                mock_vo_instance = mock_vo.return_value
-                mock_vo_instance.vo = test_vo
-                mock_user.return_value = mock.MagicMock()
+                        mock_vo.return_value = mock.MagicMock()
+                        mock_vo_instance = mock_vo.return_value
+                        mock_vo_instance.vo = test_vo
+                        mock_user.return_value = mock.MagicMock()
 
-                vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
+                        vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
 
-                if storage_name in (VSC_HOME, VSC_DATA):
-                    mock_vo_instance.create_scratch_fileset.assert_not_called()
-                    mock_vo_instance.set_scratch_quota.assert_not_called()
+                        if storage_name in (VSC_HOME, VSC_DATA):
+                            mock_vo_instance.create_scratch_fileset.assert_not_called()
+                            mock_vo_instance.set_scratch_quota.assert_not_called()
 
-                if storage_name in (VSC_DATA,):
-                    self.assertEqual(mock_vo_instance.create_data_fileset.called, True)
-                    self.assertEqual(mock_vo_instance.set_data_quota.called, True)
-                    self.assertEqual(mock_update_vo_status.called, True)
+                        if storage_name in (VSC_DATA,):
+                            self.assertEqual(mock_vo_instance.create_data_fileset.called, True)
+                            self.assertEqual(mock_vo_instance.set_data_quota.called, True)
+                            self.assertEqual(mock_update_vo_status.called, True)
 
-                    self.assertEqual(mock_vo_instance.set_member_data_quota.called, True)
-                    self.assertEqual(mock_vo_instance.create_member_data_dir.called, True)
+                            self.assertEqual(mock_vo_instance.set_member_data_quota.called, True)
+                            self.assertEqual(mock_vo_instance.create_member_data_dir.called, True)
 
-                else:
-                    mock_vo_instance.create_data_fileset.assert_not_called()
-                    mock_vo_instance.set_data_quota.assert_not_called()
-                    mock_update_vo_status.assert_not_called()
+                        else:
+                            mock_vo_instance.create_data_fileset.assert_not_called()
+                            mock_vo_instance.set_data_quota.assert_not_called()
+                            mock_update_vo_status.assert_not_called()
 
-                    if storage_name not in (VSC_HOME,):
-                        self.assertEqual(mock_vo_instance.create_scratch_fileset.called, True)
-                        self.assertEqual(mock_vo_instance.set_scratch_quota.called, True)
+                            if storage_name not in (VSC_HOME,):
+                                self.assertEqual(mock_vo_instance.create_scratch_fileset.called, True)
+                                self.assertEqual(mock_vo_instance.set_scratch_quota.called, True)
 
-                        self.assertEqual(mock_vo_instance.set_member_scratch_quota.called, True)
-                        self.assertEqual(mock_vo_instance.create_member_scratch_dir.called, True)
+                                self.assertEqual(mock_vo_instance.set_member_scratch_quota.called, True)
+                                self.assertEqual(mock_vo_instance.create_member_scratch_dir.called, True)
 
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
@@ -97,34 +97,34 @@ class VoDeploymentTest(TestCase):
         storage = None  # not used anymore, it seems
 
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
-            with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo, \
-                 mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user, \
-                 mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
+            with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
+                with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
+                    with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
 
-                mock_vo.return_value = mock.MagicMock()
-                mock_vo_instance = mock_vo.return_value
-                mock_vo_instance.vo = test_vo
-                mock_user.return_value = mock.MagicMock()
+                        mock_vo.return_value = mock.MagicMock()
+                        mock_vo_instance = mock_vo.return_value
+                        mock_vo_instance.vo = test_vo
+                        mock_user.return_value = mock.MagicMock()
 
-                vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
+                        vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
 
-                if storage_name in (VSC_HOME, VSC_DATA):
-                    mock_vo_instance.create_scratch_fileset.assert_not_called()
-                    mock_vo_instance.set_scratch_quota.assert_not_called()
-                    mock_vo_instance.create_data_fileset.assert_not_called()
-                    mock_vo_instance.set_data_quota.assert_not_called()
-                    mock_update_vo_status.assert_not_called()
+                        if storage_name in (VSC_HOME, VSC_DATA):
+                            mock_vo_instance.create_scratch_fileset.assert_not_called()
+                            mock_vo_instance.set_scratch_quota.assert_not_called()
+                            mock_vo_instance.create_data_fileset.assert_not_called()
+                            mock_vo_instance.set_data_quota.assert_not_called()
+                            mock_update_vo_status.assert_not_called()
 
-                    mock_vo_instance.set_member_data_quota.assert_not_called()
-                    mock_vo_instance.create_member_data_dir.assert_not_called()
+                            mock_vo_instance.set_member_data_quota.assert_not_called()
+                            mock_vo_instance.create_member_data_dir.assert_not_called()
 
-                else:
-                    mock_vo_instance.create_data_fileset.assert_not_called()
-                    mock_vo_instance.set_data_quota.assert_not_called()
-                    mock_update_vo_status.assert_not_called()
+                        else:
+                            mock_vo_instance.create_data_fileset.assert_not_called()
+                            mock_vo_instance.set_data_quota.assert_not_called()
+                            mock_update_vo_status.assert_not_called()
 
-                    self.assertEqual(mock_vo_instance.create_scratch_fileset.called, True)
-                    self.assertEqual(mock_vo_instance.set_scratch_quota.called, True)
+                            self.assertEqual(mock_vo_instance.create_scratch_fileset.called, True)
+                            self.assertEqual(mock_vo_instance.set_scratch_quota.called, True)
 
-                    self.assertEqual(mock_vo_instance.set_member_scratch_quota.called, True)
-                    self.assertEqual(mock_vo_instance.create_member_scratch_dir.called, True)
+                            self.assertEqual(mock_vo_instance.set_member_scratch_quota.called, True)
+                            self.assertEqual(mock_vo_instance.create_member_scratch_dir.called, True)
