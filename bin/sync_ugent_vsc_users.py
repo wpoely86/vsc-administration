@@ -37,6 +37,7 @@ from urllib2 import HTTPError
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.administration.user import VscTier2AccountpageUser
+from vsc.administration.vo import process_vos
 from vsc.config.base import VscStorage, NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
@@ -57,10 +58,7 @@ fancylogger.setLogLevelInfo()
 STORAGE_USERS_LIMIT_WARNING = 1
 STORAGE_USERS_LIMIT_CRITICAL = 10
 STORAGE_VO_LIMIT_WARNING = 1
-
-
-
-
+STORAGE_VO_LIMIT_CRITICAL = 2
 
 
 class UserGroupStatusUpdateError(Exception):
