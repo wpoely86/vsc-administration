@@ -126,7 +126,8 @@ def main():
                 stats["%s_users_sync_fail_critical" % (storage_name,)] = STORAGE_USERS_LIMIT_CRITICAL
 
             for storage_name in opts.options.storage:
-                storage_changed_quota = [mkVscUserSizeQuota(**q) for q in client.quota.user.storage[storage_name].modified[last_timestamp[:12]].get()[1]]
+                storage_changed_quota = [mkVscUserSizeQuota(q) for q in client.quota.user.storage[storage_name].modified[last_timestamp[:12]].get()[1]]
+                storage_changed_quota = [q for q in storage_changed_quota if q.fileset.startswith('vsc')],
                 logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s" %
                             (len(storage_changed_quota), storage_name, last_timestamp[:12]))
                 (quota_ok, quota_fail) = process_users_quota(opts.options,
