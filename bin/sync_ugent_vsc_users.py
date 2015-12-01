@@ -28,17 +28,15 @@ For each (active) user, the following tasks are done:
 The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
-import copy
 import sys
 
 from datetime import datetime
-from urllib2 import HTTPError
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
-from vsc.administration.user import VscTier2AccountpageUser
+from vsc.accountpage.wrappers import mkVscUserSizeQuota
+from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
-from vsc.config.base import VscStorage, NEW, MODIFIED, MODIFY, ACTIVE
+from vsc.config.base import VscStorage
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
@@ -63,99 +61,6 @@ STORAGE_VO_LIMIT_CRITICAL = 2
 
 class UserGroupStatusUpdateError(Exception):
     pass
-
-
-def update_user_status(user, options, client):
-    """
-    Change the status of the user's account in the account page to active. Do the same for the corresponding UserGroup.
-    """
-    if user.dry_run:
-        logger.info("User %s has account status %s. Dry-run, not changing anything", user.user_id, user.account.status)
-        return
-
-    if user.account.status not in (NEW, MODIFIED, MODIFY):
-        logger.info("Account %s has status %s, not changing" % (user.user_id, user.account.status))
-        return
-
-    payload = {"status": ACTIVE}
-    try:
-        response_account = client.account[user.user_id].patch(body=payload)
-    except HTTPError, err:
-        logger.error("Account %s and UserGroup %s status were not changed", user.user_id, user.user_id)
-        raise UserStatusUpdateError("Account %s status was not changed - received HTTP code %d" % err.code)
-    else:
-        account = mkVscAccount(response_account[1])
-        if account.status == ACTIVE:
-            logger.info("Account %s status changed to %s" % (user.user_id, ACTIVE))
-        else:
-            logger.error("Account %s status was not changed", user.user_id)
-            raise UserStatusUpdateError("Account %s status was not changed, still at %s" %
-                                        (user.user_id, account.status))
-    try:
-        response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
-    except HTTPError, err:
-        logger.error("UserGroup %s status was not changed", user.user_id)
-        raise UserStatusUpdateError("UserGroup %s status was not changed - received HTTP code %d" % (user.user_id, err.code))
-
-    else:
-        usergroup = mkUserGroup(response_usergroup[1])
-        if usergroup.status == ACTIVE:
-            logger.info("UserGroup %s status changed to %s" % (user.user_id, ACTIVE))
-        else:
-            logger.error("UserGroup %s status was not changed", user.user_id)
-            raise UserStatusUpdateError("UserGroup %s status was not changed, still at %s" %
-                                        (user.user_id, usergroup.status))
-
-
-def process_users(options, account_ids, storage_name, client):
-    """
-    Process the users.
-
-    We make a distinction here between three types of filesystems.
-        - home (unique)
-            - create and populate the home directory
-        - data (unique)
-            - create the grouping fileset if needed
-            - create the user data directory
-        - scratch (multiple)
-            - create the grouping fileset if needed
-            - create the user scratch directory
-
-    The following are done everywhere:
-        - set quota and permissions
-    """
-    error_users = []
-    ok_users = []
-
-    for vsc_id in sorted(account_ids):
-
-        user = VscTier2AccountpageUser(vsc_id, rest_client=client)
-        user.dry_run = options.dry_run
-
-        try:
-            if storage_name in ['VSC_HOME']:
-                user.create_home_dir()
-                user.set_home_quota()
-                user.populate_home_dir()
-                update_user_status(user, options, client)
-
-            if storage_name in ['VSC_DATA']:
-                user.create_data_dir()
-                user.set_data_quota()
-
-            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_GENGAR', 'VSC_SCRATCH_GULPIN']:
-                user.create_scratch_dir(storage_name)
-                user.set_scratch_quota(storage_name)
-
-            if storage_name in ['VSC_SCRATCH_PHANPY']:
-                user.create_scratch_dir(storage_name)
-
-            ok_users.append(user)
-        except:
-            logger.exception("Cannot process user %s" % (user.user_id))
-            error_users.append(user)
-
-    return (ok_users, error_users)
 
 
 def main():
@@ -200,18 +105,14 @@ def main():
         if opts.options.user:
             ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp[:12]].get()[1]
             ugent_changed_pubkey_accounts = client.account.pubkey.institute['gent'].modified[last_timestamp[:12]].get()[1]
-            ugent_changed_quota = client.quota.user.modified[last_timestamp[:12]].get()[1]
 
             logger.info("Found %d UGent accounts that have changed in the accountpage since %s" %
                         (len(ugent_changed_accounts), last_timestamp[:8]))
             logger.info("Found %d UGent accounts that have changed pubkeys in the accountpage since %s" %
                         (len(ugent_changed_pubkey_accounts), last_timestamp[:12]))
-            logger.info("Found %d UGent accounts that have changed quota in the accountpage since %s" %
-                        (len(ugent_changed_quota), last_timestamp[:12]))
 
             ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
-                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']] \
-                           + [u['user'] for u in ugent_changed_quota]
+                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']]
             ugent_accounts = nub(ugent_accounts)
 
             for storage_name in opts.options.storage:
@@ -223,6 +124,16 @@ def main():
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
                 stats["%s_users_sync_fail_critical" % (storage_name,)] = STORAGE_USERS_LIMIT_CRITICAL
+
+            for storage_name in opts.options.storage:
+                storage_changed_quota = [mkVscUserSizeQuota(q) for q in client.quota.user.storage[storage_name].modified[last_timestamp[:12]].get()[1]]
+                storage_changed_quota = [q for q in storage_changed_quota if q.fileset.startswith('vsc')]
+                logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s" %
+                            (len(storage_changed_quota), storage_name, last_timestamp[:12]))
+                (quota_ok, quota_fail) = process_users_quota(opts.options,
+                                                             storage_changed_quota,
+                                                             storage_name,
+                                                             client)
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
