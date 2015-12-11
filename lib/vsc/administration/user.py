@@ -89,7 +89,7 @@ class VscAccountPageUser(object):
 
 class VscTier2AccountpageUser(VscAccountPageUser):
     """
-    A user on each of our Tier-2 system, similar to the VscUser but now using the account page REST API
+    A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
     def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
@@ -142,7 +142,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """Provide the location where to store pickle files for this user.
 
         This location is the user'path on the pickle_storage specified when creating
-        a VscUser instance.
+        a VscTier2AccountpageUser instance.
         """
         template = self.storage.path_templates[self.pickle_storage]['user']
         return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
