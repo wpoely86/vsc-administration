@@ -31,11 +31,10 @@ from urllib2 import HTTPError
 from vsc.accountpage.wrappers import mkVo, VscVoSizeQuota
 from vsc.accountpage.wrappers import VscVo as VscVoWrapper
 from vsc.administration.tools import create_stat_directory
-from vsc.administration.user import VscAccount, VscUser, VscTier2AccountpageUser, UserStatusUpdateError
+from vsc.administration.user import VscAccount, VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_MUK, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
-from vsc.ldap.entities import VscLdapGroup
 from vsc.utils.missing import Monoid, MonoidDict
 
 VO_PREFIX = 'gvo'
