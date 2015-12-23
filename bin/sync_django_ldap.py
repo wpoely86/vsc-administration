@@ -35,7 +35,7 @@ from group.models import Autogroup, Group, UserGroup, VirtualOrganisation, Membe
 from host.models import Storage, Site
 from quota.models import UserSizeQuota, VirtualOrganisationSizeQuota
 
-from vsc.config.base import GENT
+from vsc.config.base import GENT, ACTIVE
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -617,7 +617,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
     """
     Sync the changed quota for the VO to the LDAP
     """
-    changed_quota = VirtualOrganisationSizeQuota.objects.filter(modify_timestamp__range=[last, now])
+    changed_quota = VirtualOrganisationSizeQuota.objects.filter(virtual_organisation__status=ACTIVE, modify_timestamp__range=[last, now])
 
     _log.info("Found %d modified VO quota in the range %s until %s" % (len(changed_quota),
                                                                     last.strftime("%Y%m%d%H%M%SZ"),
