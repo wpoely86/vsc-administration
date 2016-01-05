@@ -23,8 +23,6 @@ import os
 from ConfigParser import SafeConfigParser
 
 from vsc.filesystem.gpfs import GpfsOperations
-from vsc.ldap.utils import LdapQuery
-from vsc.ldap.configuration import VscConfiguration
 from vsc.config.base import VscStorage
 from vsc.utils import fancylogger
 
@@ -38,8 +36,8 @@ def set_up_apps(gpfs, storage_settings, storage, filesystem_info, filesystem_nam
     """Set up the apps fileset."""
     log.info("Setting up the apps fileset on storage %s" % (storage))
     fileset_name = storage_settings.path_templates[storage]['apps'][0]
-    fileset_path = os.path.join(filesystem_infp['defaultMountPoint'], fileset_name)
-    if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+    fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
+    if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(fileset_path, fileset_name)
         gpfs.chmod(0755, fileset_path)
         log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
@@ -52,7 +50,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
     log.info("Setting up for storage %s" % (storage))
     fileset_name = storage_settings.path_templates[storage]['user'][0]
     fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
-    if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+    if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(fileset_path, fileset_name)
         gpfs.chmod(0755, fileset_path)
         log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
@@ -61,7 +59,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
         # Create the basic vo fileset
         fileset_name = storage_settings.path_templates[storage]['vo'][0]
         vo_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
-        if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+        if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, fileset_name)
             gpfs.chmod(0755, vo_fileset_path)
             log.info("Fileset %s created and linked at %s" % (fileset_name, vo_fileset_path))
@@ -69,7 +67,6 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
 
 def main():
 
-    LdapQuery(VscConfiguration())  # initialise
     storage_settings = VscStorage()
 
     local_storage_conf = SafeConfigParser()
@@ -89,7 +86,6 @@ def main():
             set_up_apps(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name)
         else:
             set_up_filesystem(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name, vo_support=True)
-
 
 if __name__ == '__main__':
     main()
