@@ -25,6 +25,9 @@ from datetime import datetime
 
 from ldap import LDAPError
 
+import django
+django.setup()
+
 from django.conf import settings
 from django.contrib.auth.models import Group as DGroup
 from django.contrib.auth.models import User
