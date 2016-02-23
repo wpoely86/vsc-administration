@@ -23,9 +23,10 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag
 
 PACKAGE = {
-    'version': '0.31',
+    'version': '0.32',
     'author': [ag],
     'maintainer': [ag],
+    'tests_require': ['mock'],
     'install_requires': [
         'vsc-accountpage-clients >= 0.2',
         'vsc-base >= 2.4.16',

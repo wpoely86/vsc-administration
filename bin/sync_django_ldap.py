@@ -1,18 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
-##
-# Copyright 2013 Ghent University
 #
-# This file is part VSC-accountpage,
+# Copyright 2013-2016 Ghent University
+#
+# This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
 # the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
 # the Hercules foundation (http://www.herculesstichting.be/in_English)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
+# https://github.com/hpcugent/vsc-administration
+#
 # All rights reserved.
 #
-##
 """
 Get existing Django accountpage users and sync them to the VSC LDAP
 """
@@ -53,6 +54,7 @@ ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING="THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
 
 fancylogger.setLogLevelInfo()
 fancylogger.logToScreen(True)
+_log = fancylogger.getLogger(NAGIOS_HEADER)
 
 DONE = 'done'
 NEW = 'new'
@@ -658,7 +660,6 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
     return quotas
 
 def main():
-    _log = fancylogger.getLogger(NAGIOS_HEADER)
     now = datetime.utcnow().replace(tzinfo=utc)
 
     options = {
