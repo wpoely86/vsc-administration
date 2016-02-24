@@ -39,7 +39,7 @@ from group.models import Autogroup, Group, UserGroup, VirtualOrganisation, Membe
 from host.models import Storage, Site
 from quota.models import UserSizeQuota, VirtualOrganisationSizeQuota
 
-from vsc.config.base import GENT, ACTIVE
+from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -672,7 +672,7 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
-    l = LdapQuery(VscConfiguration('/etc/vsc.conf.new'))
+    l = LdapQuery(VscConfiguration(VSC_CONF_DEFAULT_FILENAME))
 
     last_timestamp = opts.options.start_timestamp
     if not last_timestamp:
