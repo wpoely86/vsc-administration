@@ -5,7 +5,7 @@
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
 # the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
-# the Hercules foundation (http://www.herculesstichting.be/in_English)
+# the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
 # https://github.com/hpcugent/vsc-administration
@@ -17,21 +17,67 @@ Tests for vsc.administration.vo
 
 @author: Andy Georges (Ghent University)
 """
-import logging
 import mock
 
 from collections import namedtuple
 
-import vsc.administration.vo as vo
 import vsc.administration.user as user
 
+from vsc.accountpage.wrappers import mkVscAccount
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
 
+class VscAccountPageUserTest(TestCase):
+    """
+    Tests for the base class of users derived from account page information.
+    """
+
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    @mock.patch('vsc.administration.user.VscAccount')
+    @mock.patch('vsc.administration.user.VscAccountPerson')
+    @mock.patch('vsc.administration.user.VscAccountPubkey')
+    @mock.patch('vsc.administration.user.VscGroup')
+    @mock.patch('vsc.administration.user.VscUserGroup')
+    @mock.patch('vsc.administration.user.VscHomeOnScratch')
+    def test_get_institute_prefix(self,
+                                  mock_home_on_scratch,
+                                  mock_usergroup,
+                                  mock_group,
+                                  mock_pubkey,
+                                  mock_person,
+                                  mock_account,
+                                  mock_client):
+
+        test_account = mkVscAccount({
+            u'broken': False,
+            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
+            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+            u'email': u'foobar@ugent.be',
+            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+            u'login_shell': u'/bin/bash',
+            u'person': {
+                u'gecos': u'Foo Bar',
+                u'institute': {u'site': u'gent'},
+                u'institute_login': u'foobar'
+            },
+            u'research_field': [u'Bollocks', u'Pluto'],
+            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+            u'status': u'active',
+            u'vsc_id': u'vsc40075',
+            u'vsc_id_number': 2540075
+        })
+
+        mock_person.return_value = test_account.person
+        mock_client = mock.MagicMock()
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertEqual(accountpageuser.get_institute_prefix(), 'g')
+
+
 class UserDeploymentTest(TestCase):
     """
-    Tests for the VO deployment code.
+    Tests for the User deployment code.
     """
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)

@@ -6,7 +6,7 @@
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
 # the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
-# the Hercules foundation (http://www.herculesstichting.be/in_English)
+# the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
 # https://github.com/hpcugent/vsc-administration
@@ -84,7 +84,7 @@ class VscAccountPageUser(object):
         """
         Get the first letter of the institute the user belongs to.
         """
-        return self.person.institutep['site'][0]
+        return self.person.institute['site'][0]
 
 
 class VscTier2AccountpageUser(VscAccountPageUser):
