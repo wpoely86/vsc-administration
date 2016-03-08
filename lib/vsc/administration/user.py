@@ -84,7 +84,7 @@ class VscAccountPageUser(object):
         """
         Get the first letter of the institute the user belongs to.
         """
-        return self.person.institutep['site'][0]
+        return self.person.institute['site'][0]
 
 
 class VscTier2AccountpageUser(VscAccountPageUser):
