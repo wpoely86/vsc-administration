@@ -36,7 +36,7 @@ from vsc.administration.tools import TIER1_GRACE_GROUP_SUFFIX, TIER1_HELPDESK_AD
 from vsc.config.base import Muk
 from vsc.utils import fancylogger
 from vsc.utils.cache import FileCache
-from vsc.utils.mail import VscMail
+from vsc.utils.mail import VscMail, VscMailError
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
@@ -328,13 +328,16 @@ def notify_purge(user, grace=0, grace_unit=""):
     if user.dry_run:
         logger.info("Dry-run, would send the following message to %s: %s" % (user.account.vsc_id, message,))
     else:
-        mail.sendTextMail(mail_to=user.account.email,
-                          mail_from=TIER1_HELPDESK_ADDRESS,
-                          reply_to=TIER1_HELPDESK_ADDRESS,
-                          mail_subject=mail_subject,
-                          message=message)
-        logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
-                    (user.account.vsc_id, user.person.gecos, mail_subject))
+        try:
+            mail.sendTextMail(mail_to=user.account.email,
+                              mail_from=TIER1_HELPDESK_ADDRESS,
+                              reply_to=TIER1_HELPDESK_ADDRESS,
+                              mail_subject=mail_subject,
+                              message=message)
+            logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
+                        (user.account.vsc_id, user.person.gecos, mail_subject))
+        except VscMailError:
+            logger.error("Could not send mail to recipient %s", user.account.email)
 
 
 def purge_user(user, client):
