@@ -23,7 +23,7 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag
 
 PACKAGE = {
-    'version': '0.35',
+    'version': '0.35.1',
     'author': [ag],
     'maintainer': [ag],
     'tests_require': ['mock'],
@@ -40,6 +40,16 @@ PACKAGE = {
         #'vsc-postgres',
         #'django',
     ],
+    'dependency_links': [
+        "git+https://github.com/hpcugent/vsc-utils.git#egg=vsc-utils-1.8.2",
+        "git+https://github.com/hpcugent/vsc-filesystems.git#egg=vsc-filesystems-0.30.1",
+        "git+ssh://github.com/hpcugent/vsc-accountpage-clients.git#egg=vsc-accountpage-clients-0.7",
+        "git+ssh://github.com/hpcugent/vsc-ldap.git#egg=vsc-ldap-1.4.2",
+        "git+ssh://github.com/hpcugent/vsc-ldap-extension.git#egg=vsc-ldap-extensions-1.10.2",
+    ],
+
+
+
 }
 
 
