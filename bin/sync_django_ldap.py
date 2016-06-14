@@ -47,6 +47,7 @@ from vsc.ldap.filters import CnFilter
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
+from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
 NAGIOS_HEADER = "sync_django_to_ldap"
@@ -776,16 +777,17 @@ def main():
         (pid, result) = os.waitpid(parent_pid, 0)
         _log.info("Child exited with exit code %d" % (result,))
 
-        if not result and not opts.options.dry_run and not opts.options.start_timestamp:
-            (_, ldap_timestamp) = convert_timestamp(now)
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        if not result:
+            if not opts.options.start_timestamp:
+                (_, ldap_timestamp) = convert_timestamp(now)
+                if not opts.options.dry_run:
+                    write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             else:
-                _log.info("Not updating the timestamp, since we had at least one error during sync")
+                _log.info("Not updating the timestamp, since one was provided on the command line")
+            opts.epilogue("Synchronised LDAP users to the Django DB", stats)
         else:
             _log.info("Not updating the timestamp, since it was given on the command line for this run")
-
-        opts.epilogue("Synchronised LDAP users to the Django DB", stats)
+            sys.exit(NAGIOS_EXIT_CRITICAL)
 
 
 if __name__ == '__main__':
