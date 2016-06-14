@@ -22,24 +22,12 @@ import os
 import pwd
 import sys
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ldap import LDAPError
-
-import django
-django.setup()
-
-from django.conf import settings
-from django.contrib.auth.models import Group as DGroup
-from django.contrib.auth.models import User
-from django.utils.timezone import utc
-
-from account.models import Account, Person, Pubkey, MailList
-from group.models import Autogroup, Group, UserGroup, VirtualOrganisation, Membership, VoMembership
-from host.models import Storage, Site
-from quota.models import UserSizeQuota, VirtualOrganisationSizeQuota
-
 from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
+
+from vsc.accountpage.client import AccountpageClient
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -54,7 +42,7 @@ NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
-ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING="THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
+ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING = "THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
 
 fancylogger.setLogLevelInfo()
 fancylogger.logToScreen(True)
@@ -66,605 +54,419 @@ UPDATED = 'updated'
 ERROR = 'error'
 
 
-def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
+def class LdapSyncer(object):
     """
-    Perform the update in LDAP for the given vsc.ldap.entitities class, cn and the ldap attributes.
-
-    @return: NEW, UPDATED or ERROR, depending on the operation and its result.
+    This class implements a system for syncing changes from the accountpage api
+    to the vsc ldap
     """
-    ldap_entries = VscLdapKlass.lookup(CnFilter(cn))
-    if not ldap_entries:
-        # add the entry
-        _log.debug("add new entry %s %s with the attributes %s", VscLdapKlass.__name__, cn, ldap_attributes)
+    def __init__(self):
+        self.processed_accounts = None
+        self.processed_pubkeys = None
+        self.client = AccountpageClient() # TODO: things here
+        pass
 
-        if not dry_run:
+    def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
+        """
+        Perform the update in LDAP for the given vsc.ldap.entitities class, cn and the ldap attributes.
+
+        @return: NEW, UPDATED or ERROR, depending on the operation and its result.
+        """
+        ldap_entries = self.vscldapclass.lookup(CnFilter(cn))
+        if not ldap_entries:
+            # add the entry
+            _log.debug("add new entry %s %s with the attributes %s", VscLdapKlass.__name__, cn, ldap_attributes)
+
+            if not dry_run:
+                try:
+                    entry = VscLdapKlass(cn)
+                    entry.add(ldap_attributes)
+                    _log.info("Added a new user %s to LDAP" % (cn,))
+                except LDAPError:
+                    _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
+                    return ERROR
+            return NEW
+        else:
+            ldap_entries[0].status
+            _log.debug("update existing entry %s %s with the attributes %s -- old entry: %s",
+                       VscLdapKlass.__name__, cn, ldap_attributes, ldap_entries[0].ldap_info)
+
+            if not dry_run:
+                try:
+                    ldap_entries[0].modify_ldap(ldap_attributes)
+                    _log.info("Modified %s %s in LDAP" % (VscLdapKlass.__name__, cn,))
+                except LDAPError:
+                    _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
+                    return ERROR
+            return UPDATED
+
+
+    def get_public_keys(self, vsc_id):
+        """Get a list of public keys for a given vsc id"""
+        pks =  [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id] if not p.deleted]
+        if not pks:
+            pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
+        return pks
+
+    def sync_altered_pubkeys(last, dry_run=True):
+        """
+        Remove obsolete public keys from the LDAP and add new public keys to the LDAP.
+        """
+         changed_pubkeys = [mkVscAccountPubkey(p) for p in self.client.account.pubkey.modified.now.get()]
+
+        pubkeys = {
+            UPDATED: set(),
+            DONE: set(),
+            ERROR: set(),
+            }
+
+        new_pubkeys = [p for p in changed_pubkeys if not p.deleted]
+        deleted_pubkeys = [p for p in changed_pubkeys if p.deleted]
+
+        _log.warning("Deleted pubkeys %s" % (deleted_pubkeys,))
+        _log.debug("New pubkeys %s", new_pubkeys)
+
+        for p in changed_pubkeys:
+
+            if not p.vsc_id:
+                # This should NOT happen
+                _log.error("Key %d had no associated user anymore",p)
+                continue
+
             try:
-                entry = VscLdapKlass(cn)
-                entry.add(ldap_attributes)
-                _log.info("Added a new user %s to LDAP" % (cn,))
-            except LDAPError:
-                _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
-                return ERROR
-        return NEW
-    else:
-        ldap_entries[0].status
-        _log.debug("update existing entry %s %s with the attributes %s -- old entry: %s",
-                   VscLdapKlass.__name__, cn, ldap_attributes, ldap_entries[0].ldap_info)
+                account = mkVscAccount(self.client.account[p.vsc_id])
+            except HTTPError:
+                _log.warning("No account for the user %s corresponding to the public key %d" % (p.vsc_id, p))
+                continue
 
-        if not dry_run:
+            if account in self.processed_accounts[NEW] or account in self.processed_accounts[UPDATED]:
+                _log.info("Account %s was already processed and has the new set of public keys" % (account.vsc_id,))
+                pubkeys[DONE].add(p)
+                continue
+
             try:
-                ldap_entries[0].modify_ldap(ldap_attributes)
-                _log.info("Modified %s %s in LDAP" % (VscLdapKlass.__name__, cn,))
-            except LDAPError:
-                _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
-                return ERROR
-        return UPDATED
+                ldap_user = VscLdapUser(p.vsc_id)
+                ldap_user.pubkey = [pk.pubkey for pk in pks]
+                self.processed_accounts[UPDATED].add(account)
+                pubkeys[UPDATED].add(p)
+            except Exception:
+                _log.warning("Cannot add pubkey for account %s to LDAP" % (account.vsc_id,))
+                pubkeys[ERROR].add(p)
+
+        self.processed_pubkeys = pubkeys
 
 
-def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
-    """
-    Remove obsolete public keys from the LDAP and add new public keys to the LDAP.
-    """
-    changed_pubkeys = Pubkey.objects.filter(modify_timestamp__range=[last, now])
+    def sync_altered_accounts(self, last, dry_run=True):
+        """
+        Add new users to the LDAP and update altered users. This does not include usergroups.
 
-    pubkeys = {
-        UPDATED: set(),
-        DONE: set(),
-        ERROR: set(),
+        @type last: datetime
+        @type now: datetime
+        @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
+        """
+         changed_accounts= [mkVscAccount(a) for a in self.client.account.modified.now.get()]
+         now = datetime.now()
+
+        accounts = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
         }
 
-    new_pubkeys = [p for p in changed_pubkeys if not p.deleted]
-    deleted_pubkeys = [p for p in changed_pubkeys if p.deleted]
+        sync_accounts = list(changed_accounts)
 
-    _log.warning("Deleted pubkeys %s" % (deleted_pubkeys,))
-    _log.debug("New pubkeys %s", new_pubkeys)
+        _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
+                                                                           last.strftime("%Y%m%d%H%M%SZ"),
+                                                                           now.strftime("%Y%m%d%H%M%SZ")))
+        _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
 
-    for p in changed_pubkeys:
-
-        if not p.user:
-            # This should NOT happen
-            _log.error("Key %d had no associated user any more: %s" % (p.pk, p))
-            continue
-
-        try:
-            account = p.user.account
-        except User.DoesNotExist:
-            _log.warning("No user found for the given public key %d" % (p.pk,))
-            continue
-        except Account.DoesNotExist:
-            _log.warning("No account for the user %s corresponding to the public key %d" % (p.user.username, p.pk))
-            continue
-
-        if account in processed_accounts[NEW] or account in processed_accounts[UPDATED]:
-            _log.info("Account %s was already processed and has the new set of public keys" % (account.vsc_id,))
-            pubkeys[DONE].add(p)
-            continue
-
-        try:
-            pks = Pubkey.objects.filter(user=p.user, deleted=False)
-            ldap_user = VscLdapUser(account.vsc_id)
-            ldap_user.pubkey = [p.pubkey for p in pks]
-            processed_accounts[UPDATED].add(account)
-            pubkeys[UPDATED].add(p)
-        except Exception:
-            _log.warning("Cannot add pubkey for account %s to LDAP" % (account.vsc_id,))
-            pubkeys[ERROR].add(p)
-
-    return pubkeys
-
-
-def sync_altered_users(last, now, processed_accounts, dry_run=True):
-    """
-    The only thing that can be changed is the email address, but we should sync that too.
-    """
-    changed_users = User.objects.filter(modify_timestamp__range=[last, now])
-
-    _log.info("Changed users: %s" % ([u.username for u in changed_users]))
-
-    users = {
-        UPDATED: set(),
-        DONE: set(),
-        ERROR: set(),
-    }
-
-    for u in changed_users:
-
-        if u.account in processed_accounts[NEW] or u in processed_accounts[UPDATED]:
-            _log.info("Account %s was already processed and has the new email address" % (u.account.vsc_id,))
-            users[DONE].add(u)
-            continue
-
-        try:
-            ldap_user = VscLdapUser(u.account.vsc_id)
-            ldap_user.mail = u.email
-            processed_accounts[UPDATED].add(u.account)
-            users[UPDATED].add(u)
-        except Exception:
-            _log.warning("Cannot change email address to %s for %s in LDAP" % (u.email, u.account.vsc_id))
-            users[ERROR].add(u)
-
-    return users
-
-
-def sync_altered_accounts(last, now, dry_run=True):
-    """
-    Add new users to the LDAP and update altered users. This does not include usergroups.
-
-    @type last: datetime
-    @type now: datetime
-    @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
-    """
-    changed_accounts = Account.objects.filter(modify_timestamp__range=[last, now])
-
-    accounts = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-    }
-
-    sync_accounts = list(changed_accounts)
-
-    _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
-                                                                       last.strftime("%Y%m%d%H%M%SZ"),
-                                                                       now.strftime("%Y%m%d%H%M%SZ")))
-    _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
-
-
-    for account in sync_accounts:
-
-        try:
-            home_storage = Storage.objects.get(storage_type=settings.HOME, institute=account.user.person.institute)
-            home_quota = UserSizeQuota.objects.get(user=account, storage=home_storage).hard
-        except UserSizeQuota.DoesNotExist:
-            home_quota = 0
-            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, home_storage.name))
-        except Storage.DoesNotExist:
-            home_quota = 0
-            _log.warning("No home storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
-        except User.DoesNotExist:
-            _log.error("No corresponding User for account %s" % (account.vsc_id,))
-            continue
-        except Person.DoesNotExist:
-            _log.error("No corresponding Person for account %s" % (account.vsc_id,))
-            continue
-
-        try:
-            data_storage = Storage.objects.get(storage_type=settings.DATA, institute=account.user.person.institute)
-            data_quota_ = UserSizeQuota.objects.filter(user=account, storage=data_storage)
-            if len(list(data_quota_)) > 1:
-                # this is the UGent case; we need to further distinguish between our various filesets, in
-                # this case the vscxyz fileset
-                data_quota = data_quota_.get(fileset=account.vsc_id[:6]).hard
-            else:
-                data_quota = data_quota_[0].hard
-        except (UserSizeQuota.DoesNotExist, IndexError):
-            data_quota = 0
-            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, data_storage.name))
-        except Storage.DoesNotExist:
-            data_quota = 0
-            _log.warning("No data storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
-
-        try:
-            scratch_storage = Storage.objects.filter(storage_type=settings.SCRATCH, institute=account.user.person.institute)
-            if not scratch_storage:
-                raise Storage.DoesNotExist("No scratch storage for institute %s" % (account.user.person.institute,))
-
-            if account.user.person.institute in (Site.objects.get(site=GENT),):
-                scratch_storage = scratch_storage.filter(name='VSC_SCRATCH_DELCATTY')[0]  # TODO: This can be ignored once we go to sync from django, skipping the LDAP completely
-            else:
-                scratch_storage = scratch_storage[0]
-
-            scratch_quota_ = UserSizeQuota.objects.filter(user=account, storage=scratch_storage)  # take the first one
-            if len(list(scratch_quota_)) > 1:
-                # this is the UGent case; we need to further distinguish between our various filesets, in
-                # this case the vscxyz fileset
-                scratch_quota = scratch_quota_.get(fileset=account.vsc_id[:6]).hard
-            else:
-                scratch_quota = scratch_quota_[0].hard
-        except (UserSizeQuota.DoesNotExist, IndexError):
-            scratch_quota = 0
-            _log.warning("Could not find quota information for %s on %s, setting to 0" % (account.vsc_id, scratch_storage.name))
-        except Storage.DoesNotExist:
-            scratch_quota = 0
-            _log.warning("No scratch storage for institute %s defined, setting quota to 0" % (account.user.person.institute,))
-
-        try:
+        for account in sync_accounts:
+            try:
+                #TODO: get usergroup here
+                pass
+            except UserGroup.DoesNotExist:
+                _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
+                continue
             try:
                 gecos = str(account.user.person.gecos)
             except UnicodeEncodeError:
-                gecos = account.user.person.gecos.encode('ascii', 'ignore')
+                gecos = account.person.gecos.encode('ascii', 'ignore')
                 _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
 
-            public_keys = [str(p.pubkey) for p in Pubkey.objects.filter(user=account.user, deleted=False)]
-            if not public_keys:
-                public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
+            public_keys = self.get_public_keys(account.vsc_id)
 
             ldap_attributes = {
                 'cn': str(account.vsc_id),
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
                 'gecos': [gecos],
-                'mail': [str(account.user.email)],
-                'institute': [str(account.user.person.institute.site)],
-                'instituteLogin': [str(account.user.person.institute_login)],
+                'mail': [str(account.email)],
+                'institute': [str(account.person.institute)],
+                'instituteLogin': [str(account.person.institute_login)],
                 'uid': [str(account.vsc_id)],
                 'homeDirectory': [str(account.home_directory)],
                 'dataDirectory': [str(account.data_directory)],
                 'scratchDirectory': [str(account.scratch_directory)],
-                'homeQuota': ["%d" % (home_quota,)],
-                'dataQuota': ["%d" % (data_quota,)],
-                'scratchQuota': ["%d" % (scratch_quota,)],
+                #TODO: no longer needed?
+                #'homeQuota': ["%d" % (home_quota,)],
+                #'dataQuota': ["%d" % (data_quota,)],
+                #'scratchQuota': ["%d" % (scratch_quota,)],
                 'pubkey': public_keys,
+                # TODO get usergroup with api
                 'gidNumber': ["%s" % (account.usergroup.vsc_id_number,)],
                 'loginShell': [str(account.login_shell)],
                 # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
-                'researchField': ["unknown"],
+                'researchField': [account.research_field],
                 'status': [str(account.status)],
             }
-        except UserGroup.DoesNotExist:
-            _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
-            continue
 
-        result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
-        accounts[result].add(account)
+            result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
+            accounts[result].add(account)
 
-    return accounts
+        self.processed_accounts = accounts
 
 
-def sync_altered_user_quota(last, now, altered_accounts, dry_run=True):
-    """
-    Check for users who have altered quota and sync these to the LDAP.
+    def sync_altered_user_groups(last, now, dry_run=True):
+        """
+        Add new usergroups to the LDAP and update altered usergroups.
 
-    @type last: datetime
-    @type now: datetime
-    @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
-    """
+        @type last: datetime
+        @type now: datetime
+        @return: tuple (new, updated, error) that indicates what usergroups were new, changed or could not be altered.
+        """
 
-    changed_quota = UserSizeQuota.objects.filter(modify_timestamp__range=[last, now])
+        changed_usergroups = UserGroup.objects.filter(modify_timestamp__range=[last, now])
 
-    _log.info("Found %d modified quota in the range %s until %s" % (len(changed_quota),
-                                                                    last.strftime("%Y%m%d%H%M%SZ"),
-                                                                    now.strftime("%Y%m%d%H%M%SZ")))
-    quotas = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-        DONE: set(),
+        _log.info("Found %d modified usergroups in the range %s until %s" % (len(changed_usergroups),
+                                                                             last.strftime("%Y%m%d%H%M%SZ"),
+                                                                             now.strftime("%Y%m%d%H%M%SZ")))
+
+        _log.debug("Modified usergroups: %s", [g.vsc_id for g in changed_usergroups])
+
+        groups = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
         }
 
-    for quota in changed_quota:
-        account = quota.user
-        if account in altered_accounts[NEW] or account in altered_accounts[UPDATED]:
-            _log.info("Quota %s was already processed with account %s" % (quota, account.vsc_id))
-            quotas[DONE].add(quota)
-            continue
+        for usergroup in changed_usergroups:
 
-        try:
-            ldap_user = VscLdapUser(account.vsc_id)
-            ldap_user.status
-            if quota.storage.storage_type in (settings.HOME,):
-                ldap_user.homeQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
-            elif quota.storage.storage_type in (settings.DATA,):
-                ldap_user.dataQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
-            elif quota.storage.storage_type in (settings.SCRATCH,):
-                ldap_user.scratchQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
+            ldap_attributes = {
+                'cn': str(usergroup.vsc_id),
+                'institute': [str(usergroup.institute.site)],
+                'gidNumber': ["%d" % (usergroup.vsc_id_number,)],
+                'moderator': [str(usergroup.vsc_id)],  # a fixed single moderator!
+                'memberUid': [str(usergroup.vsc_id)],  # a single member
+                'status': [str(usergroup.status)],
+            }
+
+            result = add_or_update(VscLdapGroup, usergroup.vsc_id, ldap_attributes, dry_run)
+            groups[result].add(usergroup)
+
+        return groups
+
+
+    def sync_altered_autogroups(dry_run=True):
+
+        changed_autogroups = Autogroup.objects.all() # we always sync autogroups since we cannot know beforehand if their membership list changed
+
+        _log.info("Found %d autogroups" % (len(changed_autogroups),))
+        _log.debug("Autogroups: %s", [a.vsc_id for a in changed_autogroups])
+
+        groups = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
+        }
+
+        for autogroup in changed_autogroups:
+
+            ldap_attributes = {
+                'cn': str(autogroup.vsc_id),
+                'institute': [str(autogroup.institute.site)],
+                'gidNumber': ["%d" % (autogroup.vsc_id_number,)],
+                'moderator': [str(u.account.vsc_id) for u in DGroup.objects.get(name='administrator_%s' % (autogroup.institute.site,)).user_set.all()],
+                'memberUid': [str(a.vsc_id) for a in autogroup.get_members()],
+                'status': [str(autogroup.status)],
+                'autogroup': [str(s.vsc_id) for s in autogroup.sources.all()],
+            }
+
+            _log.debug("Proposed changes for autogroup %s: %s", autogroup.vsc_id, ldap_attributes)
+
+            result = add_or_update(VscLdapGroup, autogroup.vsc_id, ldap_attributes, dry_run)
+            groups[result].add(autogroup)
+
+        return groups
+
+
+    def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
+        """
+        Synchronise the memberships for groups when users are added/removed.
+        """
+        changed_members = Membership.objects.filter(modify_timestamp__range=[last, now])
+
+        _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
+                                                                          last.strftime("%Y%m%d%H%M%SZ"),
+                                                                          now.strftime("%Y%m%d%H%M%SZ")))
+        _log.debug("Modified members: %s", [m.account.vsc_id for m in changed_members])
+
+        members = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
+            DONE: set(),
+        }
+
+        newly_processed_groups = set()
+        for member in changed_members:
+
+            if member.group in processed_groups[NEW] \
+                    or member.group in processed_groups[UPDATED] \
+                    or member.group in newly_processed_groups:
+                _log.info("Member %s was already processed with group %s" % (member.account.vsc_id, member.group))
+                members[DONE].add(member)
+                continue
+
+            try:
+                ldap_group = VscLdapGroup(member.group.vsc_id)
+                ldap_group.status
+                ldap_group.memberUid = [str(m.account.vsc_id) for m in Membership.objects.filter(group=member.group)]
+            except Exception:
+                _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
+                members[ERROR].add(member)
             else:
-                _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
+                newly_processed_groups.add(member.group)
+                members[UPDATED].add(member)
+                _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
 
-        except Exception:
-            _log.warning("Cannot update quota %s" % (quota,))
-            quotas[ERROR].add(quota)
+        return members
 
-    return quotas
 
-def sync_altered_user_groups(last, now, dry_run=True):
-    """
-    Add new usergroups to the LDAP and update altered usergroups.
+    def sync_altered_groups(last, now, dry_run=True):
+        """
+        Synchronise altered groups back to LDAP.
+        """
+        changed_groups = Group.objects.filter(modify_timestamp__range=[last, now])
 
-    @type last: datetime
-    @type now: datetime
-    @return: tuple (new, updated, error) that indicates what usergroups were new, changed or could not be altered.
-    """
-
-    changed_usergroups = UserGroup.objects.filter(modify_timestamp__range=[last, now])
-
-    _log.info("Found %d modified usergroups in the range %s until %s" % (len(changed_usergroups),
+        _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
                                                                          last.strftime("%Y%m%d%H%M%SZ"),
                                                                          now.strftime("%Y%m%d%H%M%SZ")))
-
-    _log.debug("Modified usergroups: %s", [g.vsc_id for g in changed_usergroups])
-
-    groups = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-    }
-
-    for usergroup in changed_usergroups:
-
-        ldap_attributes = {
-            'cn': str(usergroup.vsc_id),
-            'institute': [str(usergroup.institute.site)],
-            'gidNumber': ["%d" % (usergroup.vsc_id_number,)],
-            'moderator': [str(usergroup.vsc_id)],  # a fixed single moderator!
-            'memberUid': [str(usergroup.vsc_id)],  # a single member
-            'status': [str(usergroup.status)],
+        _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
+        groups = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
         }
+        for group in changed_groups:
 
-        result = add_or_update(VscLdapGroup, usergroup.vsc_id, ldap_attributes, dry_run)
-        groups[result].add(usergroup)
+            ldap_attributes = {
+                'cn': str(group.vsc_id),
+                'institute': [str(group.institute.site)],
+                'gidNumber': ["%d" % (group.vsc_id_number,)],
+                'moderator': [str(m.account.vsc_id) for m in Membership.objects.filter(moderator=True, group=group)],
+                'memberUid': [str(a.vsc_id) for a in group.get_members()],
+                'status': [str(group.status)],
+            }
 
-    return groups
+            _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
+
+            result = add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
+            groups[result].add(group)
+
+        return groups
 
 
-def sync_altered_autogroups(dry_run=True):
+    def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
+        """
+        Synchronise the memberships for groups when users are added/removed.
+        """
+        changed_members = VoMembership.objects.filter(modify_timestamp__range=[last, now])
 
-    changed_autogroups = Autogroup.objects.all() # we always sync autogroups since we cannot know beforehand if their membership list changed
-
-    _log.info("Found %d autogroups" % (len(changed_autogroups),))
-    _log.debug("Autogroups: %s", [a.vsc_id for a in changed_autogroups])
-
-    groups = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-    }
-
-    for autogroup in changed_autogroups:
-
-        ldap_attributes = {
-            'cn': str(autogroup.vsc_id),
-            'institute': [str(autogroup.institute.site)],
-            'gidNumber': ["%d" % (autogroup.vsc_id_number,)],
-            'moderator': [str(u.account.vsc_id) for u in DGroup.objects.get(name='administrator_%s' % (autogroup.institute.site,)).user_set.all()],
-            'memberUid': [str(a.vsc_id) for a in autogroup.get_members()],
-            'status': [str(autogroup.status)],
-            'autogroup': [str(s.vsc_id) for s in autogroup.sources.all()],
+        _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
+                                                                          last.strftime("%Y%m%d%H%M%SZ"),
+                                                                          now.strftime("%Y%m%d%H%M%SZ")))
+        _log.debug("Modified VO members: %s", [m.account.vsc_id for m in changed_members])
+        members = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
+            DONE: set(),
         }
+        newly_processed_vos = set()
 
-        _log.debug("Proposed changes for autogroup %s: %s", autogroup.vsc_id, ldap_attributes)
+        for member in changed_members:
 
-        result = add_or_update(VscLdapGroup, autogroup.vsc_id, ldap_attributes, dry_run)
-        groups[result].add(autogroup)
+            if member.group in processed_vos[NEW] \
+                    or member.group in processed_vos[UPDATED] \
+                    or member.group in newly_processed_vos:
+                _log.info("Member %s membership was already processed with group %s" % (member.account.vsc_id, member.group))
+                members[DONE].add(member)
+                continue
 
-    return groups
-
-
-def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
-    """
-    Synchronise the memberships for groups when users are added/removed.
-    """
-    changed_members = Membership.objects.filter(modify_timestamp__range=[last, now])
-
-    _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
-                                                                      last.strftime("%Y%m%d%H%M%SZ"),
-                                                                      now.strftime("%Y%m%d%H%M%SZ")))
-    _log.debug("Modified members: %s", [m.account.vsc_id for m in changed_members])
-
-    members = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-        DONE: set(),
-    }
-
-    newly_processed_groups = set()
-    for member in changed_members:
-
-        if member.group in processed_groups[NEW] \
-                or member.group in processed_groups[UPDATED] \
-                or member.group in newly_processed_groups:
-            _log.info("Member %s was already processed with group %s" % (member.account.vsc_id, member.group))
-            members[DONE].add(member)
-            continue
-
-        try:
-            ldap_group = VscLdapGroup(member.group.vsc_id)
-            ldap_group.status
-            ldap_group.memberUid = [str(m.account.vsc_id) for m in Membership.objects.filter(group=member.group)]
-        except Exception:
-            _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
-            members[ERROR].add(member)
-        else:
-            newly_processed_groups.add(member.group)
-            members[UPDATED].add(member)
-            _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
-
-    return members
-
-
-def sync_altered_groups(last, now, dry_run=True):
-    """
-    Synchronise altered groups back to LDAP.
-    """
-    changed_groups = Group.objects.filter(modify_timestamp__range=[last, now])
-
-    _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
-                                                                     last.strftime("%Y%m%d%H%M%SZ"),
-                                                                     now.strftime("%Y%m%d%H%M%SZ")))
-    _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
-    groups = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-    }
-    for group in changed_groups:
-
-        ldap_attributes = {
-            'cn': str(group.vsc_id),
-            'institute': [str(group.institute.site)],
-            'gidNumber': ["%d" % (group.vsc_id_number,)],
-            'moderator': [str(m.account.vsc_id) for m in Membership.objects.filter(moderator=True, group=group)],
-            'memberUid': [str(a.vsc_id) for a in group.get_members()],
-            'status': [str(group.status)],
-        }
-
-        _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
-
-        result = add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
-        groups[result].add(group)
-
-    return groups
-
-
-def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
-    """
-    Synchronise the memberships for groups when users are added/removed.
-    """
-    changed_members = VoMembership.objects.filter(modify_timestamp__range=[last, now])
-
-    _log.info("Found %d modified members in the range %s until %s" % (len(changed_members),
-                                                                      last.strftime("%Y%m%d%H%M%SZ"),
-                                                                      now.strftime("%Y%m%d%H%M%SZ")))
-    _log.debug("Modified VO members: %s", [m.account.vsc_id for m in changed_members])
-    members = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-        DONE: set(),
-    }
-    newly_processed_vos = set()
-
-    for member in changed_members:
-
-        if member.group in processed_vos[NEW] \
-                or member.group in processed_vos[UPDATED] \
-                or member.group in newly_processed_vos:
-            _log.info("Member %s membership was already processed with group %s" % (member.account.vsc_id, member.group))
-            members[DONE].add(member)
-            continue
-
-        try:
-            ldap_group = VscLdapGroup(member.group.vsc_id)
-            ldap_group.status
-            ldap_group.memberUid = [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=member.group)]
-        except Exception:
-            _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
-            members[ERROR].add(member)
-        else:
-            newly_processed_vos.add(member.group)
-            members[UPDATED].add(member)
-            _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
-
-    return members
-
-
-def sync_altered_VO(last, now, dry_run=True):
-    """
-    Synchronise altered VOs back to the LDAP.
-    """
-    changed_vos = VirtualOrganisation.objects.filter(modify_timestamp__range=[last, now])
-    _log.info("Found %d modified vos in the range %s until %s" % (len(changed_vos),
-                                                                  last.strftime("%Y%m%d%H%M%SZ"),
-                                                                  now.strftime("%Y%m%d%H%M%SZ")))
-    _log.debug("Modified VOs: %s", [v.vsc_id for v in changed_vos])
-
-    vos = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-    }
-
-    for vo in changed_vos:
-
-        try:
-            data_storage = Storage.objects.get(storage_type=settings.DATA, institute=vo.institute)
-            data_quota = VirtualOrganisationSizeQuota.objects.get(virtual_organisation=vo, storage=data_storage, fileset=vo.vsc_id).hard
-        except (VirtualOrganisationSizeQuota.DoesNotExist, IndexError):
-            data_quota = 0
-            _log.warning("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
-        except Storage.DoesNotExist:
-            data_quota = 0
-            _log.warning("No VO data storage for institute %s defined, setting quota to 0" % (vo.institute,))
-
-        try:
-            scratch_storage = Storage.objects.filter(storage_type=settings.SCRATCH, institute=vo.institute)
-            scratch_quota = VirtualOrganisationSizeQuota.objects.get(virtual_organisation=vo, storage=scratch_storage[0], fileset=vo.vsc_id).hard  # take the first one
-        except (VirtualOrganisationSizeQuota.DoesNotExist, IndexError):
-            scratch_quota = 0
-            _log.warning("Could not find VO quota information for %s on %s, setting to 0" % (vo.vsc_id, data_storage.name))
-        except Storage.DoesNotExist:
-            scratch_quota = 0
-            _log.warning("No VO scratch storage for institute %s defined, setting quota to 0" % (vo.institute,))
-
-        # Hack to deal with the anomaly that the VO admin actually 'belongs' to multiple VOs, only in the LDAP
-        # the moderator need not be a member
-        if vo.vsc_id in settings.VSC.institute_vos.values():
-            moderators = ['vsc40024']
-        else:
-            moderators = [str(m.account.vsc_id) for m in VoMembership.objects.filter(moderator=True, group=vo)]
-
-        ldap_attributes = {
-            'cn': str(vo.vsc_id),
-            'institute': [str(vo.institute.site)],
-            'gidNumber': ["%d" % (vo.vsc_id_number,)],
-            'moderator': moderators,
-            'memberUid': [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=vo)],
-            'status': [str(vo.status)],
-            'fairshare': ["%d" % (vo.fairshare,)],
-            'description': [str(vo.description)],
-            'dataDirectory': [str(vo.data_path)],
-            'scratchDirectory': [str(vo.scratch_path)],
-            'dataQuota': [str(data_quota)],
-            'scratchQuota': [str(scratch_quota)],
-        }
-
-        _log.debug("Proposed changes for VO %s: %s", vo.vsc_id, ldap_attributes)
-
-        result = add_or_update(VscLdapGroup, vo.vsc_id, ldap_attributes, dry_run)
-        vos[result].add(vo)
-
-    return vos
-
-
-def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
-    """
-    Sync the changed quota for the VO to the LDAP
-    """
-    changed_quota = VirtualOrganisationSizeQuota.objects.filter(virtual_organisation__status=ACTIVE, modify_timestamp__range=[last, now])
-
-    _log.info("Found %d modified VO quota in the range %s until %s" % (len(changed_quota),
-                                                                    last.strftime("%Y%m%d%H%M%SZ"),
-                                                                    now.strftime("%Y%m%d%H%M%SZ")))
-    quotas = {
-        NEW: set(),
-        UPDATED: set(),
-        ERROR: set(),
-        DONE: set(),
-        }
-
-    for quota in changed_quota:
-        virtual_organisation = quota.virtual_organisation
-        if virtual_organisation in altered_vos[NEW] or virtual_organisation in altered_vos[UPDATED]:
-            _log.info("Quota %s was already processed with VO %s" % (quota, virtual_organisation.vsc_id))
-            quotas[DONE].add(quota)
-            continue
-
-        try:
-            ldap_group = VscLdapGroup(virtual_organisation.vsc_id)
-            ldap_group.status
-            if quota.storage.storage_type in (settings.HOME,):
-                ldap_group.homeQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
-            elif quota.storage.storage_type in (settings.DATA,):
-                ldap_group.dataQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
-            elif quota.storage.storage_type in (settings.SCRATCH,):
-                ldap_group.scratchQuota = "%d" % (quota.hard,)
-                quotas[UPDATED].add(quota)
+            try:
+                ldap_group = VscLdapGroup(member.group.vsc_id)
+                ldap_group.status
+                ldap_group.memberUid = [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=member.group)]
+            except Exception:
+                _log.warning("Cannot add member %s to group %s" % (member.account.vsc_id, member.group.vsc_id))
+                members[ERROR].add(member)
             else:
-                _log.warning("Cannot sync quota to LDAP (storage type %s unknown)" % (quota.storage.storage_type,))
+                newly_processed_vos.add(member.group)
+                members[UPDATED].add(member)
+                _log.info("Processed group %s member %s" % (member.group.vsc_id, member.account.vsc_id))
 
-        except Exception:
-            _log.warning("Cannot update quota %s" % (quota,))
-            quotas[ERROR].add(quota)
+        return members
 
-    return quotas
+
+    def sync_altered_VO(last, now, dry_run=True):
+        """
+        Synchronise altered VOs back to the LDAP.
+        """
+        changed_vos = VirtualOrganisation.objects.filter(modify_timestamp__range=[last, now])
+        _log.info("Found %d modified vos in the range %s until %s" % (len(changed_vos),
+                                                                      last.strftime("%Y%m%d%H%M%SZ"),
+                                                                      now.strftime("%Y%m%d%H%M%SZ")))
+        _log.debug("Modified VOs: %s", [v.vsc_id for v in changed_vos])
+
+        vos = {
+            NEW: set(),
+            UPDATED: set(),
+            ERROR: set(),
+        }
+
+        for vo in changed_vos:
+
+            # Hack to deal with the anomaly that the VO admin actually 'belongs' to multiple VOs, only in the LDAP
+            # the moderator need not be a member
+            if vo.vsc_id in settings.VSC.institute_vos.values():
+                moderators = ['vsc40024']
+            else:
+                moderators = [str(m.account.vsc_id) for m in VoMembership.objects.filter(moderator=True, group=vo)]
+
+            ldap_attributes = {
+                'cn': str(vo.vsc_id),
+                'institute': [str(vo.institute.site)],
+                'gidNumber': ["%d" % (vo.vsc_id_number,)],
+                'moderator': moderators,
+                'memberUid': [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=vo)],
+                'status': [str(vo.status)],
+                'fairshare': ["%d" % (vo.fairshare,)],
+                'description': [str(vo.description)],
+                'dataDirectory': [str(vo.data_path)],
+                'scratchDirectory': [str(vo.scratch_path)],
+                #TODO: what do here?
+                #'dataQuota': [str(data_quota)],
+                #'scratchQuota': [str(scratch_quota)],
+            }
+
+            _log.debug("Proposed changes for VO %s: %s", vo.vsc_id, ldap_attributes)
+
+            result = add_or_update(VscLdapGroup, vo.vsc_id, ldap_attributes, dry_run)
+            vos[result].add(vo)
+
+        return vos
+
 
 def main():
-    now = datetime.utcnow().replace(tzinfo=utc)
+    now = datetime.utcnow().replace(tzinfo=timezone.utc)
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
@@ -673,7 +475,8 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
-    l = LdapQuery(VscConfiguration(VSC_CONF_DEFAULT_FILENAME))
+    # Creating this here because this is a singleton class
+    _ = LdapQuery(VscConfiguration(VSC_CONF_DEFAULT_FILENAME))
 
     last_timestamp = opts.options.start_timestamp
     if not last_timestamp:
@@ -713,14 +516,14 @@ def main():
             except OSError:
                 _log.raiseException("Could not drop privileges")
 
-            last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=utc)
-
-            altered_accounts = sync_altered_accounts(last, now, opts.options.dry_run)
-            altered_pubkeys = sync_altered_pubkeys(last, now, altered_accounts, opts.options.dry_run)
+            last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=timezone.utc)
+            syncer = LdapSyncer()
+            syncer.sync_altered_accounts(last, now, opts.options.dry_run)
+            syncer.sync_altered_pubkeys(last, now, opts.options.dry_run)
             # altered_users = sync_altered_users(last, now, altered_accounts)  # FIXME: no modification timestamps here :(
 
-            _log.debug("Altered accounts: %s" % (altered_accounts,))
-            _log.debug("Altered pubkeys: %s" % (altered_pubkeys,))
+            _log.debug("Altered accounts: %s",  syncer.processed_accounts)
+            _log.debug("Altered pubkeys: %s", syncer.altered_pubkeys)
             # _log.debug("Altered users: %s" % (altered_users,))
 
             altered_usergroups = sync_altered_user_groups(last, now, opts.options.dry_run)
@@ -731,8 +534,6 @@ def main():
             altered_vos = sync_altered_VO(last, now, opts.options.dry_run)
             altered_vo_members = sync_altered_vo_membership(last, now, altered_vos, opts.options.dry_run)
 
-            altered_user_quota = sync_altered_user_quota(last, now, altered_accounts, opts.options.dry_run)
-            altered_vo_quota = sync_altered_vo_quota(last, now, altered_vos, opts.options.dry_run)
 
             _log.debug("Altered usergroups: %s" % (altered_usergroups,))
             _log.debug("Altered autogroups: %s" % (altered_autogroups,))
@@ -740,8 +541,6 @@ def main():
             _log.debug("Altered members: %s" % (altered_members,))
             _log.debug("Altered VOs: %s" % (altered_vos,))
             _log.debug("Altered VO members: %s" % (altered_vo_members,))
-            _log.debug("Altered user quota: %s" % (altered_user_quota,))
-            _log.debug("Altered VO quota: %s" % (altered_vo_quota,))
 
             if not altered_accounts[ERROR] \
                 and not altered_groups[ERROR] \
@@ -749,8 +548,6 @@ def main():
                 and not altered_members[ERROR] \
                 and not altered_vo_members[ERROR] \
                 and not altered_usergroups[ERROR] \
-                and not altered_user_quota[ERROR] \
-                and not altered_vo_quota[ERROR]:
                 _log.info("Child process exiting correctly")
                 sys.exit(0)
             else:
@@ -763,8 +560,6 @@ def main():
                         ("altered members", altered_members[ERROR]),
                         ("altered vo_members", altered_vo_members[ERROR]),
                         ("altered usergroups", altered_usergroups[ERROR]),
-                        ("altered user quota", altered_user_quota[ERROR]),
-                        ("altered vo quota", altered_vo_quota[ERROR]),
                     ]]
                 ))
                 sys.exit(-1)

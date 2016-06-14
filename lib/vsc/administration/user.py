@@ -32,9 +32,9 @@ import os
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
-from vsc.accountpage.wrappers import VscAccount, VscAccountPerson, VscAccountPubkey, VscHomeOnScratch, VscUserGroup
+from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkVscUserGroup
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
-from vsc.accountpage.wrappers import VscGroup, VscUserSizeQuota
+from vsc.accountpage.wrappers import mkVscGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
@@ -64,17 +64,17 @@ class VscAccountPageUser(object):
 
         # We immediately retrieve this information
         try:
-            self.account = VscAccount(**(rest_client.account[user_id].get()[1]))
-            self.person = VscAccountPerson(**(rest_client.account[user_id].person.get()[1]))
-            self.pubkeys = [VscAccountPubkey(**p) for p in rest_client.account[user_id].pubkey.get()[1]
+            self.account = mkVscAccount((rest_client.account[user_id].get()[1]))
+            self.person = mkVscAccountPerson((rest_client.account[user_id].person.get()[1]))
+            self.pubkeys = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
                             if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
                 # TODO to be removed when magic site admin usergroups are pruged from code
-                self.usergroup = VscGroup(**(rest_client.group[user_id].get())[1])
+                self.usergroup = mkVscGroup((rest_client.group[user_id].get())[1])
             else:
-                self.usergroup = VscUserGroup(**(rest_client.account[user_id].usergroup.get()[1]))
+                self.usergroup = mkVscUserGroup((rest_client.account[user_id].usergroup.get()[1]))
             self.home_on_scratch = [
-                VscHomeOnScratch(**h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
+                mkVscHomeOnScratch(h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
             ]
         except HTTPError:
             logging.error("Cannot get information from the account page")
@@ -113,7 +113,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     def _init_quota(self, rest_client):
 
         try:
-            all_quota = [VscUserSizeQuota(**q) for q in rest_client.account[self.user_id].quota.get()[1]]
+            all_quota = [mkVscUserSizeQuota(q) for q in rest_client.account[self.user_id].quota.get()[1]]
         except HTTPError:
             logging.exception("Unable to retrieve quota information. Falling back to static info for home and data")
             self.user_home_quota = self.storage[VSC_HOME].user_quota
