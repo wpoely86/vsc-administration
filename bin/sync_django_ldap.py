@@ -28,6 +28,8 @@ from ldap import LDAPError
 from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
+from vsc.accountpage.wrappers import mkVscAutogroup, mkVscGroup, mkVscAccountPubkey, mkVscUserGroup
+
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -99,63 +101,17 @@ def class LdapSyncer(object):
 
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        pks =  [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id] if not p.deleted]
+        #TODO: check deleted syntax
+        pks =  [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id].pubkey if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
         return pks
-
-    def sync_altered_pubkeys(last, dry_run=True):
-        """
-        Remove obsolete public keys from the LDAP and add new public keys to the LDAP.
-        """
-        changed_pubkeys = [mkVscAccountPubkey(p) for p in self.client.account.pubkey.modified[last].get()[1]]
-
-        pubkeys = {
-            UPDATED: set(),
-            DONE: set(),
-            ERROR: set(),
-            }
-
-        new_pubkeys = [p for p in changed_pubkeys if not p.deleted]
-        deleted_pubkeys = [p for p in changed_pubkeys if p.deleted]
-
-        _log.warning("Deleted pubkeys %s" % (deleted_pubkeys,))
-        _log.debug("New pubkeys %s", new_pubkeys)
-
-        for p in changed_pubkeys:
-
-            if not p.vsc_id:
-                # This should NOT happen
-                _log.error("Key %d had no associated user anymore",p)
-                continue
-
-            try:
-                account = mkVscAccount(self.client.account[p.vsc_id])
-            except HTTPError:
-                _log.warning("No account for the user %s corresponding to the public key %d" % (p.vsc_id, p))
-                continue
-
-            if account in self.processed_accounts[NEW] or account in self.processed_accounts[UPDATED]:
-                _log.info("Account %s was already processed and has the new set of public keys" % (account.vsc_id,))
-                pubkeys[DONE].add(p)
-                continue
-
-            try:
-                ldap_user = VscLdapUser(p.vsc_id)
-                ldap_user.pubkey = [pk.pubkey for pk in pks]
-                self.processed_accounts[UPDATED].add(account)
-                pubkeys[UPDATED].add(p)
-            except Exception:
-                _log.warning("Cannot add pubkey for account %s to LDAP" % (account.vsc_id,))
-                pubkeys[ERROR].add(p)
-
-        self.processed_pubkeys = pubkeys
-
 
     def sync_altered_accounts(self, last, dry_run=True):
         """
         Add new users to the LDAP and update altered users. This does not include usergroups.
 
+        this does include pubkeys
         @type last: datetime
         @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
         """
@@ -177,7 +133,7 @@ def class LdapSyncer(object):
 
         for account in sync_accounts:
             try:
-                usergroup = mkUserGroup(client.account[account.vsc_id].usergroup.get()[1])
+                usergroup = mkVscUserGroup(client.account[account.vsc_id].usergroup.get()[1])
             except HTTPError:
                 _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
@@ -218,7 +174,7 @@ def class LdapSyncer(object):
         return accounts
 
 
-    def sync_altered_groups(last, now, dry_run=True):
+    def sync_altered_groups(self, last, now, dry_run=True):
         """
         Synchronise altered groups back to LDAP.
         This also includes usergroups
@@ -236,11 +192,14 @@ def class LdapSyncer(object):
         }
 
         for group in changed_groups:
-            #TDOO: if is VO or autogroup, set autogroup sources or fairshare and scratch/data dirs
-            autogroup = False
             vo = False
-
-
+            try:
+                vo = mkVo(self.client.vo[group.vsc_id].get()[1])
+                voquota = self.client.vo[group.vsc_id].quota.get()[1]
+            except HTTPError as err:
+                # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
+                if err.code != 404:
+                    raise
 
             ldap_attributes = {
                 'cn': str(group.vsc_id),
@@ -250,26 +209,14 @@ def class LdapSyncer(object):
                 'memberUid': [str(a['vsc_id') for a in group.members],
                 'status': [str(group.status)],
             }
-
-            if autogroup:
-                #TODO get autogroup sources from api
-                ldap_attributes['autogroup'] =  [str(s.vsc_id) for s in autogroup.sources.all()]
             if vo:
-                #TODO: add  correct ldap attributes for vo
-                ldap_attributes = {
-                'cn': str(vo.vsc_id),
-                'institute': [str(vo.institute.site)],
-                'gidNumber': ["%d" % (vo.vsc_id_number,)],
-                'moderator': moderators,
-                'memberUid': [str(m.account.vsc_id) for m in VoMembership.objects.filter(group=vo)],
-                'status': [str(vo.status)],
-                'fairshare': ["%d" % (vo.fairshare,)],
-                'description': [str(vo.description)],
-                'dataDirectory': [str(vo.data_path)],
-                'scratchDirectory': [str(vo.scratch_path)],
-                #TODO: what do here?
-                #'dataQuota': [str(data_quota)],
-                #'scratchQuota': [str(scratch_quota)],
+                ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
+                ldap_attributes['description'] = [str(vo.description)]
+                ldap_attributes['dataDirectory'] = [str(vo.data_path)]
+                ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
+                #TODO: fix quota: have proper api documentation
+                #ldap_attributes['dataQuota'] = [str(vo_quota[)],
+                #ldap_attributes['scratchQuota'] = [str(vo_quota[)],
             }
 
 
@@ -299,8 +246,8 @@ def main():
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
             _log.warning("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "201404230000Z"
-            _log.warning("We will resync from the beginning of the account page era, i.e. %s" % (last_timestamp,))
+            last_timestamp = "201604230000Z"
+            _log.warning("We will resync from a while back : %s" % (last_timestamp,))
 
     _log.info("Using timestamp %s" % (last_timestamp))
 
@@ -333,34 +280,16 @@ def main():
 
             last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=timezone.utc)
             syncer = LdapSyncer()
-            altered_accounts, altered_usergroups = syncer.sync_altered_accounts(last, now, opts.options.dry_run)
-            syncer.sync_altered_pubkeys(last, now, opts.options.dry_run)
-            # altered_users = sync_altered_users(last, now, altered_accounts)  # FIXME: no modification timestamps here :(
+            altered_accounts = syncer.sync_altered_accounts(last, now, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s",  syncer.processed_accounts)
-            _log.debug("Altered pubkeys: %s", syncer.altered_pubkeys)
-            # _log.debug("Altered users: %s" % (altered_users,))
 
-            altered_groups = sync_altered_groups(last, now, opts.options.dry_run)
-            altered_members = sync_altered_group_membership(last, now, altered_groups, opts.options.dry_run)
-            altered_autogroups = sync_altered_autogroups(altered_members, opts.options.dry_run)
+            altered_groups = syncer.sync_altered_groups(last, now, opts.options.dry_run)
 
-            altered_vos = sync_altered_VO(last, now, opts.options.dry_run)
-            altered_vo_members = sync_altered_vo_membership(last, now, altered_vos, opts.options.dry_run)
-
-
-            _log.debug("Altered autogroups: %s" % (altered_autogroups,))
             _log.debug("Altered groups: %s" % (altered_groups,))
-            _log.debug("Altered members: %s" % (altered_members,))
-            _log.debug("Altered VOs: %s" % (altered_vos,))
-            _log.debug("Altered VO members: %s" % (altered_vo_members,))
 
             if not altered_accounts[ERROR] \
                 and not altered_groups[ERROR] \
-                and not altered_vos[ERROR] \
-                and not altered_members[ERROR] \
-                and not altered_vo_members[ERROR] \
-                and not altered_usergroups[ERROR] \
                 _log.info("Child process exiting correctly")
                 sys.exit(0)
             else:
@@ -369,10 +298,6 @@ def main():
                     ["%s: %s\n" % (k, v) for (k, v) in [
                         ("altered accounts", altered_accounts[ERROR]),
                         ("altered groups", altered_groups[ERROR]),
-                        ("altered vos", altered_vos[ERROR]),
-                        ("altered members", altered_members[ERROR]),
-                        ("altered vo_members", altered_vo_members[ERROR]),
-                        ("altered usergroups", altered_usergroups[ERROR]),
                     ]]
                 ))
                 sys.exit(-1)

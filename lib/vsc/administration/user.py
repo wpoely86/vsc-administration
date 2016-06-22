@@ -15,11 +15,6 @@
 #
 """
 This file contains the utilities for dealing with users on the VSC.
-Original Perl code by Stijn De Weirdt.
-
-The following actions are available for users:
-- add: Add a user. Requires: institute, gecos, mail address, public key
-- modify_quota: Change the personal quota for a user (data and scratch only)
 
 @author: Stijn De Weirdt (Ghent University)
 @author: Andy Georges (Ghent University)
@@ -34,7 +29,7 @@ from urllib2 import HTTPError
 from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkVscUserGroup
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
-from vsc.accountpage.wrappers import mkVscGroup, mkVscUserSizeQuota
+from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
@@ -533,7 +528,8 @@ cluster_user_pickle_store_map = {
 
 def update_user_status(user, options, client):
     """
-    Change the status of the user's account in the account page to active. Do the same for the corresponding UserGroup.
+    Change the status of the user's account in the account page to active.
+    The usergroup status is always in sync with thte accounts status
     """
     if user.dry_run:
         log.info("User %s has account status %s. Dry-run, not changing anything", user.user_id, user.account.status)
@@ -557,20 +553,6 @@ def update_user_status(user, options, client):
             log.error("Account %s status was not changed", user.user_id)
             raise UserStatusUpdateError("Account %s status was not changed, still at %s" %
                                         (user.user_id, account.status))
-    try:
-        response_usergroup = client.account[user.user_id].usergroup.patch(body=payload)
-    except HTTPError, err:
-        log.error("UserGroup %s status was not changed", user.user_id)
-        raise UserStatusUpdateError("UserGroup %s status was not changed - received HTTP code %d" % (user.user_id, err.code))
-
-    else:
-        usergroup = mkUserGroup(response_usergroup[1])
-        if usergroup.status == ACTIVE:
-            log.info("UserGroup %s status changed to %s" % (user.user_id, ACTIVE))
-        else:
-            log.error("UserGroup %s status was not changed", user.user_id)
-            raise UserStatusUpdateError("UserGroup %s status was not changed, still at %s" %
-                                        (user.user_id, usergroup.status))
 
 
 def process_users_quota(options, user_quota, storage_name, client):
