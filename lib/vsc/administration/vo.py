@@ -380,7 +380,7 @@ def update_vo_status(vo, client):
                                         (vo.vo_id, virtual_organisation.status))
 
 
-def process_vos(options, vo_ids, storage, storage_name, client):
+def process_vos(options, vo_ids, storage, storage_name, client, datestamp):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -418,9 +418,11 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
-            for user_id in vo.vo.members:
+            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in
+                                client.vo[vo.vsc_id].members.modified[datestamp]]
+
+            for member in modified_members:
                 try:
-                    member = VscTier2AccountpageUser(user_id, rest_client=client)
                     member.dry_run = options.dry_run
                     if storage_name in [VSC_DATA]:
                         vo.set_member_data_quota(member)  # half of the VO quota
@@ -430,11 +432,11 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
-                    ok_vos[vo.vo_id] = [user_id]
+                    ok_vos[vo.vo_id] = [member.account.vsc_id]
                 except Exception:
                     logging.exception("Failure at setting up the member %s of VO %s on %s" %
-                                      (user_id, vo.vo_id, storage_name))
-                    error_vos[vo.vo_id] = [user_id]
+                                      (member.account.vsc_id, vo.vo_id, storage_name))
+                    error_vos[vo.vo_id] = [member.account.vsc_id]
         except Exception:
             logging.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
             error_vos[vo.vo_id] = vo.members
