@@ -27,7 +27,7 @@ import os
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
-from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkVscUserGroup
+from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
@@ -67,7 +67,7 @@ class VscAccountPageUser(object):
                 # TODO to be removed when magic site admin usergroups are pruged from code
                 self.usergroup = mkVscGroup((rest_client.group[user_id].get())[1])
             else:
-                self.usergroup = mkVscUserGroup((rest_client.account[user_id].usergroup.get()[1]))
+                self.usergroup = mkUserGroup((rest_client.account[user_id].usergroup.get()[1]))
             self.home_on_scratch = [
                 mkVscHomeOnScratch(h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
             ]
