@@ -151,7 +151,8 @@ def main():
                                                  ugent_vos,
                                                  storage[storage_name],
                                                  storage_name,
-                                                 client)
+                                                 client,
+                                                 last_timestamp[:12])
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
