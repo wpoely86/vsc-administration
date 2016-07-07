@@ -155,7 +155,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo.vsc_id))
 
-        self.gpfs.chmod(0770, path)
+        self.gpfs.chmod(0o770, path)
 
         try:
             moderator = mkVscAccount(self.rest_client.account[self.vo.moderators[0]].get()[1])
@@ -302,7 +302,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a member-owned directory in the VO fileset."""
         create_stat_directory(
             target,
-            0700,
+            0o700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
             self.gpfs,

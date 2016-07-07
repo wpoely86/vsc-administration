@@ -163,7 +163,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.info("Fileset %s already exists for user group of %s ... not creating again.",
                          fileset_name, self.account.vsc_id)
 
-        self.gpfs.chmod(0755, path)
+        self.gpfs.chmod(0o755, path)
 
     def _get_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage_name."""
@@ -272,7 +272,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         create_stat_directory(
             path,
-            0700,
+            0o700,
             int(self.account.vsc_id_number),
             int(self.usergroup.vsc_id_number),
             self.gpfs
