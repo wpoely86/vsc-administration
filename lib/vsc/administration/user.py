@@ -65,7 +65,7 @@ class VscAccountPageUser(object):
                             if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
                 # TODO to be removed when magic site admin usergroups are pruged from code
-                self.usergroup = mkVscGroup((rest_client.group[user_id].get())[1])
+                self.usergroup = mkGroup((rest_client.group[user_id].get())[1])
             else:
                 self.usergroup = mkUserGroup((rest_client.account[user_id].usergroup.get()[1]))
             self.home_on_scratch = [
@@ -485,7 +485,7 @@ class MukAccountpageUser(VscAccountPageUser):
         self.gpfs.make_dir(base_home_dir_hierarchy)
         try:
             os.symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
-        except OSError, err:
+        except OSError as err:
             if err.errno not in [errno.EEXIST]:
                 raise
             else:
@@ -542,7 +542,7 @@ def update_user_status(user, options, client):
     payload = {"status": ACTIVE}
     try:
         response_account = client.account[user.user_id].patch(body=payload)
-    except HTTPError, err:
+    except HTTPError as err:
         log.error("Account %s and UserGroup %s status were not changed", user.user_id, user.user_id)
         raise UserStatusUpdateError("Account %s status was not changed - received HTTP code %d" % err.code)
     else:
@@ -577,7 +577,7 @@ def process_users_quota(options, user_quota, storage_name, client):
                 user.set_scratch_quota(storage_name)
 
             ok_quota.append(quota)
-        except:
+        except Exception:
             log.exception("Cannot process user %s" % (user.user_id))
             error_quota.append(quota)
 
@@ -620,7 +620,7 @@ def process_users(options, account_ids, storage_name, client):
                 user.create_scratch_dir(storage_name)
 
             ok_users.append(user)
-        except:
+        except Exception:
             log.exception("Cannot process user %s" % (user.user_id))
             error_users.append(user)
 

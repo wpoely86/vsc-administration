@@ -92,7 +92,7 @@ def main():
 
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
-        except:
+        except Exception:
             logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "200901010000Z"
 
@@ -161,7 +161,7 @@ def main():
             (_, ldap_timestamp) = convert_timestamp(now)
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-    except Exception, err:
+    except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)

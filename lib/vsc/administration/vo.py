@@ -431,11 +431,11 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                         vo.create_member_scratch_dir(storage_name, member)
 
                     ok_vos[vo.vo_id] = [user_id]
-                except:
+                except Exception:
                     logging.exception("Failure at setting up the member %s of VO %s on %s" %
                                       (user_id, vo.vo_id, storage_name))
                     error_vos[vo.vo_id] = [user_id]
-        except:
+        except Exception:
             logging.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
             error_vos[vo.vo_id] = vo.members
 

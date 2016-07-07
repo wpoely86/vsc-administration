@@ -98,7 +98,7 @@ def main():
         group_name = "%st1_mukusers" % institute
         try:
             group = ldap_query.group_filter_search(CnFilter(group_name))[0]
-        except:
+        except Exception:
             log.error("No LDAP group with the name %s found" % (group_name))
             continue
 
@@ -111,7 +111,7 @@ def main():
             try:
                 gpfs.make_fileset(project_fileset_path, project_fileset_name)
                 log.info("Created new fileset %s with link path %s" % (project_fileset_name, project_fileset_path))
-            except:
+            except Exception:
                 log.exception("Failed to create a new fileset with the name %s and link path %s" %
                               (project_fileset_name, project_fileset_path))
 
