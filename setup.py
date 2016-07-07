@@ -28,7 +28,7 @@ PACKAGE = {
     'maintainer': [ag],
     'tests_require': ['mock'],
     'install_requires': [
-        'vsc-accountpage-clients >= 0.2',
+        'vsc-accountpage-clients >= 0.7',
         'vsc-base >= 2.4.16',
         'vsc-config >= 1.20',
         'vsc-filesystems >= 0.19',
