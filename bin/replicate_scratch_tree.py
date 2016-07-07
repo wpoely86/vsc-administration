@@ -5,7 +5,7 @@
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -57,7 +57,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
     if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         if not dry_run:
             gpfs.make_fileset(fileset_path, fileset_name)
-            gpfs.chmod(fileset_path, 0755)
+            gpfs.chmod(fileset_path, 0o755)
         log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
 
     # create directories up to vsc42000
@@ -69,8 +69,8 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
             try:
                 if not dry_run:
                     os.mkdir(group_path)
-                    os.chmod(group_path, 0755)
-            except (IOError, OSError), err:
+                    os.chmod(group_path, 0o755)
+            except (IOError, OSError) as err:
                 log.error("Problem creating dir %s" % (group_path,))
 
         for user in xrange(0,100):
@@ -84,8 +84,8 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                     if not dry_run:
                         os.mkdir(user_path)
                         os.chown(user_path, user_id, user_id)
-                        os.chmod(user_path, 0700)
-                except (IOError, OSError), err:
+                        os.chmod(user_path, 0o700)
+                except (IOError, OSError) as err:
                     log.error("Problem creating dir %s" % (user_path,))
 
     if vo_support:
@@ -94,14 +94,14 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
 
         if not os.path.exists(vo_group_path):
             os.mkdir(vo_group_path)
-            os.chmod(vo_group_path, 0755)
+            os.chmod(vo_group_path, 0o755)
 
         for vo in xrange(1,100):
 
             vo_name =  "gvo%05d" % (vo,)
             try:
                 vo_group = grp.getgrnam(vo_name)
-            except:
+            except Exception:
                 log.warning("Cannot find a group for VO %s" % (vo_name,))
                 continue
 
@@ -114,7 +114,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                     vo_moderator = pwd.getpwnam(member_name)
                     log.info("VO moderator is picked as %s" % (vo_moderator.pw_name,))
                     break
-                except KeyError, err:
+                except KeyError as err:
                     continue
 
             if not vo_moderator:
@@ -126,8 +126,8 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                 try:
                     os.mkdir(vo_path)
                     os.chown(vo_path, vo_moderator.pw_uid, vo_group.gr_gid)
-                    os.chmod(vo_path, 0770)
-                except (IOError, OSError), err:
+                    os.chmod(vo_path, 0o770)
+                except (IOError, OSError) as err:
                     log.error("Problem creating dir %s" % (vo_path,))
 
             for member_name in vo_members:
@@ -135,7 +135,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                 member_path = os.path.join(vo_path, member_name)
                 try:
                     member = pwd.getpwnam(member_name)
-                except KeyError, err:
+                except KeyError as err:
                     continue
 
                 if not os.path.exists(member_path):
@@ -143,8 +143,8 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
                     try:
                         os.mkdir(member_path)
                         os.chown(member_path, member.pw_uid, member.pw_gid)
-                        os.chmod(member_path, 0700)
-                    except:
+                        os.chmod(member_path, 0o700)
+                    except Exception:
                         log.error("Cannot create dir %s" % (member_path,))
 
 
@@ -178,7 +178,7 @@ def main():
             set_up_filesystem(gpfs, storage_settings, storage_name, filesystem_info, filesystem_name, vo_support=True,
                               dry_run=opts.options.dry_run)
 
-    except Exception, err:
+    except Exception as err:
         log.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)

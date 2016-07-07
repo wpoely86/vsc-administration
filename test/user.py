@@ -4,7 +4,7 @@
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -34,12 +34,12 @@ class VscAccountPageUserTest(TestCase):
     """
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.VscAccount')
-    @mock.patch('vsc.administration.user.VscAccountPerson')
-    @mock.patch('vsc.administration.user.VscAccountPubkey')
-    @mock.patch('vsc.administration.user.VscGroup')
-    @mock.patch('vsc.administration.user.VscUserGroup')
-    @mock.patch('vsc.administration.user.VscHomeOnScratch')
+    @mock.patch('vsc.administration.user.mkVscAccount')
+    @mock.patch('vsc.administration.user.mkVscAccountPerson')
+    @mock.patch('vsc.administration.user.mkVscAccountPubkey')
+    @mock.patch('vsc.administration.user.mkGroup')
+    @mock.patch('vsc.administration.user.mkUserGroup')
+    @mock.patch('vsc.administration.user.mkVscHomeOnScratch')
     def test_get_institute_prefix(self,
                                   mock_home_on_scratch,
                                   mock_usergroup,

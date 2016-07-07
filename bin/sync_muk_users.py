@@ -5,7 +5,7 @@
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -102,10 +102,10 @@ def process_institute(options, institute, institute_users, client):
         os.stat(nfs_location)
         try:
             error_users = process(options, institute_users, client)
-        except:
+        except Exception:
             logger.exception("Something went wrong processing users from %s" % (institute))
             error_users = institute_users
-    except:
+    except Exception:
         logger.exception("Cannot process users from institute %s, cannot stat link to NFS mount" % (institute))
         error_users = institute_users
 
@@ -135,7 +135,7 @@ def process(options, users, client):
             user.create_scratch_fileset()
             user.populate_scratch_fallback()
             user.create_home_dir()
-        except:
+        except Exception:
             logger.exception("Cannot process user %s" % (user_id))
             error_users.append(user_id)
 
@@ -152,7 +152,7 @@ def force_nfs_mounts(muk):
         try:
             os.stat(muk.nfs_link_pathnames[institute]['home'])
             nfs_mounts.append(institute)
-        except:
+        except Exception:
             logger.exception("Cannot stat %s, not adding institute" % muk.nfs_link_pathnames[institute]['home'])
 
     return nfs_mounts
@@ -171,7 +171,7 @@ def add_users_to_purgees(previous_users, current_users, purgees, now, client, dr
                 group_name = "%st1_mukgraceusers" % user.person.institute['site'][0]
                 try:
                     client.group[group_name].member[user_id].post()
-                except HTTPError, err:
+                except HTTPError as err:
                     logging.error(
                         "Return code %d: could not add %s to group %s [%s]. Not notifying user or adding to purgees.",
                         err.code, user_id, group_name, err)
@@ -336,7 +336,7 @@ def notify_purge(user, grace=0, grace_unit=""):
                               message=message)
             logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
                         (user.account.vsc_id, user.person.gecos, mail_subject))
-        except VscMailError, err:
+        except VscMailError as err:
             logger.error("Sending mail to %s (via %s) failed: %s",  err.mail_to, err.mail_host, err.err)
 
 
@@ -350,7 +350,7 @@ def purge_user(user, client):
         group_name = user.get_institute_prefix() + TIER1_GRACE_GROUP_SUFFIX
         try:
             client.group[group_name].member[user.account.vsc_id].delete()
-        except HTTPError, err:
+        except HTTPError as err:
             logging.error("Return code %d: could not remove %s from group %s [%s]",
                           err.code, user.account.vsc_id, group_name, err)
         else:
@@ -417,7 +417,7 @@ def main():
         purgees_stats = purge_obsolete_symlinks(opts.options.purge_cache, muk_users_set, client, opts.options.dry_run)
         stats.update(purgees_stats)
 
-    except Exception, err:
+    except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)

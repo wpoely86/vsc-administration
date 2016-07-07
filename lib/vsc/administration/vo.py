@@ -5,7 +5,7 @@
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -28,11 +28,10 @@ import pwd
 
 from urllib2 import HTTPError
 
-from vsc.accountpage.wrappers import mkVo, VscVoSizeQuota
-from vsc.accountpage.wrappers import VscVo as VscVoWrapper
+from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
-from vsc.administration.user import VscAccount, VscTier2AccountpageUser, UserStatusUpdateError
-from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_MUK, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
+from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
@@ -59,7 +58,7 @@ class VscAccountPageVo(object):
 
         # We immediately retrieve this information
         try:
-            self.vo = VscVoWrapper(**(rest_client.vo[vo_id].get()[1]))
+            self.vo = mkVo((rest_client.vo[vo_id].get()[1]))
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -87,7 +86,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self.posix = PosixOperations()
 
         try:
-            all_quota = [VscVoSizeQuota(**q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
+            all_quota = [mkVscVoSizeQuota(q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
         except HTTPError:
             logging.exception("Unable to retrieve quota information")
             # to avoid reducing the quota in case of issues with the account page, we will NOT
@@ -97,8 +96,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
             self.vo_data_quota = ([q.hard for q in institute_quota
-                                          if q.storage['storage_type'] in ('data',)]
-                                          or [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
+                                   if q.storage['storage_type'] in ('data',)] or
+                                  [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
             self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
@@ -156,10 +155,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo.vsc_id))
 
-        self.gpfs.chmod(0770, path)
+        self.gpfs.chmod(0o770, path)
 
         try:
-            moderator = VscAccount(**self.rest_client.account[self.vo.moderators[0]].get()[1])
+            moderator = mkVscAccount(self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
             logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
             self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
@@ -303,7 +302,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a member-owned directory in the VO fileset."""
         create_stat_directory(
             target,
-            0700,
+            0o700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
             self.gpfs,
@@ -432,11 +431,11 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                         vo.create_member_scratch_dir(storage_name, member)
 
                     ok_vos[vo.vo_id] = [user_id]
-                except:
+                except Exception:
                     logging.exception("Failure at setting up the member %s of VO %s on %s" %
-                                     (user_id, vo.vo_id, storage_name))
+                                      (user_id, vo.vo_id, storage_name))
                     error_vos[vo.vo_id] = [user_id]
-        except:
+        except Exception:
             logging.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
             error_vos[vo.vo_id] = vo.members
 
