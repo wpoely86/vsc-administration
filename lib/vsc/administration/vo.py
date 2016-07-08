@@ -280,7 +280,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         FIXME: This should probably be some variable in a config setting instance
         """
         if not self.vo_scratch_quota:
-            logging.warning("Not setting VO %s member %s scratch quota: no VO data quota info available" %
+            logging.warning("Not setting VO %s member %s scratch quota: no VO quota info available" %
                             (self.vo.vsc_id, member.account.vsc_id))
             return
 
@@ -418,8 +418,8 @@ def process_vos(options, vo_ids, storage, storage_name, client, datestamp):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
-            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in
-                                client.vo[vo.vsc_id].members.modified[datestamp]]
+            modified_member_list = client.vo[vo.vsc_id].members.modified[datestamp].get()
+            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]]
 
             for member in modified_members:
                 try:
