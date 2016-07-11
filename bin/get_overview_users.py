@@ -50,14 +50,14 @@ DATABASE_USER = "hpccollector"
 def get_hpc_collector_users(db, members):
     """Get the users from UGent in the HPC collector database."""
     users = [
-        User(vscid=u, ugentid=None, active=a, employee=False, student=False) for (u, i, a) in
+        User(vscid=u, ugentid=None, active=a, employee=False, student=False) for (u, _, a) in
         db.execute(select([members.c.uid, members.c.active]).where(members.c.inst == GENT)).fetchall()
     ]
     log.debug("Found the following users in the HPC collector DB: %s", users)
     return users
 
 
-def get_ugent_id(opts, client, vscuid):
+def get_ugent_id(client, vscuid):
     """Retrieve the UGent login from the account page"""
     try:
         person = mkVscPerson(**client.account[vscuid].person.get()[1])
@@ -109,7 +109,7 @@ def main():
     member = Table('member', meta, autoload=True, autoload_with=db_engine)
 
     users = get_hpc_collector_users(db_connection, member)
-    users = [u._replace(ugentid=get_ugent_id(opts, client, u.vscid)) for u in users]
+    users = [u._replace(ugentid=get_ugent_id(client, u.vscid)) for u in users]
 
     ugent_ldap_query = UGentLdapQuery(UGentLdapConfiguration("collector"))  # Initialise the LDAP connection
     users = [u._replace(employee=employee, student=student) for u in users for (employee, student) in

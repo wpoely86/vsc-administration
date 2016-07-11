@@ -127,10 +127,10 @@ def main():
                 storage_changed_quota = [q for q in storage_changed_quota if q.fileset.startswith('vsc')]
                 logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s" %
                             (len(storage_changed_quota), storage_name, last_timestamp[:12]))
-                (quota_ok, quota_fail) = process_users_quota(opts.options,
-                                                             storage_changed_quota,
-                                                             storage_name,
-                                                             client)
+                process_users_quota(opts.options,
+                                    storage_changed_quota,
+                                    storage_name,
+                                    client)
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:

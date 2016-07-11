@@ -24,7 +24,6 @@ import logging
 import os
 import stat
 
-from lockfile.pidlockfile import PIDLockFile
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
