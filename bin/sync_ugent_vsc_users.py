@@ -36,7 +36,6 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
-from vsc.config.base import VscStorage
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
@@ -88,7 +87,6 @@ def main():
     try:
         now = datetime.utcnow()
         client = AccountpageClient(token=opts.options.access_token)
-        storage = VscStorage()
 
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
@@ -109,7 +107,7 @@ def main():
                         (len(ugent_changed_pubkey_accounts), last_timestamp[:12]))
 
             ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
-                           + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']]
+                + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']]
             ugent_accounts = nub(ugent_accounts)
 
             for storage_name in opts.options.storage:
@@ -127,10 +125,10 @@ def main():
                 storage_changed_quota = [q for q in storage_changed_quota if q.fileset.startswith('vsc')]
                 logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s" %
                             (len(storage_changed_quota), storage_name, last_timestamp[:12]))
-                (quota_ok, quota_fail) = process_users_quota(opts.options,
-                                                             storage_changed_quota,
-                                                             storage_name,
-                                                             client)
+                process_users_quota(opts.options,
+                                    storage_changed_quota,
+                                    storage_name,
+                                    client)
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
@@ -138,7 +136,7 @@ def main():
             ugent_changed_vo_quota = client.quota.vo.modified[last_timestamp[:12]].get()[1]
 
             ugent_vos = [v['vsc_id'] for v in ugent_changed_vos] \
-                      + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
+                + [v['virtual_organisation'] for v in ugent_changed_vo_quota]
 
             logger.info("Found %d UGent VOs that have changed in the accountpage since %s" %
                         (len(ugent_changed_vos), last_timestamp[:12]))
@@ -149,9 +147,9 @@ def main():
             for storage_name in opts.options.storage:
                 (vos_ok, vos_fail) = process_vos(opts.options,
                                                  ugent_vos,
-                                                 storage[storage_name],
                                                  storage_name,
-                                                 client)
+                                                 client,
+                                                 last_timestamp[:12])
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING

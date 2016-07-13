@@ -37,14 +37,35 @@ class VoDeploymentTest(TestCase):
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_vos(self, mock_client):
 
-        test_vo_ids = ["gvo000%0d" % d for d in [1, 2, 20, 25, 33, 54]]
+        test_vo_id = "gvo00002"
         TestVO = namedtuple("TestVO", ['members'])
         test_vo = TestVO(members=['vsc40001', 'vsc40002'])
         Options = namedtuple("Options", ['dry_run'])
         options = Options(dry_run=False)
 
-        mock_client.return_value = mock.MagicMock()
-        storage = None  # not used anymore, it seems
+        mc = mock_client.return_value
+        mc.vo = mock.MagicMock()
+        date = "20321231"
+        #mc.vo.__getitem__.return_value.members.modified.__getitem__.return_value.get.return_value = (
+        mc.vo['gvo00002'].members.modified[date].get.return_value = (
+            200, [{
+                u'broken': False,
+                u'create_timestamp': u'2014-04-23T09:11:22.460Z',
+                u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+                u'email': u'andy.georges@ugent.be',
+                u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+                u'login_shell': u'/bin/bash',
+                u'person': {
+                    u'gecos': u'Andy Georges',
+                    u'institute': {u'site': u'gent'},
+                    u'institute_login': u'ageorges'
+                },
+                u'research_field': [u'Computer systems, architectures, networks', u'nwo'],
+                u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+                u'status': u'active',
+                u'vsc_id': u'vsc40075',
+                u'vsc_id_number': 2540075,
+        }])
 
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
             with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
@@ -54,9 +75,10 @@ class VoDeploymentTest(TestCase):
                         mock_vo.return_value = mock.MagicMock()
                         mock_vo_instance = mock_vo.return_value
                         mock_vo_instance.vo = test_vo
+                        mock_vo_instance.vsc_id = test_vo_id
                         mock_user.return_value = mock.MagicMock()
 
-                        vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
+                        vo.process_vos(options, [test_vo_id], storage_name, mc, date)
 
                         if storage_name in (VSC_HOME, VSC_DATA):
                             mock_vo_instance.create_scratch_fileset.assert_not_called()
@@ -86,14 +108,34 @@ class VoDeploymentTest(TestCase):
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_non_gent_institute_vos(self, mock_client):
 
-        test_vo_ids = ["gvo000%0d" % d for d in [16, 17, 18]]
-        TestVO = namedtuple("TestVO", ['members'])
-        test_vo = TestVO(members=['vsc40001', 'vsc40002'])
+        test_vo_id = "gvo00018"
+        TestVO = namedtuple("TestVO", ['members', 'vsc_id'])
+        test_vo = TestVO(members=['vsc30001', 'vsc30002'], vsc_id=test_vo_id)
         Options = namedtuple("Options", ['dry_run'])
         options = Options(dry_run=False)
 
-        mock_client.return_value = mock.MagicMock()
-        storage = None  # not used anymore, it seems
+        mc = mock_client.return_value
+        mc.vo = mock.MagicMock()
+        date = "20321231"
+        mc.vo['gvo00018'].members.modified[date].get.return_value = (
+            200, [{
+                u'broken': False,
+                u'create_timestamp': u'2014-04-23T09:11:22.460Z',
+                u'data_directory': u'/user/leuven/data/vsc400/vsc40075',
+                u'email': u'andy.georges@kuleuven.be',
+                u'home_directory': u'/user/leuven/home/vsc400/vsc40075',
+                u'login_shell': u'/bin/bash',
+                u'person': {
+                    u'gecos': u'Andy Georges',
+                    u'institute': {u'site': u'leuven'},
+                    u'institute_login': u'ageorges'
+                },
+                u'research_field': [u'Computer systems, architectures, networks', u'nwo'],
+                u'scratch_directory': u'/user/leuven/scratch/vsc400/vsc40075',
+                u'status': u'active',
+                u'vsc_id': u'vsc40075',
+                u'vsc_id_number': 2540075,
+        }])
 
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
             with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
@@ -103,9 +145,10 @@ class VoDeploymentTest(TestCase):
                         mock_vo.return_value = mock.MagicMock()
                         mock_vo_instance = mock_vo.return_value
                         mock_vo_instance.vo = test_vo
+                        mock_vo_instance.vsc_id = test_vo_id
                         mock_user.return_value = mock.MagicMock()
 
-                        vo.process_vos(options, test_vo_ids, storage, storage_name, mock_client)
+                        vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
 
                         if storage_name in (VSC_HOME, VSC_DATA):
                             mock_vo_instance.create_scratch_fileset.assert_not_called()

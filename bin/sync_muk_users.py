@@ -215,14 +215,14 @@ def purge_obsolete_symlinks(path, current_users, client, dry_run):
 
     previous_users = cache.load('previous_users')
     if previous_users:
-        (previous_users_timestamp, previous_users) = previous_users
+        (_, previous_users) = previous_users
     else:
         logger.warning("Purge cache has no previous_users")
         previous_users = []
 
     purgees = cache.load('purgees')
     if purgees:
-        (purgees_timestamp, purgees) = purgees
+        (_, purgees) = purgees
     else:
         logger.warning("Purge cache has no purgees")
         purgees = dict()

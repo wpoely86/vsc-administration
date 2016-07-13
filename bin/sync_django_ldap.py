@@ -34,7 +34,7 @@ from django.contrib.auth.models import Group as DGroup
 from django.contrib.auth.models import User
 from django.utils.timezone import utc
 
-from account.models import Account, Person, Pubkey, MailList
+from account.models import Account, Person, Pubkey
 from group.models import Autogroup, Group, UserGroup, VirtualOrganisation, Membership, VoMembership
 from host.models import Storage, Site
 from quota.models import UserSizeQuota, VirtualOrganisationSizeQuota
@@ -54,7 +54,7 @@ NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
-ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING="THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
+ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING = "THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
 
 fancylogger.setLogLevelInfo()
 fancylogger.logToScreen(True)
@@ -101,7 +101,7 @@ def add_or_update(VscLdapKlass, cn, ldap_attributes, dry_run):
         return UPDATED
 
 
-def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
+def sync_altered_pubkeys(last, now, processed_accounts=None):
     """
     Remove obsolete public keys from the LDAP and add new public keys to the LDAP.
     """
@@ -153,7 +153,7 @@ def sync_altered_pubkeys(last, now, processed_accounts=None, dry_run=True):
     return pubkeys
 
 
-def sync_altered_users(last, now, processed_accounts, dry_run=True):
+def sync_altered_users(last, now, processed_accounts):
     """
     The only thing that can be changed is the email address, but we should sync that too.
     """
@@ -208,7 +208,6 @@ def sync_altered_accounts(last, now, dry_run=True):
                                                                        last.strftime("%Y%m%d%H%M%SZ"),
                                                                        now.strftime("%Y%m%d%H%M%SZ")))
     _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
-
 
     for account in sync_accounts:
 
@@ -310,7 +309,7 @@ def sync_altered_accounts(last, now, dry_run=True):
     return accounts
 
 
-def sync_altered_user_quota(last, now, altered_accounts, dry_run=True):
+def sync_altered_user_quota(last, now, altered_accounts):
     """
     Check for users who have altered quota and sync these to the LDAP.
 
@@ -359,6 +358,7 @@ def sync_altered_user_quota(last, now, altered_accounts, dry_run=True):
 
     return quotas
 
+
 def sync_altered_user_groups(last, now, dry_run=True):
     """
     Add new usergroups to the LDAP and update altered usergroups.
@@ -401,7 +401,7 @@ def sync_altered_user_groups(last, now, dry_run=True):
 
 def sync_altered_autogroups(dry_run=True):
 
-    changed_autogroups = Autogroup.objects.all() # we always sync autogroups since we cannot know beforehand if their membership list changed
+    changed_autogroups = Autogroup.objects.all()  # we always sync autogroups since we cannot know beforehand if their membership list changed
 
     _log.info("Found %d autogroups" % (len(changed_autogroups),))
     _log.debug("Autogroups: %s", [a.vsc_id for a in changed_autogroups])
@@ -432,7 +432,7 @@ def sync_altered_autogroups(dry_run=True):
     return groups
 
 
-def sync_altered_group_membership(last, now, processed_groups, dry_run=True):
+def sync_altered_group_membership(last, now, processed_groups):
     """
     Synchronise the memberships for groups when users are added/removed.
     """
@@ -509,7 +509,7 @@ def sync_altered_groups(last, now, dry_run=True):
     return groups
 
 
-def sync_altered_vo_membership(last, now, processed_vos, dry_run=True):
+def sync_altered_vo_membership(last, now, processed_vos):
     """
     Synchronise the memberships for groups when users are added/removed.
     """
@@ -619,15 +619,17 @@ def sync_altered_VO(last, now, dry_run=True):
     return vos
 
 
-def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
+def sync_altered_vo_quota(last, now, altered_vos):
     """
     Sync the changed quota for the VO to the LDAP
     """
-    changed_quota = VirtualOrganisationSizeQuota.objects.filter(virtual_organisation__status=ACTIVE, modify_timestamp__range=[last, now])
+    changed_quota = VirtualOrganisationSizeQuota.objects.filter(
+        virtual_organisation__status=ACTIVE,
+        modify_timestamp__range=[last, now])
 
-    _log.info("Found %d modified VO quota in the range %s until %s" % (len(changed_quota),
-                                                                    last.strftime("%Y%m%d%H%M%SZ"),
-                                                                    now.strftime("%Y%m%d%H%M%SZ")))
+    _log.info("Found %d modified VO quota in the range %s until %s" % (
+        len(changed_quota), last.strftime("%Y%m%d%H%M%SZ"), now.strftime("%Y%m%d%H%M%SZ"))
+    )
     quotas = {
         NEW: set(),
         UPDATED: set(),
@@ -663,6 +665,7 @@ def sync_altered_vo_quota(last, now, altered_vos, dry_run=True):
 
     return quotas
 
+
 def main():
     now = datetime.utcnow().replace(tzinfo=utc)
 
@@ -673,7 +676,7 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
-    l = LdapQuery(VscConfiguration(VSC_CONF_DEFAULT_FILENAME))
+    LdapQuery(VscConfiguration(VSC_CONF_DEFAULT_FILENAME))
 
     last_timestamp = opts.options.start_timestamp
     if not last_timestamp:
@@ -716,7 +719,7 @@ def main():
             last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=utc)
 
             altered_accounts = sync_altered_accounts(last, now, opts.options.dry_run)
-            altered_pubkeys = sync_altered_pubkeys(last, now, altered_accounts, opts.options.dry_run)
+            altered_pubkeys = sync_altered_pubkeys(last, now, altered_accounts)
             # altered_users = sync_altered_users(last, now, altered_accounts)  # FIXME: no modification timestamps here :(
 
             _log.debug("Altered accounts: %s" % (altered_accounts,))
@@ -727,12 +730,12 @@ def main():
             altered_autogroups = sync_altered_autogroups(opts.options.dry_run)
 
             altered_groups = sync_altered_groups(last, now, opts.options.dry_run)
-            altered_members = sync_altered_group_membership(last, now, altered_groups, opts.options.dry_run)
+            altered_members = sync_altered_group_membership(last, now, altered_groups)
             altered_vos = sync_altered_VO(last, now, opts.options.dry_run)
-            altered_vo_members = sync_altered_vo_membership(last, now, altered_vos, opts.options.dry_run)
+            altered_vo_members = sync_altered_vo_membership(last, now, altered_vos)
 
-            altered_user_quota = sync_altered_user_quota(last, now, altered_accounts, opts.options.dry_run)
-            altered_vo_quota = sync_altered_vo_quota(last, now, altered_vos, opts.options.dry_run)
+            altered_user_quota = sync_altered_user_quota(last, now, altered_accounts)
+            altered_vo_quota = sync_altered_vo_quota(last, now, altered_vos)
 
             _log.debug("Altered usergroups: %s" % (altered_usergroups,))
             _log.debug("Altered autogroups: %s" % (altered_autogroups,))
@@ -774,7 +777,7 @@ def main():
 
     else:
         # parent
-        (pid, result) = os.waitpid(parent_pid, 0)
+        (_, result) = os.waitpid(parent_pid, 0)
         _log.info("Child exited with exit code %d" % (result,))
 
         if not result:
