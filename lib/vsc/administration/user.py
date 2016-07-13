@@ -28,7 +28,7 @@ from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
-from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccount
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
@@ -526,7 +526,7 @@ cluster_user_pickle_store_map = {
     'muk': 'VSC_SCRATCH_MUK',
 }
 
-def update_user_status(user, options, client):
+def update_user_status(user, client):
     """
     Change the status of the user's account in the account page to active.
     The usergroup status is always in sync with thte accounts status
@@ -611,7 +611,7 @@ def process_users(options, account_ids, storage_name, client):
             if storage_name in ['VSC_HOME']:
                 user.create_home_dir()
                 user.populate_home_dir()
-                update_user_status(user, options, client)
+                update_user_status(user, client)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()

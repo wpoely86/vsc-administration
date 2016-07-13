@@ -330,7 +330,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         @deprecated. We should not create new symlinks.
         """
-        logging.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything", storage_name)
+        logging.warning("Trying to set a symlink for a VO member %s on %s. Deprecated. Not doing anything", member, storage_name)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
@@ -380,7 +380,7 @@ def update_vo_status(vo, client):
                                         (vo.vo_id, virtual_organisation.status))
 
 
-def process_vos(options, vo_ids, storage, storage_name, client, datestamp):
+def process_vos(options, vo_ids, storage_name, client, datestamp):
     """Process the virtual organisations.
 
     - make the fileset per VO

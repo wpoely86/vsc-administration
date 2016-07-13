@@ -67,8 +67,6 @@ class VoDeploymentTest(TestCase):
                 u'vsc_id_number': 2540075,
         }])
 
-        storage = None  # not used anymore, it seems
-
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
             with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
                 with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
@@ -80,7 +78,7 @@ class VoDeploymentTest(TestCase):
                         mock_vo_instance.vsc_id = test_vo_id
                         mock_user.return_value = mock.MagicMock()
 
-                        vo.process_vos(options, [test_vo_id], storage, storage_name, mc, date)
+                        vo.process_vos(options, [test_vo_id], storage_name, mc, date)
 
                         if storage_name in (VSC_HOME, VSC_DATA):
                             mock_vo_instance.create_scratch_fileset.assert_not_called()
@@ -138,7 +136,6 @@ class VoDeploymentTest(TestCase):
                 u'vsc_id': u'vsc40075',
                 u'vsc_id_number': 2540075,
         }])
-        storage = None  # not used anymore, it seems
 
         for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
             with mock.patch('vsc.administration.vo.VscTier2AccountpageVo', autospec=True) as mock_vo:
@@ -151,7 +148,7 @@ class VoDeploymentTest(TestCase):
                         mock_vo_instance.vsc_id = test_vo_id
                         mock_user.return_value = mock.MagicMock()
 
-                        vo.process_vos(options, [test_vo_id], storage, storage_name, mc, "99991231");
+                        vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
 
                         if storage_name in (VSC_HOME, VSC_DATA):
                             mock_vo_instance.create_scratch_fileset.assert_not_called()
