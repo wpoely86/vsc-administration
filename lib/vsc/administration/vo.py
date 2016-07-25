@@ -418,7 +418,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
-            modified_member_list = client.vo[vo.vsc_id].members.modified[datestamp].get()
+            modified_member_list = client.vo[vo.vo_id].members.modified[datestamp].get()
             modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]]
 
             for member in modified_members:
