@@ -46,7 +46,7 @@ class VoDeploymentTest(TestCase):
         mc = mock_client.return_value
         mc.vo = mock.MagicMock()
         date = "20321231"
-        mc.vo['gvo00002'].members.modified[date].get.return_value = (
+        mc.vo['gvo00002'].member.modified[date].get.return_value = (
             200, [{
                 u'broken': False,
                 u'create_timestamp': u'2014-04-23T09:11:22.460Z',
@@ -115,7 +115,7 @@ class VoDeploymentTest(TestCase):
         mc = mock_client.return_value
         mc.vo = mock.MagicMock()
         date = "20321231"
-        mc.vo['gvo00018'].members.modified[date].get.return_value = (
+        mc.vo['gvo00018'].member.modified[date].get.return_value = (
             200, [{
                 u'broken': False,
                 u'create_timestamp': u'2014-04-23T09:11:22.460Z',
