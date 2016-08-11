@@ -470,10 +470,10 @@ class MukAccountpageUser(VscAccountPageUser):
         base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         target = None
 
-        if 'VSC_MUK_SCRATCH' in [s.storage['name'] for s in self.home_on_scratch]:
+        if 'VSC_MUK_SCRATCH' in [s.storage.name for s in self.home_on_scratch]:
             logging.info("User %s has his home on Muk scratch" % (self.account.vsc_id))
             target = self._scratch_path()
-        elif 'VSC_MUK_AFM' in [s.storage['name'] for s in self.home_on_scratch]:
+        elif 'VSC_MUK_AFM' in [s.storage.name for s in self.home_on_scratch]:
             logging.info("User %s has his home on Muk AFM" % (self.user_id))
             target = self.muk.user_afm_home_mount(self.account.vsc_id, self.person.institute['site'])
 
