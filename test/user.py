@@ -23,7 +23,7 @@ from collections import namedtuple
 
 import vsc.administration.user as user
 
-from vsc.accountpage.wrappers import mkVscAccount
+from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
@@ -126,6 +126,60 @@ class UserDeploymentTest(TestCase):
                             mock_user_instance.create_data_dir.assert_not_called()
 
                             self.assertEqual(mock_user_instance.create_scratch_dir.called, True)
+
+    @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    @mock.patch('vsc.administration.user.mkVscAccount')
+    @mock.patch('vsc.administration.user.mkVscAccountPerson')
+    @mock.patch('vsc.administration.user.mkVscAccountPubkey')
+    @mock.patch('vsc.administration.user.mkGroup')
+    @mock.patch('vsc.administration.user.mkUserGroup')
+    @mock.patch('vsc.administration.user.mkVscHomeOnScratch')
+    @mock.patch('os.symlink')
+    def test_create_home_dir(self,
+                                  mock_symlink,
+                                  mock_home_on_scratch,
+                                  mock_usergroup,
+                                  mock_group,
+                                  mock_pubkey,
+                                  mock_person,
+                                  mock_account,
+                                  mock_client,
+                                  mock_gpfsoperations,
+                                  ):
+
+        account = {
+            u'broken': False,
+            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
+            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+            u'email': u'foobar@ugent.be',
+            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+            u'login_shell': u'/bin/bash',
+            u'person': {
+                u'gecos': u'Foo Bar',
+                u'institute': {u'site': u'gent'},
+                u'institute_login': u'foobar'
+            },
+            u'research_field': [u'Bollocks', u'Pluto'],
+            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+            u'status': u'active',
+            u'vsc_id': u'vsc40075',
+            u'vsc_id_number': 2540075
+        }
+        test_account = mkVscAccount(account)
+
+        vsc_home_on_scratch = mkVscHomeOnScratch({
+            u'account': account,
+            u'storage':  {'institute': 'gent', 'name': 'VSC_MUK_SCRATCH' ,'storage_type': 'scratch'},
+        })
+        mock_home_on_scratch.return_value = vsc_home_on_scratch
+        mock_person.return_value = test_account.person
+        mock_client = mock.MagicMock()
+        accountpageuser = user.MukAccountpageUser(test_account.vsc_id, rest_client=mock_client)
+        #mock_gpfsoperations.return_value = mock.MagicMock()
+        accountpageuser.home_on_scratch = [vsc_home_on_scratch]
+
+        accountpageuser.create_home_dir()
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
