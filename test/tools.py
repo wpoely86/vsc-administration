@@ -157,8 +157,8 @@ class PurgeesTest(TestCase):
         """
         Test that we're selecting the correct people to remove from the purgees list
         """
-        test_current_users = [1, 2, 3, 4, 5]
-        test_current_purgees = [8, 2, 4, 6, 7]
+        test_current_users = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e'}
+        test_current_purgees = {8: 'a', 2: 'b', 4: 'c', 6: 'd', 7: 'e'}
         test_account = mkVscAccount({
             u'broken': False,
             u'create_timestamp': u'1970-01-01T00:00:00.197Z',
