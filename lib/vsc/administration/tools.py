@@ -114,14 +114,14 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
     for user_id in current_users:
         logger.debug("Checking if %s is in purgees", (user_id,))
         if user_id in purgees:
-            purgees.remove(user_id)
+            del purgees[user_id]
             purgees_undone += 1
             logger.info("Removed %s from the list of purgees: found in list of current users" % (user_id,))
             user = MukAccountpageUser(user_id, rest_client=client)
             user.dry_run = dry_run
             notify_reinstatement(user)
 
-            group_name = "%st1_mukgraceusers" % user.person.institute['site']
+            group_name = "%st1_mukgraceusers" % user.person.institute['site'][0]  # just the first letter
             if not user.dry_run:
                 try:
                     client.group[group_name].member[user.account.vsc_id].delete()
