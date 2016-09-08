@@ -35,7 +35,6 @@ class VscAccountPageUserTest(TestCase):
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     @mock.patch('vsc.administration.user.mkVscAccount')
-    @mock.patch('vsc.administration.user.mkVscAccountPerson')
     @mock.patch('vsc.administration.user.mkVscAccountPubkey')
     @mock.patch('vsc.administration.user.mkGroup')
     @mock.patch('vsc.administration.user.mkUserGroup')
@@ -45,7 +44,6 @@ class VscAccountPageUserTest(TestCase):
                                   mock_usergroup,
                                   mock_group,
                                   mock_pubkey,
-                                  mock_person,
                                   mock_account,
                                   mock_client):
 
@@ -68,8 +66,8 @@ class VscAccountPageUserTest(TestCase):
             u'vsc_id_number': 2540075
         })
 
-        mock_person.return_value = test_account.person
         mock_client = mock.MagicMock()
+        mock_account.return_value = test_account
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
         self.assertEqual(accountpageuser.get_institute_prefix(), 'g')
@@ -130,7 +128,6 @@ class UserDeploymentTest(TestCase):
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     @mock.patch('vsc.administration.user.mkVscAccount')
-    @mock.patch('vsc.administration.user.mkVscAccountPerson')
     @mock.patch('vsc.administration.user.mkVscAccountPubkey')
     @mock.patch('vsc.administration.user.mkGroup')
     @mock.patch('vsc.administration.user.mkUserGroup')
@@ -142,7 +139,6 @@ class UserDeploymentTest(TestCase):
                                   mock_usergroup,
                                   mock_group,
                                   mock_pubkey,
-                                  mock_person,
                                   mock_account,
                                   mock_client,
                                   mock_gpfsoperations,
@@ -173,7 +169,6 @@ class UserDeploymentTest(TestCase):
             u'storage':  {'institute': 'gent', 'name': 'VSC_MUK_SCRATCH' ,'storage_type': 'scratch'},
         })
         mock_home_on_scratch.return_value = vsc_home_on_scratch
-        mock_person.return_value = test_account.person
         mock_client = mock.MagicMock()
         accountpageuser = user.MukAccountpageUser(test_account.vsc_id, rest_client=mock_client)
         #mock_gpfsoperations.return_value = mock.MagicMock()

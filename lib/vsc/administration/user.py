@@ -27,7 +27,7 @@ import os
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
-from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
 from vsc.accountpage.wrappers import mkVscAccount
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
