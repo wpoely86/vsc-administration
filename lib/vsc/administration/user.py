@@ -27,7 +27,7 @@ import os
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
-from vsc.accountpage.wrappers import mkVscAccountPerson, mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch, mkUserGroup
 from vsc.accountpage.wrappers import mkVscAccount
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
@@ -60,7 +60,7 @@ class VscAccountPageUser(object):
         # We immediately retrieve this information
         try:
             self.account = mkVscAccount((rest_client.account[user_id].get()[1]))
-            self.person = mkVscAccountPerson((rest_client.account[user_id].person.get()[1]))
+            self.person = self.account.person
             self.pubkeys = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
                             if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):

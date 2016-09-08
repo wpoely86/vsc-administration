@@ -99,15 +99,11 @@ def main():
         (users_ok, users_fail) = ([], [])
         if opts.options.user:
             ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp[:12]].get()[1]
-            ugent_changed_pubkey_accounts = client.account.pubkey.institute['gent'].modified[last_timestamp[:12]].get()[1]
 
             logger.info("Found %d UGent accounts that have changed in the accountpage since %s" %
                         (len(ugent_changed_accounts), last_timestamp[:8]))
-            logger.info("Found %d UGent accounts that have changed pubkeys in the accountpage since %s" %
-                        (len(ugent_changed_pubkey_accounts), last_timestamp[:12]))
 
-            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts] \
-                + [u['vsc_id'] for u in ugent_changed_pubkey_accounts if u['vsc_id']]
+            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts]
             ugent_accounts = nub(ugent_accounts)
 
             for storage_name in opts.options.storage:
