@@ -233,7 +233,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
 
-        logging.info("Setting default VO %s quota on storage %s to %d" % (self.vo.vsc_id, storage_name, quota[0].hard))
+        logging.info("Setting VO %s quota on storage %s to %d" % (self.vo.vsc_id, storage_name, quota[0].hard))
         self._set_quota(storage_name, self._scratch_path(storage_name), quota[0].hard)
 
     def _set_member_quota(self, storage_name, path, member, quota):
