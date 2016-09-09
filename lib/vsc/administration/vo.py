@@ -406,13 +406,14 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 vo.set_data_quota()
                 update_vo_status(vo, client)
 
+            if vo_id in (VSC().institute_vos[GENT],):
+                logging.info("Not deploying default VO %s members" % (vo_id,))
+                continue
+
             if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
-            if vo_id in (VSC().institute_vos[GENT],):
-                logging.info("Not deploying default VO %s members" % (vo_id,))
-                continue
 
             if vo_id in (VSC().institute_vos.values()) and storage_name in (VSC_HOME, VSC_DATA):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
