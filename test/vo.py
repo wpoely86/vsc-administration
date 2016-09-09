@@ -217,12 +217,11 @@ class VoDeploymentTest(TestCase):
                                                     mock_user.return_value = mock.MagicMock()
                                                     vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
 
-                                                    if storage_name in (VSC_HOME, VSC_DATA):
-                                                        mock_cr_s_fileset.assert_not_called()
-                                                        mock_s_s_quota.assert_not_called()
-                                                        mock_cr_d_fileset.assert_not_called()
-                                                        mock_s_d_quota.assert_not_called()
-                                                        mock_update_vo_status.assert_not_called()
+                                                    mock_cr_s_fileset.assert_not_called()
+                                                    mock_s_s_quota.assert_not_called()
+                                                    mock_cr_d_fileset.assert_not_called()
+                                                    mock_s_d_quota.assert_not_called()
+                                                    mock_update_vo_status.assert_not_called()
 
-                                                        mock_s_m_d_quota.assert_not_called()
-                                                        mock_cr_m_d_dir.assert_not_called()
+                                                    mock_s_m_d_quota.assert_not_called()
+                                                    mock_cr_m_d_dir.assert_not_called()
