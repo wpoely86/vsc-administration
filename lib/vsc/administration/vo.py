@@ -226,7 +226,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             quota = None
 
-        if not self.vo_scratch_quota or not quota:
+        if not quota:
             logging.error("No VO %s scratch quota information available for %s" % (self.vo.vsc_id, storage_name,))
             logging.info("Setting default VO %s scratch quota on storage %s to %d" %
                          (self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo))
