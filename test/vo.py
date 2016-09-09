@@ -78,7 +78,8 @@ class VoDeploymentTest(TestCase):
                                             with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_scratch_quota') as mock_s_m_s_quota:
                                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
                                                     mock_user.return_value = mock.MagicMock()
-                                                    vo.process_vos(options, [test_vo_id], storage_name, mc, date)
+                                                    ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, date)
+                                                    self.assertEqual(errors, {})
 
                                                     if storage_name in (VSC_HOME, VSC_DATA):
                                                         mock_cr_s_fileset.assert_not_called()
@@ -148,7 +149,8 @@ class VoDeploymentTest(TestCase):
                                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
 
                                                     mock_user.return_value = mock.MagicMock()
-                                                    vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
+                                                    ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
+                                                    self.assertEqual(errors, {})
 
                                                     if storage_name in (VSC_HOME, VSC_DATA):
                                                         mock_cr_s_fileset.assert_not_called()
@@ -215,7 +217,8 @@ class VoDeploymentTest(TestCase):
                                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
 
                                                     mock_user.return_value = mock.MagicMock()
-                                                    vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
+                                                    ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
+                                                    self.assertEqual(errors, {})
 
                                                     mock_cr_s_fileset.assert_not_called()
                                                     mock_s_s_quota.assert_not_called()
