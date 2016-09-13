@@ -285,7 +285,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             return
 
         if member.vo_scratch_quota:
-            quota = filter(lambda q: q.storage['name'] in (storage_name,), member.vo_scratch_quota)
+            quota = filter(lambda q: q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,),
+                           member.vo_scratch_quota)
             logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s" %
                          (self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name))
             self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
