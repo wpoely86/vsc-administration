@@ -56,6 +56,7 @@ class VscAccountPageUser(object):
         """
         self.user_id = user_id
         self.rest_client = rest_client
+        self._pubkey_cache = None
 
         # We immediately retrieve this information
         try:
@@ -77,10 +78,10 @@ class VscAccountPageUser(object):
 
     @property
     def pubkeys(self):
-        if not self.pubkey_cache:
-            self.pubkey_cache = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
+        if not self._pubkey_cache:
+            self._pubkey_cache = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
                         if not p['deleted']]
-        return self.pubkey_cache
+        return self._pubkey_cache
 
     def get_institute_prefix(self):
         """
