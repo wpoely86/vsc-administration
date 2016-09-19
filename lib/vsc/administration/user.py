@@ -50,13 +50,13 @@ class VscAccountPageUser(object):
     A user who gets his own information from the accountpage through the REST API.
     """
 
-    def __init__(self, user_id, rest_client, account=None):
+    def __init__(self, user_id, rest_client, account=None, pubkeys=None):
         """
         Initialise.
         """
         self.user_id = user_id
         self.rest_client = rest_client
-        self._pubkey_cache = None
+        self._pubkey_cache = pubkeys
 
         # We immediately retrieve this information
         try:
