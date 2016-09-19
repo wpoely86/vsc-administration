@@ -50,7 +50,7 @@ class VscAccountPageUser(object):
     A user who gets his own information from the accountpage through the REST API.
     """
 
-    def __init__(self, user_id, rest_client):
+    def __init__(self, user_id, rest_client, account=None):
         """
         Initialise.
         """
@@ -59,10 +59,10 @@ class VscAccountPageUser(object):
 
         # We immediately retrieve this information
         try:
-            self.account = mkVscAccount((rest_client.account[user_id].get()[1]))
+            if not account:
+                account = mkVscAccount((rest_client.account[user_id].get()[1]))
+            self.account = account
             self.person = self.account.person
-            self.pubkeys = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
-                            if not p['deleted']]
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
                 # TODO to be removed when magic site admin usergroups are pruged from code
                 self.usergroup = mkGroup((rest_client.group[user_id].get())[1])
@@ -74,6 +74,13 @@ class VscAccountPageUser(object):
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
+
+    @property
+    def pubkeys(self):
+        if not self.pubkey_cache:
+            self.pubkey_cache = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
+                        if not p['deleted']]
+        return self.pubkey_cache
 
     def get_institute_prefix(self):
         """
