@@ -62,7 +62,6 @@ class VscAccountPageUser(object):
         self._pubkey_cache = pubkeys
         self._account_cache = account
 
-        # We immediately retrieve this information if needed
         try:
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
                 # TODO to be removed when magic site admin usergroups are pruged from code
@@ -113,6 +112,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """
         super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account, pubkeys)
 
+        self._quota_cache = {}
         self.pickle_storage = pickle_storage
         if not storage:
             self.storage = VscStorage()
@@ -122,8 +122,6 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.vsc = VSC()
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
-
-        self._init_quota(rest_client)
 
     @property
     def user_home_quota(self):
@@ -170,6 +168,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         fileset_name = 'gvo'
         user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
+        self._quota_cache['vo'] = {}
         self._quota_cache['vo']['data'] = [q for q in institute_quota if user_proposition(q, 'data')]
         self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_proposition(q, 'scratch')]
 
