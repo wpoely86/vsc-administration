@@ -61,19 +61,37 @@ class VscAccountPageUser(object):
         self.rest_client = rest_client
         self._pubkey_cache = pubkeys
         self._account_cache = account
+        self._usergroup_cache = None
+        self._home_on_scratch_cache = None
 
-        try:
+    @property
+    def account(self):
+        if not self._account_cache:
+            self._account_cache = mkVscAccount((self.rest_client.account[self.user_id].get())[1])
+        return self._account_cache
+
+    @property
+    def person(self):
+        return self.account.person
+
+    @property
+    def usergroup(self):
+        if not self._usergroup_cache:
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
-                # TODO to be removed when magic site admin usergroups are pruged from code
-                self.usergroup = mkGroup((rest_client.group[user_id].get())[1])
+                # TODO to be removed when magic site admin usergroups are purged from code
+                self._usergroup_cache = mkGroup((self.rest_client.group[self.user_id].get())[1])
             else:
-                self.usergroup = mkUserGroup((rest_client.account[user_id].usergroup.get()[1]))
-            self.home_on_scratch = [
-                mkVscHomeOnScratch(h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
+                self._usergroup_cache = mkUserGroup((self.rest_client.account[self.user_id].usergroup.get()[1]))
+
+        return self._usergroup_cache
+
+    @property
+    def home_on_scratch(self):
+        if self._home_on_scratch_cache is None:
+            self._home_on_scratch_cache = [
+                mkVscHomeOnScratch(h) for h in self.rest_client.account[self.user_id].home_on_scratch.get()[1]
             ]
-        except HTTPError:
-            logging.error("Cannot get information from the account page")
-            raise
+        return self._home_on_scratch_cache
 
     @property
     def pubkeys(self):
@@ -83,16 +101,6 @@ class VscAccountPageUser(object):
                 if not p['deleted']
             ]
         return self._pubkey_cache
-
-    @property
-    def account(self):
-        if not self._account_cache:
-            self._account_cache = mkVscAccount((self.rest_client.account[self.user_id].get()[1]))
-        return self._account_cache
-
-    @property
-    def person(self):
-        return self.account.person
 
     def get_institute_prefix(self):
         """

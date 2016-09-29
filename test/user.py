@@ -23,54 +23,133 @@ from collections import namedtuple
 
 import vsc.administration.user as user
 
-from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch
+from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkVscAccountPerson, mkUserGroup, mkGroup
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
+test_account_1 = {
+    u'broken': False,
+    u'create_timestamp': u'1970-01-01T00:00:00.197Z',
+    u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+    u'email': u'foobar@ugent.be',
+    u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+    u'login_shell': u'/bin/bash',
+    u'person': {
+        u'gecos': u'Foo Bar',
+        u'institute': {u'site': u'gent'},
+        u'institute_login': u'foobar'
+    },
+    u'research_field': [u'Bollocks', u'Pluto'],
+    u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+    u'status': u'active',
+    u'vsc_id': u'vsc40075',
+    u'vsc_id_number': 2540075
+}
+
+test_account_2 = {
+    u'broken': False,
+    u'create_timestamp': u'1970-01-01T00:00:00.197Z',
+    u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+    u'email': u'foobar@ugent.be',
+    u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+    u'login_shell': u'/bin/bash',
+    u'person': {
+        u'gecos': u'Foo Bar',
+        u'institute': {u'site': u'gent'},
+        u'institute_login': u'x_admin'
+    },
+    u'research_field': [u'Bollocks', u'Pluto'],
+    u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+    u'status': u'active',
+    u'vsc_id': u'vsc40075',
+    u'vsc_id_number': 2540075
+}
+
+test_usergroup_1 = {
+    "vsc_id": "vsc40075",
+    "vsc_id_number": 2540075,
+    "status": "active",
+    "institute": {
+        "site": "gent"
+    },
+    "members": [
+        "vsc40075"
+    ],
+    "moderators": [
+        "vsc40075"
+    ],
+    "description": "Nope"
+}
+
+test_admin_group_1 = {
+    "vsc_id": "vsc40003",
+    "status": "active",
+    "vsc_id_number": 2540003,
+    "institute": {
+        "site": "gent"
+    },
+    "members": [],
+    "moderators": [],
+    "description": ""
+}
 
 class VscAccountPageUserTest(TestCase):
     """
     Tests for the base class of users derived from account page information.
     """
 
-    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.mkVscAccount')
-    @mock.patch('vsc.administration.user.mkVscAccountPubkey')
-    @mock.patch('vsc.administration.user.mkGroup')
-    @mock.patch('vsc.administration.user.mkUserGroup')
-    @mock.patch('vsc.administration.user.mkVscHomeOnScratch')
-    def test_get_institute_prefix(self,
-                                  mock_home_on_scratch,
-                                  mock_usergroup,
-                                  mock_group,
-                                  mock_pubkey,
-                                  mock_account,
-                                  mock_client):
+    def test_get_institute_prefix(self):
 
-        test_account = mkVscAccount({
-            u'broken': False,
-            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
-            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
-            u'email': u'foobar@ugent.be',
-            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
-            u'login_shell': u'/bin/bash',
-            u'person': {
-                u'gecos': u'Foo Bar',
-                u'institute': {u'site': u'gent'},
-                u'institute_login': u'foobar'
-            },
-            u'research_field': [u'Bollocks', u'Pluto'],
-            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
-            u'status': u'active',
-            u'vsc_id': u'vsc40075',
-            u'vsc_id_number': 2540075
-        })
-
+        test_account = mkVscAccount(test_account_1)
         mock_client = mock.MagicMock()
-        mock_account.return_value = test_account
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
 
         self.assertEqual(accountpageuser.get_institute_prefix(), 'g')
+
+    def test_account_instantiation(self):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
+
+        self.assertTrue(accountpageuser.account == test_account)
+
+        mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertTrue(accountpageuser.account == test_account)
+
+    def test_person_instantiation(self):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
+
+        self.assertTrue(accountpageuser.person == test_account.person)
+
+        mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertTrue(accountpageuser.person == test_account.person)
+
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    def test_usergroup_instantiation(self, mock_client):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        mock_client.account[test_account.vsc_id] = mock.MagicMock()
+        mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
+        mock_client.account[test_account.vsc_id].usergroup.get.return_value = (200, test_usergroup_1)
+
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertTrue(accountpageuser.usergroup == mkUserGroup(test_usergroup_1))
+
+        mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_2)
+        mock_client.group[test_account_2].get.return_value = (200, test_admin_group_1)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertTrue(accountpageuser.usergroup == mkGroup(test_admin_group_1))
 
 
 class UserDeploymentTest(TestCase):
@@ -91,90 +170,76 @@ class UserDeploymentTest(TestCase):
             with mock.patch('vsc.administration.user.VscTier2AccountpageUser', autospec=True) as mock_user:
                 with mock.patch('vsc.administration.user.update_user_status') as mock_update_user_status:
 
-                        mock_user.return_value = mock.MagicMock()
-                        mock_user_instance = mock_user.return_value
+                    mock_user.return_value = mock.MagicMock()
+                    mock_user_instance = mock_user.return_value
 
-                        user.process_users(options, test_account_ids, storage_name, mock_client)
+                    user.process_users(options, test_account_ids, storage_name, mock_client)
 
-                        mock_user_instance.set_scratch_quota.assert_not_called()
-                        mock_user_instance.set_home_quota.assert_not_called()
-                        mock_user_instance.set_data_quota.assert_not_called()
+                    mock_user_instance.set_scratch_quota.assert_not_called()
+                    mock_user_instance.set_home_quota.assert_not_called()
+                    mock_user_instance.set_data_quota.assert_not_called()
 
-                        if storage_name in (VSC_HOME):
-                            mock_user_instance.create_scratch_dir.assert_not_called()
-                            mock_user_instance.create_data_dir.assert_not_called()
+                    if storage_name in (VSC_HOME):
+                        mock_user_instance.create_scratch_dir.assert_not_called()
+                        mock_user_instance.create_data_dir.assert_not_called()
 
-                            self.assertEqual(mock_user_instance.create_home_dir.called, True)
-                            self.assertEqual(mock_user_instance.populate_home_dir.called, True)
-                            self.assertEqual(mock_update_user_status.called, True)
+                        self.assertEqual(mock_user_instance.create_home_dir.called, True)
+                        self.assertEqual(mock_user_instance.populate_home_dir.called, True)
+                        self.assertEqual(mock_update_user_status.called, True)
 
-                        if storage_name in (VSC_DATA,):
-                            mock_user_instance.create_home_dir.assert_not_called()
-                            mock_user_instance.populate_home_dir.assert_not_called()
-                            mock_update_user_status.assert_not_called()
+                    if storage_name in (VSC_DATA,):
+                        mock_user_instance.create_home_dir.assert_not_called()
+                        mock_user_instance.populate_home_dir.assert_not_called()
+                        mock_update_user_status.assert_not_called()
 
-                            mock_user_instance.create_scratch_dir.assert_not_called()
+                        mock_user_instance.create_scratch_dir.assert_not_called()
 
-                            self.assertEqual(mock_user_instance.create_data_dir.called, True)
+                        self.assertEqual(mock_user_instance.create_data_dir.called, True)
 
-                        if storage_name not in (VSC_HOME, VSC_DATA):
-                            mock_user_instance.create_home_dir.assert_not_called()
-                            mock_user_instance.populate_home_dir.assert_not_called()
-                            mock_update_user_status.assert_not_called()
-                            mock_user_instance.create_data_dir.assert_not_called()
+                    if storage_name not in (VSC_HOME, VSC_DATA):
+                        mock_user_instance.create_home_dir.assert_not_called()
+                        mock_user_instance.populate_home_dir.assert_not_called()
+                        mock_update_user_status.assert_not_called()
+                        mock_user_instance.create_data_dir.assert_not_called()
 
-                            self.assertEqual(mock_user_instance.create_scratch_dir.called, True)
+                        self.assertEqual(mock_user_instance.create_scratch_dir.called, True)
 
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.mkVscAccount')
-    @mock.patch('vsc.administration.user.mkVscAccountPubkey')
-    @mock.patch('vsc.administration.user.mkGroup')
-    @mock.patch('vsc.administration.user.mkUserGroup')
-    @mock.patch('vsc.administration.user.mkVscHomeOnScratch')
-    @mock.patch('os.symlink')
-    def test_create_home_dir(self,
-                                  mock_symlink,
-                                  mock_home_on_scratch,
-                                  mock_usergroup,
-                                  mock_group,
-                                  mock_pubkey,
-                                  mock_account,
-                                  mock_client,
-                                  mock_gpfsoperations,
-                                  ):
+    @mock.patch('vsc.administration.user.VscStorage')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_home_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_home_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
+    def test_create_home_dir_tier2_user(self,
+                                        mock_create_user_dir,
+                                        mock_create_grouping_fileset,
+                                        mock_grouping_home_path,
+                                        mock_home_path,
+                                        mock_storage,
+                                        mock_client,
+                                        mock_gpfsoperations,
+                                        ):
 
-        account = {
-            u'broken': False,
-            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
-            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
-            u'email': u'foobar@ugent.be',
-            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
-            u'login_shell': u'/bin/bash',
-            u'person': {
-                u'gecos': u'Foo Bar',
-                u'institute': {u'site': u'gent'},
-                u'institute_login': u'foobar'
-            },
-            u'research_field': [u'Bollocks', u'Pluto'],
-            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
-            u'status': u'active',
-            u'vsc_id': u'vsc40075',
-            u'vsc_id_number': 2540075
-        }
-        test_account = mkVscAccount(account)
+        test_account = mkVscAccount(test_account_1)
+        mock_storage.return_value.storage['VSC_HOME'].filesystem = "vulpixhome"
 
-        vsc_home_on_scratch = mkVscHomeOnScratch({
-            u'account': account,
-            u'storage':  {'institute': 'gent', 'name': 'VSC_MUK_SCRATCH' ,'storage_type': 'scratch'},
-        })
-        mock_home_on_scratch.return_value = vsc_home_on_scratch
-        mock_client = mock.MagicMock()
-        accountpageuser = user.MukAccountpageUser(test_account.vsc_id, rest_client=mock_client)
-        #mock_gpfsoperations.return_value = mock.MagicMock()
-        accountpageuser.home_on_scratch = [vsc_home_on_scratch]
+        mock_create_user_dir.return_value = None
+        mock_create_grouping_fileset.return_value = None
+        mock_home_path.return_value = 'my_home_path'
+        mock_grouping_home_path.return_value = 'my_grouping_home_path'
+
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        mock_storage.assert_called_with()
+
+        self.assertTrue(mock_storage.return_value.storage['VSC_HOME'].filesystem == "vulpixhome")
 
         accountpageuser.create_home_dir()
+
+        mock_grouping_home_path.assert_called_with()
+        mock_create_grouping_fileset.assert_called_with('vulpixhome', 'my_grouping_home_path')
+        mock_home_path.assert_called_with()
+        mock_create_user_dir.assert_called_with('my_home_path')
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
@@ -212,3 +277,30 @@ class UserDeploymentTest(TestCase):
 
                             mock_user_instance.set_home_quota.assert_not_called()
                             mock_user_instance.set_data_quota.assert_not_called()
+
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    def test_vsc_accoutpage_user_account_property(self, mock_client):
+
+        account = {
+            u'broken': False,
+            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
+            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
+            u'email': u'foobar@ugent.be',
+            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
+            u'login_shell': u'/bin/bash',
+            u'person': {
+                u'gecos': u'Foo Bar',
+                u'institute': {u'site': u'gent'},
+                u'institute_login': u'foobar'
+            },
+            u'research_field': [u'Bollocks', u'Pluto'],
+            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
+            u'status': u'active',
+            u'vsc_id': u'vsc40075',
+            u'vsc_id_number': 2540075
+        }
+        test_account = mkVscAccount(account)
+
+        vsc_accountpage_user = user.VscAccountPageUser('vsc40075', rest_client=mock_client, account=test_account)
+        mock_client.assert_not_called()
+        self.assertEqual(vsc_accountpage_user.person, mkVscAccountPerson(account['person']))
