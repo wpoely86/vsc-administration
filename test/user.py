@@ -107,6 +107,43 @@ test_pubkeys_1 = [{
     }
 ]
 
+test_hos_1 = [
+    {
+        "account": {
+            "vsc_id": "vsc40075",
+            "status": "active",
+            "isactive": True,
+            "expiry_date": None,
+            "grace_until": None,
+            "vsc_id_number": 2540075,
+            "home_directory": "/user/home/gent/vsc400/vsc40075",
+            "data_directory": "/user/data/gent/vsc400/vsc40075",
+            "scratch_directory": "/user/scratch/gent/vsc400/vsc40075",
+            "login_shell": "/bin/bash",
+            "broken": False,
+            "email": "andy.georges@ugent.be",
+            "research_field": [
+                "Computer systems, architectures, networks",
+                "nwo"
+            ],
+            "create_timestamp": "2014-04-23T09:11:22.460855Z",
+            "person": {
+                "gecos": "Andy Georges",
+                "institute": {
+                    "site": "gent"
+                },
+                "institute_login": "ageorges"
+            }
+        },
+        "storage": {
+            "institute": "gent",
+            "name": "VSC_SCRATCH_MUK",
+            "storage_type": "scratch"
+        }
+    }
+]
+
+
 class VscAccountPageUserTest(TestCase):
     """
     Tests for the base class of users derived from account page information.
@@ -172,8 +209,17 @@ class VscAccountPageUserTest(TestCase):
 
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
-        logging.warning("Hey, pubkeys are %s", accountpageuser.pubkeys)
         self.assertTrue(set(accountpageuser.pubkeys) == set([mkVscAccountPubkey(p) for p in test_pubkeys_1]))
+
+    def test_homeonscratch_instantiation(self):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        mock_client.account[test_account.vsc_id].home_on_scratch.get.return_value = (200, test_hos_1)
+
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        self.assertTrue(accountpageuser.home_on_scratch == [mkVscHomeOnScratch(h) for h in test_hos_1])
 
 
 class UserDeploymentTest(TestCase):
