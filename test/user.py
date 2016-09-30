@@ -17,6 +17,7 @@ Tests for vsc.administration.vo
 
 @author: Andy Georges (Ghent University)
 """
+import logging
 import mock
 
 from collections import namedtuple
@@ -24,6 +25,7 @@ from collections import namedtuple
 import vsc.administration.user as user
 
 from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkVscAccountPerson, mkUserGroup, mkGroup
+from vsc.accountpage.wrappers import mkVscAccountPubkey
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
@@ -93,6 +95,18 @@ test_admin_group_1 = {
     "description": ""
 }
 
+test_pubkeys_1 = [{
+        "pubkey": "pubkey1",
+        "deleted": False,
+        "vsc_id": "vsc40075"
+    },
+    {
+        "pubkey": "pubkey2",
+        "deleted": False,
+        "vsc_id": "vsc40075"
+    }
+]
+
 class VscAccountPageUserTest(TestCase):
     """
     Tests for the base class of users derived from account page information.
@@ -132,8 +146,7 @@ class VscAccountPageUserTest(TestCase):
 
         self.assertTrue(accountpageuser.person == test_account.person)
 
-    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    def test_usergroup_instantiation(self, mock_client):
+    def test_usergroup_instantiation(self):
 
         mock_client = mock.MagicMock()
         test_account = mkVscAccount(test_account_1)
@@ -150,6 +163,17 @@ class VscAccountPageUserTest(TestCase):
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
         self.assertTrue(accountpageuser.usergroup == mkGroup(test_admin_group_1))
+
+    def test_pubkeys_instantiation(self):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        mock_client.account[test_account.vsc_id].pubkey.get.return_value = (200, test_pubkeys_1)
+
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+
+        logging.warning("Hey, pubkeys are %s", accountpageuser.pubkeys)
+        self.assertTrue(set(accountpageuser.pubkeys) == set([mkVscAccountPubkey(p) for p in test_pubkeys_1]))
 
 
 class UserDeploymentTest(TestCase):

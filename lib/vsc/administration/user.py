@@ -88,18 +88,15 @@ class VscAccountPageUser(object):
     @property
     def home_on_scratch(self):
         if self._home_on_scratch_cache is None:
-            self._home_on_scratch_cache = [
-                mkVscHomeOnScratch(h) for h in self.rest_client.account[self.user_id].home_on_scratch.get()[1]
-            ]
+            hos = self.rest_client.account[self.user_id].home_on_scratch.get()[1]
+            self._home_on_scratch_cache = [mkVscHomeOnScratch(h) for h in hos]
         return self._home_on_scratch_cache
 
     @property
     def pubkeys(self):
         if self._pubkey_cache is None:  # an empty list is allowed :)
-            self._pubkey_cache = [
-                mkVscAccountPubkey(p) for p in self.rest_client.account[self.user_id].pubkey.get()[1]
-                if not p['deleted']
-            ]
+            ps = self.rest_client.account[self.user_id].pubkey.get()[1]
+            self._pubkey_cache = [mkVscAccountPubkey(p) for p in ps if not p['deleted']]
         return self._pubkey_cache
 
     def get_institute_prefix(self):
