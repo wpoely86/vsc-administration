@@ -24,8 +24,8 @@ from collections import namedtuple
 
 import vsc.administration.user as user
 
-from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkVscAccountPerson, mkUserGroup, mkGroup
-from vsc.accountpage.wrappers import mkVscAccountPubkey
+from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkUserGroup, mkGroup
+from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscUserSizeQuota
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
@@ -143,6 +143,79 @@ test_hos_1 = [
     }
 ]
 
+test_quota_1 = [
+    {u'fileset': u'gvo00002',
+     u'hard': 5111808000,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_SCRATCH_DELCATTY',
+        u'storage_type': u'scratch'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'gvo00002',
+     u'hard': 2044723200,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_SCRATCH_PHANPY',
+        u'storage_type': u'scratch'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'gvo00002',
+     u'hard': 1835008000,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_DATA',
+        u'storage_type': u'data'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'project_gpilot',
+     u'hard': 10737418240,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_SCRATCH_MUK',
+        u'storage_type': u'scratch'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'vsc40075',
+     u'hard': 308224000,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_SCRATCH_MUK',
+        u'storage_type': u'scratch'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'vsc400',
+     u'hard': 26214400,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_DATA',
+        u'storage_type': u'data'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'vsc400',
+     u'hard': 3145728,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_HOME',
+        u'storage_type': u'home'
+     },
+     u'user': u'vsc40075'},
+    {u'fileset': u'vsc400',
+     u'hard': 26214400,
+     u'storage': {
+        u'institute': u'gent',
+        u'name': u'VSC_SCRATCH_DELCATTY',
+        u'storage_type': u'scratch'},
+     u'user': u'vsc40075'},
+    {u'fileset': u'vsc400',
+     u'hard': 1024,
+     u'storage': {
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_PHANPY',
+         u'storage_type': u'scratch'},
+     u'user': u'vsc40075'}
+]
+
 
 class VscAccountPageUserTest(TestCase):
     """
@@ -153,7 +226,7 @@ class VscAccountPageUserTest(TestCase):
 
         test_account = mkVscAccount(test_account_1)
         mock_client = mock.MagicMock()
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
         self.assertEqual(accountpageuser.get_institute_prefix(), 'g')
 
@@ -161,7 +234,7 @@ class VscAccountPageUserTest(TestCase):
 
         mock_client = mock.MagicMock()
         test_account = mkVscAccount(test_account_1)
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
         self.assertTrue(accountpageuser.account == test_account)
 
@@ -174,7 +247,7 @@ class VscAccountPageUserTest(TestCase):
 
         mock_client = mock.MagicMock()
         test_account = mkVscAccount(test_account_1)
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client, account=test_account)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
         self.assertTrue(accountpageuser.person == test_account.person)
 
@@ -191,7 +264,7 @@ class VscAccountPageUserTest(TestCase):
         mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
         mock_client.account[test_account.vsc_id].usergroup.get.return_value = (200, test_usergroup_1)
 
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
         self.assertTrue(accountpageuser.usergroup == mkUserGroup(test_usergroup_1))
 
@@ -207,7 +280,7 @@ class VscAccountPageUserTest(TestCase):
         test_account = mkVscAccount(test_account_1)
         mock_client.account[test_account.vsc_id].pubkey.get.return_value = (200, test_pubkeys_1)
 
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
         self.assertTrue(set(accountpageuser.pubkeys) == set([mkVscAccountPubkey(p) for p in test_pubkeys_1]))
 
@@ -217,9 +290,26 @@ class VscAccountPageUserTest(TestCase):
         test_account = mkVscAccount(test_account_1)
         mock_client.account[test_account.vsc_id].home_on_scratch.get.return_value = (200, test_hos_1)
 
-        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
+        accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
         self.assertTrue(accountpageuser.home_on_scratch == [mkVscHomeOnScratch(h) for h in test_hos_1])
+
+
+class VscTier2AccountpageUserTest(TestCase):
+    """
+    Tests for the VscTier2AccountpageUser.
+    """
+
+    def test_init_quota(self):
+
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        mock_client.account[test_account.vsc_id].quota.get.return_value = (200, test_quota_1)
+
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+
+        self.assertTrue(accountpageuser.user_home_quota == [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_HOME' and q['fileset'] == 'vsc400'][0])
+        self.assertTrue(accountpageuser.user_data_quota == [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == 'vsc400'][0])
 
 
 class UserDeploymentTest(TestCase):
@@ -384,7 +474,6 @@ class UserDeploymentTest(TestCase):
         mock_create_grouping_fileset.assert_called_with('scratchdelcatty', 'my_grouping_scratch_path')
         mock_scratch_path.assert_called_with('VSC_SCRATCH_DELCATTY')
         mock_create_user_dir.assert_called_with('my_scratch_path')
-
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
