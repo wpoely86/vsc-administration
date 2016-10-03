@@ -236,12 +236,12 @@ class VscAccountPageUserTest(TestCase):
         test_account = mkVscAccount(test_account_1)
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
-        self.assertTrue(accountpageuser.account == test_account)
+        self.assertEqual(accountpageuser.account, test_account)
 
         mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
-        self.assertTrue(accountpageuser.account == test_account)
+        self.assertEqual(accountpageuser.account, test_account)
 
     def test_person_instantiation(self):
 
@@ -249,12 +249,12 @@ class VscAccountPageUserTest(TestCase):
         test_account = mkVscAccount(test_account_1)
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
-        self.assertTrue(accountpageuser.person == test_account.person)
+        self.assertEqual(accountpageuser.person, test_account.person)
 
         mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_1)
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
-        self.assertTrue(accountpageuser.person == test_account.person)
+        self.assertEqual(accountpageuser.person, test_account.person)
 
     def test_usergroup_instantiation(self):
 
@@ -266,13 +266,13 @@ class VscAccountPageUserTest(TestCase):
 
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
-        self.assertTrue(accountpageuser.usergroup == mkUserGroup(test_usergroup_1))
+        self.assertEqual(accountpageuser.usergroup, mkUserGroup(test_usergroup_1))
 
         mock_client.account[test_account.vsc_id].get.return_value = (200, test_account_2)
         mock_client.group[test_account_2].get.return_value = (200, test_admin_group_1)
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, mock_client)
 
-        self.assertTrue(accountpageuser.usergroup == mkGroup(test_admin_group_1))
+        self.assertEqual(accountpageuser.usergroup, mkGroup(test_admin_group_1))
 
     def test_pubkeys_instantiation(self):
 
@@ -282,7 +282,7 @@ class VscAccountPageUserTest(TestCase):
 
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
-        self.assertTrue(set(accountpageuser.pubkeys) == set([mkVscAccountPubkey(p) for p in test_pubkeys_1]))
+        self.assertEqual(set(accountpageuser.pubkeys), set([mkVscAccountPubkey(p) for p in test_pubkeys_1]))
 
     def test_homeonscratch_instantiation(self):
 
@@ -292,7 +292,7 @@ class VscAccountPageUserTest(TestCase):
 
         accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client)
 
-        self.assertTrue(accountpageuser.home_on_scratch == [mkVscHomeOnScratch(h) for h in test_hos_1])
+        self.assertEqual(accountpageuser.home_on_scratch, [mkVscHomeOnScratch(h) for h in test_hos_1])
 
 
 class VscTier2AccountpageUserTest(TestCase):
@@ -308,8 +308,8 @@ class VscTier2AccountpageUserTest(TestCase):
 
         accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
 
-        self.assertTrue(accountpageuser.user_home_quota == [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_HOME' and q['fileset'] == 'vsc400'][0])
-        self.assertTrue(accountpageuser.user_data_quota == [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == 'vsc400'][0])
+        self.assertEqual(accountpageuser.user_home_quota, [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_HOME' and q['fileset'] == 'vsc400'][0])
+        self.assertEqual(accountpageuser.user_data_quota, [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == 'vsc400'][0])
 
 
 class UserDeploymentTest(TestCase):
