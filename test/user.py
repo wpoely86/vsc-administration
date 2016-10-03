@@ -348,6 +348,43 @@ class UserDeploymentTest(TestCase):
         mock_data_path.assert_called_with()
         mock_create_user_dir.assert_called_with('my_data_path')
 
+    @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    @mock.patch('vsc.administration.user.VscStorage')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_scratch_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_scratch_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
+    def test_create_data_dir_tier2_user(self,
+                                        mock_create_user_dir,
+                                        mock_create_grouping_fileset,
+                                        mock_grouping_scratch_path,
+                                        mock_scratch_path,
+                                        mock_storage,
+                                        mock_client,
+                                        mock_gpfsoperations,
+                                        ):
+
+        test_account = mkVscAccount(test_account_1)
+        mock_storage.return_value['VSC_SCRATCH_DELCATTY'].filesystem = "scratchdelcatty"
+
+        mock_create_user_dir.return_value = None
+        mock_create_grouping_fileset.return_value = None
+        mock_scratch_path.return_value = 'my_scratch_path'
+        mock_grouping_scratch_path.return_value = 'my_grouping_scratch_path'
+
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        mock_storage.assert_called_with()
+
+        self.assertTrue(mock_storage()['VSC_SCRATCH_DELCATTY'].filesystem == "scratchdelcatty")
+
+        accountpageuser.create_scratch_dir('VSC_SCRATCH_DELCATTY')
+
+        mock_grouping_scratch_path.assert_called_with('VSC_SCRATCH_DELCATTY')
+        mock_create_grouping_fileset.assert_called_with('scratchdelcatty', 'my_grouping_scratch_path')
+        mock_scratch_path.assert_called_with('VSC_SCRATCH_DELCATTY')
+        mock_create_user_dir.assert_called_with('my_scratch_path')
+
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
