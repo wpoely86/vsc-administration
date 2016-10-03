@@ -292,7 +292,7 @@ class UserDeploymentTest(TestCase):
                                         ):
 
         test_account = mkVscAccount(test_account_1)
-        mock_storage.return_value.storage['VSC_HOME'].filesystem = "vulpixhome"
+        mock_storage.return_value['VSC_HOME'].filesystem = "vulpixhome"
 
         mock_create_user_dir.return_value = None
         mock_create_grouping_fileset.return_value = None
@@ -302,7 +302,7 @@ class UserDeploymentTest(TestCase):
         accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
         mock_storage.assert_called_with()
 
-        self.assertTrue(mock_storage.return_value.storage['VSC_HOME'].filesystem == "vulpixhome")
+        self.assertTrue(mock_storage()['VSC_HOME'].filesystem == "vulpixhome")
 
         accountpageuser.create_home_dir()
 
