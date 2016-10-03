@@ -50,30 +50,54 @@ class VscAccountPageUser(object):
     A user who gets his own information from the accountpage through the REST API.
     """
 
-    def __init__(self, user_id, rest_client):
+    def __init__(self, user_id, rest_client, account=None, pubkeys=None):
         """
         Initialise.
+
+        @param account: can be a VscAccount namedtuple, to avoid calling the REST api.
+        @param pubkeys: can be a VscAccountPubkey namedtuple, to avoid calling the REST api.
         """
         self.user_id = user_id
         self.rest_client = rest_client
+        self._pubkey_cache = pubkeys
+        self._account_cache = account
+        self._usergroup_cache = None
+        self._home_on_scratch_cache = None
 
-        # We immediately retrieve this information
-        try:
-            self.account = mkVscAccount((rest_client.account[user_id].get()[1]))
-            self.person = self.account.person
-            self.pubkeys = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
-                            if not p['deleted']]
+    @property
+    def account(self):
+        if not self._account_cache:
+            self._account_cache = mkVscAccount((self.rest_client.account[self.user_id].get())[1])
+        return self._account_cache
+
+    @property
+    def person(self):
+        return self.account.person
+
+    @property
+    def usergroup(self):
+        if not self._usergroup_cache:
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
-                # TODO to be removed when magic site admin usergroups are pruged from code
-                self.usergroup = mkGroup((rest_client.group[user_id].get())[1])
+                # TODO to be removed when magic site admin usergroups are purged from code
+                self._usergroup_cache = mkGroup((self.rest_client.group[self.user_id].get())[1])
             else:
-                self.usergroup = mkUserGroup((rest_client.account[user_id].usergroup.get()[1]))
-            self.home_on_scratch = [
-                mkVscHomeOnScratch(h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
-            ]
-        except HTTPError:
-            logging.error("Cannot get information from the account page")
-            raise
+                self._usergroup_cache = mkUserGroup((self.rest_client.account[self.user_id].usergroup.get()[1]))
+
+        return self._usergroup_cache
+
+    @property
+    def home_on_scratch(self):
+        if self._home_on_scratch_cache is None:
+            hos = self.rest_client.account[self.user_id].home_on_scratch.get()[1]
+            self._home_on_scratch_cache = [mkVscHomeOnScratch(h) for h in hos]
+        return self._home_on_scratch_cache
+
+    @property
+    def pubkeys(self):
+        if self._pubkey_cache is None:  # an empty list is allowed :)
+            ps = self.rest_client.account[self.user_id].pubkey.get()[1]
+            self._pubkey_cache = [mkVscAccountPubkey(p) for p in ps if not p['deleted']]
+        return self._pubkey_cache
 
     def get_institute_prefix(self):
         """
@@ -87,12 +111,13 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None, account=None, pubkeys=None):
         """Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(VscTier2AccountpageUser, self).__init__(user_id, rest_client)
+        super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account, pubkeys)
 
+        self._quota_cache = {}
         self.pickle_storage = pickle_storage
         if not storage:
             self.storage = VscStorage()
@@ -103,35 +128,54 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
-        self._init_quota(rest_client)
+    @property
+    def user_home_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['home']
 
-    def _init_quota(self, rest_client):
+    @property
+    def user_data_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['data']
 
-        try:
-            all_quota = [mkVscUserSizeQuota(q) for q in rest_client.account[self.user_id].quota.get()[1]]
-        except HTTPError:
-            logging.exception("Unable to retrieve quota information. Falling back to static info for home and data")
-            self.user_home_quota = self.storage[VSC_HOME].user_quota
-            self.user_data_quota = self.storage[VSC_DATA].user_quota
-            self.user_scratch_quota = None
-            return
+    @property
+    def user_scratch_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['scratch']
 
+    @property
+    def vo_data_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['vo']['data']
+
+    @property
+    def vo_scratch_quota(self):
+        if not self._quota_cache:
+            self.init_quota_cache()
+        return self._quota_cache['vo']['scratch']
+
+    def _init_quota_cache(self):
+        all_quota = [mkVscUserSizeQuota(q) for q in self.rest_client.account[self.user_id].quota.get()[1]]
+        # we no longer set defaults, since we do not want to accidentally revert people to some default
+        # that is lower than their actual quota if the accountpage goes down in between retrieving the users
+        # and fetching the quota
         institute_quota = filter(lambda q: q.storage['institute'] == self.person.institute['site'], all_quota)
-
-        # the user's personal quota are imposed on a grouping fileset on all our Tier2 filesystems
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
         user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
-        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or
-                                [self.storage[VSC_HOME].quota_user])[0]
-        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or
-                                [self.storage[VSC_DATA].quota_user])[0]
-        self.user_scratch_quota = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)  # multiple values!
 
-        # the users' VO quota (if any) are on a fileset that starts with 'gvo'
+        self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
+        self._quota_cache['data'] = [q.hard for q in institute_quota if user_proposition(q, 'data')][0]
+        self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+
         fileset_name = 'gvo'
         user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
-        self.vo_data_quota = [q for q in institute_quota if user_proposition(q, 'data')]  # max 1 value
-        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q, 'scratch')]  # multiple values!
+        self._quota_cache['vo'] = {}
+        self._quota_cache['vo']['data'] = [q for q in institute_quota if user_proposition(q, 'data')]
+        self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_proposition(q, 'scratch')]
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
