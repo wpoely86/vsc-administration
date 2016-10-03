@@ -311,6 +311,44 @@ class UserDeploymentTest(TestCase):
         mock_home_path.assert_called_with()
         mock_create_user_dir.assert_called_with('my_home_path')
 
+    @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    @mock.patch('vsc.administration.user.VscStorage')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_data_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_data_path')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
+    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
+    def test_create_data_dir_tier2_user(self,
+                                        mock_create_user_dir,
+                                        mock_create_grouping_fileset,
+                                        mock_grouping_data_path,
+                                        mock_data_path,
+                                        mock_storage,
+                                        mock_client,
+                                        mock_gpfsoperations,
+                                        ):
+
+        test_account = mkVscAccount(test_account_1)
+        mock_storage.return_value['VSC_DATA'].filesystem = "vulpixdata"
+
+        mock_create_user_dir.return_value = None
+        mock_create_grouping_fileset.return_value = None
+        mock_data_path.return_value = 'my_data_path'
+        mock_grouping_data_path.return_value = 'my_grouping_data_path'
+
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        mock_storage.assert_called_with()
+
+        self.assertTrue(mock_storage()['VSC_DATA'].filesystem == "vulpixdata")
+
+        accountpageuser.create_data_dir()
+
+        mock_grouping_data_path.assert_called_with()
+        mock_create_grouping_fileset.assert_called_with('vulpixdata', 'my_grouping_data_path')
+        mock_data_path.assert_called_with()
+        mock_create_user_dir.assert_called_with('my_data_path')
+
+
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
 
@@ -347,30 +385,3 @@ class UserDeploymentTest(TestCase):
 
                             mock_user_instance.set_home_quota.assert_not_called()
                             mock_user_instance.set_data_quota.assert_not_called()
-
-    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    def test_vsc_accoutpage_user_account_property(self, mock_client):
-
-        account = {
-            u'broken': False,
-            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
-            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
-            u'email': u'foobar@ugent.be',
-            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
-            u'login_shell': u'/bin/bash',
-            u'person': {
-                u'gecos': u'Foo Bar',
-                u'institute': {u'site': u'gent'},
-                u'institute_login': u'foobar'
-            },
-            u'research_field': [u'Bollocks', u'Pluto'],
-            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
-            u'status': u'active',
-            u'vsc_id': u'vsc40075',
-            u'vsc_id_number': 2540075
-        }
-        test_account = mkVscAccount(account)
-
-        vsc_accountpage_user = user.VscAccountPageUser('vsc40075', rest_client=mock_client, account=test_account)
-        mock_client.assert_not_called()
-        self.assertEqual(vsc_accountpage_user.person, mkVscAccountPerson(account['person']))
