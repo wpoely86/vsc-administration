@@ -285,7 +285,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                             (self.vo.vsc_id, member.account.vsc_id))
             return
 
-        if self.vo.vsc_id in vsc.institute_vos.values():
+        if self.vo.vsc_id in self.vsc.institute_vos.values():
             logging.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
                             member.account.vsc_id, self.vo.vsc_id)
             return
