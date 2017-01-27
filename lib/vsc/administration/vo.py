@@ -36,10 +36,6 @@ from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
 
-VO_PREFIX = 'gvo'
-DEFAULT_VO = 'gvo000012'  # no longer needed?
-INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']  # no longer needed?
-
 
 class VoStatusUpdateError(Exception):
     pass
@@ -264,6 +260,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                             (VSC_DATA, self.vo.vsc_id, member.account.vsc_id))
             return
 
+        if self.vo.vsc_id in self.vsc.institute_vos.values():
+            logging.warning("Not setting VO %s member %s data quota: No VO member quota for this VO",
+                            member.account.vsc_id, self.vo.vsc_id)
+            return
+
         if member.vo_data_quota:
             logging.info("Setting the data quota for VO %s member %s to %d GiB" %
                          (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota[0].hard))
@@ -282,6 +283,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if not self.vo_scratch_quota:
             logging.warning("Not setting VO %s member %s scratch quota: no VO quota info available" %
                             (self.vo.vsc_id, member.account.vsc_id))
+            return
+
+        if self.vo.vsc_id in self.vsc.institute_vos.values():
+            logging.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
+                            member.account.vsc_id, self.vo.vsc_id)
             return
 
         if member.vo_scratch_quota:
@@ -421,8 +427,9 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 continue
 
             modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
-            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client)
-                                for a in modified_member_list[1]]
+            modified_members = [
+                VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]
+            ]
 
             for member in modified_members:
                 try:

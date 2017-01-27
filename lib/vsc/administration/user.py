@@ -113,7 +113,8 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     """
     def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None,
                  account=None, pubkeys=None):
-        """Initialisation.
+        """
+        Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
         super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account, pubkeys)
