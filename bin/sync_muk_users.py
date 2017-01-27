@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -337,7 +337,7 @@ def notify_purge(user, grace=0, grace_unit=""):
             logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
                         (user.account.vsc_id, user.person.gecos, mail_subject))
         except VscMailError as err:
-            logger.error("Sending mail to %s (via %s) failed: %s",  err.mail_to, err.mail_host, err.err)
+            logger.error("Sending mail to %s (via %s) failed: %s", err.mail_to, err.mail_host, err.err)
 
 
 def purge_user(user, client):
