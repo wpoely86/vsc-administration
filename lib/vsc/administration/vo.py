@@ -331,7 +331,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         @deprecated. We should not create new symlinks.
         """
-        logging.warning("Trying to set a symlink for a VO member %s on %s. Deprecated. Not doing anything", member, storage_name)
+        logging.warning("Trying to set a symlink for a VO member %s on %s. Deprecated. Not doing anything",
+                        member, storage_name)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
@@ -415,13 +416,13 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
-
             if vo_id in (VSC().institute_vos.values()) and storage_name in (VSC_HOME, VSC_DATA):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
             modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
-            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]]
+            modified_members = [VscTier2AccountpageUser(a["vsc_id"], rest_client=client)
+                                for a in modified_member_list[1]]
 
             for member in modified_members:
                 try:
