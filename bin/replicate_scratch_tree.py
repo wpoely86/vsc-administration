@@ -44,7 +44,6 @@ fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
 
-
 def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesystem_name, vo_support=False, dry_run=False):
     """Set up the filesets and directories such that user, vo directories and friends can be created."""
 
@@ -54,14 +53,14 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
     fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
 
     # if the replicat fileset does not exist, we create it, like a BAWS
-    if not fileset_name in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
+    if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         if not dry_run:
             gpfs.make_fileset(fileset_path, fileset_name)
             gpfs.chmod(fileset_path, 0o755)
         log.info("Fileset %s created and linked at %s", fileset_name, fileset_path)
 
     # create directories up to vsc42000
-    for group in xrange(0,21):
+    for group in xrange(0, 21):
 
         group_path = os.path.join(fileset_path, "vsc4%02d" % group)
         if not os.path.exists(group_path):
@@ -73,8 +72,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
             except (IOError, OSError) as err:
                 log.error("Problem creating dir %s [%s]", group_path, err)
 
-        for user in xrange(0,100):
-
+        for user in xrange(0, 100):
             user_name = "vsc4%02d%02d" % (group, user)
             user_id = 2540000 + group * 100 + user
             user_path = os.path.join(group_path, user_name)
@@ -96,9 +94,9 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
             os.mkdir(vo_group_path)
             os.chmod(vo_group_path, 0o755)
 
-        for vo in xrange(1,100):
+        for vo in xrange(1, 100):
 
-            vo_name =  "gvo%05d" % (vo,)
+            vo_name = "gvo%05d" % (vo,)
             try:
                 vo_group = grp.getgrnam(vo_name)
             except Exception:
