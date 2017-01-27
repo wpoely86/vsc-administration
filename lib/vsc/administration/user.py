@@ -157,7 +157,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     @property
     def vo_scratch_quota(self):
         if not self._quota_cache:
-            self.init_quota_cache()
+            self._init_quota_cache()
         return self._quota_cache['vo']['scratch']
 
     def _init_quota_cache(self):
