@@ -100,7 +100,6 @@ def class LdapSyncer(object):
 
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        #TODO: check deleted syntax
         pks =  [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id].pubkey if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
@@ -132,15 +131,23 @@ def class LdapSyncer(object):
 
         for account in sync_accounts:
             try:
-                usergroup = mkVscUserGroup(client.account[account.vsc_id].usergroup.get()[1])
+                usergroup = mkVscUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
             except HTTPError:
                 _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
-           try:
+            try:
                 gecos = str(account.user.person.gecos)
             except UnicodeEncodeError:
                 gecos = account.person.gecos.encode('ascii', 'ignore')
                 _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
+            quotas = self.client.account[account.vsc_id].quota.get()[1]
+            account_quota = {}
+            for quota in quotas:
+                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']
+                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
+                        account_quota{stype] = quota["hard"]
+
+
 
             public_keys = self.get_public_keys(account.vsc_id)
 
@@ -155,10 +162,9 @@ def class LdapSyncer(object):
                 'homeDirectory': [str(account.home_directory)],
                 'dataDirectory': [str(account.data_directory)],
                 'scratchDirectory': [str(account.scratch_directory)],
-                #TODO: fill in
-                #'homeQuota': ["%d" % (home_quota,)],
-                #'dataQuota': ["%d" % (data_quota,)],
-                #'scratchQuota': ["%d" % (scratch_quota,)],
+                'homeQuota': ["%d" % account_quota['VSC_HOME']],
+                'dataQuota': ["%d" % account_quota['VSC_DATA']],
+                'scratchQuota': ["%d" % account_quota['VSC_SCRATCH_DELCATTY']],
                 'pubkey': public_keys,
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
@@ -197,6 +203,14 @@ def class LdapSyncer(object):
                 # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
                 if err.code != 404:
                     raise
+            quotas = self.client.account[group.vsc_id].quota.get()[1]
+            account_quota = {}
+            for quota in quotas:
+                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']
+                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
+                        account_quota{stype] = quota["hard"]
+
+
 
             ldap_attributes = {
                 'cn': str(group.vsc_id),
@@ -207,13 +221,20 @@ def class LdapSyncer(object):
                 'status': [str(group.status)],
             }
             if vo:
+            quotas = self.client.account[group.vsc_id].quota.get()[1]
+            vo_quota = {}
+            for quota in quotas:
+                for stype in ['VSC_DATA', 'VSC_SCRATCH_DELCATTY']
+                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('gvo'):
+                        vo_quota{stype] = quota["hard"]
+
+
                 ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
                 ldap_attributes['description'] = [str(vo.description)]
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
-                #TODO: fix quota: have proper api documentation
-                #ldap_attributes['dataQuota'] = [str(vo_quota[)],
-                #ldap_attributes['scratchQuota'] = [str(vo_quota[)],
+                ldap_attributes['dataQuota'] = [vo_quota['VSC_DATA']],
+                ldap_attributes['scratchQuota'] = [vo_quota['VSC_SCRATCH_DELCATTY']],
             }
 
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
