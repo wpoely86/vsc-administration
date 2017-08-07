@@ -28,7 +28,7 @@ from ldap import LDAPError
 from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAutogroup, mkVscGroup, mkVscAccountPubkey, mkVscUserGroup
+from vsc.accountpage.wrappers import mkVscAutogroup, mkVscGroup, mkVscAccountPubkey, mkUserGroup
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -131,7 +131,7 @@ def class LdapSyncer(object):
 
         for account in sync_accounts:
             try:
-                usergroup = mkVscUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
+                usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
             except HTTPError:
                 _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
