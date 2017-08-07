@@ -60,8 +60,8 @@ def class LdapSyncer(object):
     This class implements a system for syncing changes from the accountpage api
     to the vsc ldap
     """
-    def __init__(self):
-        self.client = AccountpageClient() # TODO: things here
+    def __init__(self, client):
+        self.client = client
 
     def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
         """
@@ -230,6 +230,7 @@ def main():
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
+        'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
         }
     opts = ExtendedSimpleOption(options)
     stats = {}
@@ -274,9 +275,10 @@ def main():
                 _log.info("Now running as %s" % (os.geteuid(),))
             except OSError:
                 _log.raiseException("Could not drop privileges")
-
             last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=timezone.utc)
-            syncer = LdapSyncer()
+
+            client = AccountpageClient(token=opts.options.access_token)
+            syncer = LdapSyncer(client)
             altered_accounts = syncer.sync_altered_accounts(last, now, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s",  syncer.processed_accounts)
