@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
 #
-# Copyright 2013-2016 Ghent University
+# Copyright 2013-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -29,7 +29,6 @@ from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscAutogroup, mkVscGroup, mkVscAccountPubkey, mkVscUserGroup
-
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -137,7 +136,7 @@ def class LdapSyncer(object):
             except HTTPError:
                 _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
-            try:
+           try:
                 gecos = str(account.user.person.gecos)
             except UnicodeEncodeError:
                 gecos = account.person.gecos.encode('ascii', 'ignore')
@@ -167,12 +166,10 @@ def class LdapSyncer(object):
                 'researchField': [account.research_field],
                 'status': [str(account.status)],
             }
-
-            result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
+                        result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
             accounts[result].add(account)
 
         return accounts
-
 
     def sync_altered_groups(self, last, now, dry_run=True):
         """
@@ -189,7 +186,7 @@ def class LdapSyncer(object):
             NEW: set(),
             UPDATED: set(),
             ERROR: set(),
-        }
+       }
 
         for group in changed_groups:
             vo = False
@@ -219,13 +216,13 @@ def class LdapSyncer(object):
                 #ldap_attributes['scratchQuota'] = [str(vo_quota[)],
             }
 
-
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
             result = add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
             groups[result].add(group)
 
         return groups
+
 
 def main():
     now = datetime.utcnow().replace(tzinfo=timezone.utc)
@@ -307,7 +304,7 @@ def main():
 
     else:
         # parent
-        (pid, result) = os.waitpid(parent_pid, 0)
+        (_, result) = os.waitpid(parent_pid, 0)
         _log.info("Child exited with exit code %d" % (result,))
 
         if not result:

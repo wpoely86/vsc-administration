@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -39,7 +39,7 @@ def set_up_apps(gpfs, storage_settings, storage, filesystem_info, filesystem_nam
     fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
     if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(fileset_path, fileset_name)
-        gpfs.chmod(0755, fileset_path)
+        gpfs.chmod(0o755, fileset_path)
         log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
 
 
@@ -52,7 +52,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
     fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
     if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
         gpfs.make_fileset(fileset_path, fileset_name)
-        gpfs.chmod(0755, fileset_path)
+        gpfs.chmod(0o755, fileset_path)
         log.info("Fileset %s created and linked at %s" % (fileset_name, fileset_path))
 
     if vo_support:
@@ -61,7 +61,7 @@ def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesyst
         vo_fileset_path = os.path.join(filesystem_info['defaultMountPoint'], fileset_name)
         if fileset_name not in [f['filesetName'] for f in gpfs.gpfslocalfilesets[filesystem_name].values()]:
             gpfs.make_fileset(vo_fileset_path, fileset_name)
-            gpfs.chmod(0755, vo_fileset_path)
+            gpfs.chmod(0o755, vo_fileset_path)
             log.info("Fileset %s created and linked at %s" % (fileset_name, vo_fileset_path))
 
 

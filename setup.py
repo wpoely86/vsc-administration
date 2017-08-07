@@ -6,7 +6,7 @@
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -23,12 +23,12 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag
 
 PACKAGE = {
-    'version': '0.35.1',
+    'version': '0.36.2',
     'author': [ag],
     'maintainer': [ag],
     'tests_require': ['mock'],
     'install_requires': [
-        'vsc-accountpage-clients >= 0.2',
+        'vsc-accountpage-clients >= 0.7',
         'vsc-base >= 2.4.16',
         'vsc-config >= 1.20',
         'vsc-filesystems >= 0.19',

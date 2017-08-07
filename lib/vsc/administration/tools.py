@@ -1,11 +1,11 @@
 # -*- coding: latin-1 -*-
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -24,7 +24,6 @@ import logging
 import os
 import stat
 
-from lockfile.pidlockfile import PIDLockFile
 from urllib2 import HTTPError
 
 from vsc.utils import fancylogger
@@ -115,14 +114,14 @@ def cleanup_purgees(current_users, purgees, client, dry_run):
     for user_id in current_users:
         logger.debug("Checking if %s is in purgees", (user_id,))
         if user_id in purgees:
-            purgees.remove(user_id)
+            del purgees[user_id]
             purgees_undone += 1
             logger.info("Removed %s from the list of purgees: found in list of current users" % (user_id,))
             user = MukAccountpageUser(user_id, rest_client=client)
             user.dry_run = dry_run
             notify_reinstatement(user)
 
-            group_name = "%st1_mukgraceusers" % user.person.institute['site']
+            group_name = "%st1_mukgraceusers" % user.person.institute['site'][0]  # just the first letter
             if not user.dry_run:
                 try:
                     client.group[group_name].member[user.account.vsc_id].delete()

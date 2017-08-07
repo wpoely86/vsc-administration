@@ -1,11 +1,11 @@
 # -*- coding: latin-1 -*-
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -28,18 +28,13 @@ import pwd
 
 from urllib2 import HTTPError
 
-from vsc.accountpage.wrappers import mkVo, VscVoSizeQuota
-from vsc.accountpage.wrappers import VscVo as VscVoWrapper
+from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
-from vsc.administration.user import VscAccount, VscTier2AccountpageUser, UserStatusUpdateError
-from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_MUK, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
+from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
-
-VO_PREFIX = 'gvo'
-DEFAULT_VO = 'gvo000012'  # no longer needed?
-INSTITUTE_VOS = ['gvo00012', 'gvo00016', 'gvo00017', 'gvo00018']  # no longer needed?
 
 
 class VoStatusUpdateError(Exception):
@@ -59,7 +54,7 @@ class VscAccountPageVo(object):
 
         # We immediately retrieve this information
         try:
-            self.vo = VscVoWrapper(**(rest_client.vo[vo_id].get()[1]))
+            self.vo = mkVo((rest_client.vo[vo_id].get()[1]))
         except HTTPError:
             logging.error("Cannot get information from the account page")
             raise
@@ -87,7 +82,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self.posix = PosixOperations()
 
         try:
-            all_quota = [VscVoSizeQuota(**q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
+            all_quota = [mkVscVoSizeQuota(q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
         except HTTPError:
             logging.exception("Unable to retrieve quota information")
             # to avoid reducing the quota in case of issues with the account page, we will NOT
@@ -97,8 +92,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
             self.vo_data_quota = ([q.hard for q in institute_quota
-                                          if q.storage['storage_type'] in ('data',)]
-                                          or [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
+                                   if q.storage['storage_type'] in ('data',)] or
+                                  [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
             self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
 
     def members(self):
@@ -156,10 +151,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo.vsc_id))
 
-        self.gpfs.chmod(0770, path)
+        self.gpfs.chmod(0o770, path)
 
         try:
-            moderator = VscAccount(**self.rest_client.account[self.vo.moderators[0]].get()[1])
+            moderator = mkVscAccount(self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
             logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
             self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
@@ -227,14 +222,14 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         else:
             quota = None
 
-        if not self.vo_scratch_quota and not quota:
+        if not quota:
             logging.error("No VO %s scratch quota information available for %s" % (self.vo.vsc_id, storage_name,))
             logging.info("Setting default VO %s scratch quota on storage %s to %d" %
                          (self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo))
             self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
 
-        logging.info("Setting default VO %s quota on storage %s" % (self.vo.vsc_id, quota[0].hard))
+        logging.info("Setting VO %s quota on storage %s to %d" % (self.vo.vsc_id, storage_name, quota[0].hard))
         self._set_quota(storage_name, self._scratch_path(storage_name), quota[0].hard)
 
     def _set_member_quota(self, storage_name, path, member, quota):
@@ -265,6 +260,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                             (VSC_DATA, self.vo.vsc_id, member.account.vsc_id))
             return
 
+        if self.vo.vsc_id in self.vsc.institute_vos.values():
+            logging.warning("Not setting VO %s member %s data quota: No VO member quota for this VO",
+                            member.account.vsc_id, self.vo.vsc_id)
+            return
+
         if member.vo_data_quota:
             logging.info("Setting the data quota for VO %s member %s to %d GiB" %
                          (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota[0].hard))
@@ -281,12 +281,18 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         FIXME: This should probably be some variable in a config setting instance
         """
         if not self.vo_scratch_quota:
-            logging.warning("Not setting VO %s member %s scratch quota: no VO data quota info available" %
+            logging.warning("Not setting VO %s member %s scratch quota: no VO quota info available" %
                             (self.vo.vsc_id, member.account.vsc_id))
             return
 
+        if self.vo.vsc_id in self.vsc.institute_vos.values():
+            logging.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
+                            member.account.vsc_id, self.vo.vsc_id)
+            return
+
         if member.vo_scratch_quota:
-            quota = filter(lambda q: q.storage['name'] in (storage_name,), member.vo_scratch_quota)
+            quota = filter(lambda q: q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,),
+                           member.vo_scratch_quota)
             logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s" %
                          (self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name))
             self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
@@ -303,7 +309,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a member-owned directory in the VO fileset."""
         create_stat_directory(
             target,
-            0700,
+            0o700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
             self.gpfs,
@@ -331,7 +337,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         @deprecated. We should not create new symlinks.
         """
-        logging.warning("Trying to set a symlink for a VO member on %s. Deprecated. Not doing anything", storage_name)
+        logging.warning("Trying to set a symlink for a VO member %s on %s. Deprecated. Not doing anything",
+                        member, storage_name)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
@@ -381,7 +388,7 @@ def update_vo_status(vo, client):
                                         (vo.vo_id, virtual_organisation.status))
 
 
-def process_vos(options, vo_ids, storage, storage_name, client):
+def process_vos(options, vo_ids, storage_name, client, datestamp):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -407,21 +414,25 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                 vo.set_data_quota()
                 update_vo_status(vo, client)
 
-            if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
-                vo.create_scratch_fileset(storage_name)
-                vo.set_scratch_quota(storage_name)
-
             if vo_id in (VSC().institute_vos[GENT],):
                 logging.info("Not deploying default VO %s members" % (vo_id,))
                 continue
+
+            if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
+                vo.create_scratch_fileset(storage_name)
+                vo.set_scratch_quota(storage_name)
 
             if vo_id in (VSC().institute_vos.values()) and storage_name in (VSC_HOME, VSC_DATA):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
-            for user_id in vo.vo.members:
+            modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
+            modified_members = [
+                VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]
+            ]
+
+            for member in modified_members:
                 try:
-                    member = VscTier2AccountpageUser(user_id, rest_client=client)
                     member.dry_run = options.dry_run
                     if storage_name in [VSC_DATA]:
                         vo.set_member_data_quota(member)  # half of the VO quota
@@ -431,12 +442,12 @@ def process_vos(options, vo_ids, storage, storage_name, client):
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
-                    ok_vos[vo.vo_id] = [user_id]
-                except:
+                    ok_vos[vo.vo_id] = [member.account.vsc_id]
+                except Exception:
                     logging.exception("Failure at setting up the member %s of VO %s on %s" %
-                                     (user_id, vo.vo_id, storage_name))
-                    error_vos[vo.vo_id] = [user_id]
-        except:
+                                      (member.account.vsc_id, vo.vo_id, storage_name))
+                    error_vos[vo.vo_id] = [member.account.vsc_id]
+        except Exception:
             logging.exception("Something went wrong setting up the VO %s on the storage %s" % (vo.vo_id, storage_name))
             error_vos[vo.vo_id] = vo.members
 

@@ -1,11 +1,11 @@
 # -*- coding: latin-1 -*-
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -50,30 +50,54 @@ class VscAccountPageUser(object):
     A user who gets his own information from the accountpage through the REST API.
     """
 
-    def __init__(self, user_id, rest_client):
+    def __init__(self, user_id, rest_client, account=None, pubkeys=None):
         """
         Initialise.
+
+        @param account: can be a VscAccount namedtuple, to avoid calling the REST api.
+        @param pubkeys: can be a VscAccountPubkey namedtuple, to avoid calling the REST api.
         """
         self.user_id = user_id
         self.rest_client = rest_client
+        self._pubkey_cache = pubkeys
+        self._account_cache = account
+        self._usergroup_cache = None
+        self._home_on_scratch_cache = None
 
-        # We immediately retrieve this information
-        try:
-            self.account = mkVscAccount((rest_client.account[user_id].get()[1]))
-            self.person = mkVscAccountPerson((rest_client.account[user_id].person.get()[1]))
-            self.pubkeys = [mkVscAccountPubkey(p) for p in rest_client.account[user_id].pubkey.get()[1]
-                            if not p['deleted']]
+    @property
+    def account(self):
+        if not self._account_cache:
+            self._account_cache = mkVscAccount((self.rest_client.account[self.user_id].get())[1])
+        return self._account_cache
+
+    @property
+    def person(self):
+        return self.account.person
+
+    @property
+    def usergroup(self):
+        if not self._usergroup_cache:
             if self.person.institute_login in ('x_admin', 'admin', 'voadmin'):
-                # TODO to be removed when magic site admin usergroups are pruged from code
-                self.usergroup = mkVscGroup((rest_client.group[user_id].get())[1])
+                # TODO to be removed when magic site admin usergroups are purged from code
+                self._usergroup_cache = mkGroup((self.rest_client.group[self.user_id].get())[1])
             else:
-                self.usergroup = mkVscUserGroup((rest_client.account[user_id].usergroup.get()[1]))
-            self.home_on_scratch = [
-                mkVscHomeOnScratch(h) for h in rest_client.account[user_id].home_on_scratch.get()[1]
-            ]
-        except HTTPError:
-            logging.error("Cannot get information from the account page")
-            raise
+                self._usergroup_cache = mkUserGroup((self.rest_client.account[self.user_id].usergroup.get()[1]))
+
+        return self._usergroup_cache
+
+    @property
+    def home_on_scratch(self):
+        if self._home_on_scratch_cache is None:
+            hos = self.rest_client.account[self.user_id].home_on_scratch.get()[1]
+            self._home_on_scratch_cache = [mkVscHomeOnScratch(h) for h in hos]
+        return self._home_on_scratch_cache
+
+    @property
+    def pubkeys(self):
+        if self._pubkey_cache is None:  # an empty list is allowed :)
+            ps = self.rest_client.account[self.user_id].pubkey.get()[1]
+            self._pubkey_cache = [mkVscAccountPubkey(p) for p in ps if not p['deleted']]
+        return self._pubkey_cache
 
     def get_institute_prefix(self):
         """
@@ -87,12 +111,15 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None):
-        """Initialisation.
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None,
+                 account=None, pubkeys=None):
+        """
+        Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
-        super(VscTier2AccountpageUser, self).__init__(user_id, rest_client)
+        super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account, pubkeys)
 
+        self._quota_cache = {}
         self.pickle_storage = pickle_storage
         if not storage:
             self.storage = VscStorage()
@@ -103,35 +130,58 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
 
-        self._init_quota(rest_client)
+    @property
+    def user_home_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['home']
 
-    def _init_quota(self, rest_client):
+    @property
+    def user_data_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['data']
 
-        try:
-            all_quota = [mkVscUserSizeQuota(q) for q in rest_client.account[self.user_id].quota.get()[1]]
-        except HTTPError:
-            logging.exception("Unable to retrieve quota information. Falling back to static info for home and data")
-            self.user_home_quota = self.storage[VSC_HOME].user_quota
-            self.user_data_quota = self.storage[VSC_DATA].user_quota
-            self.user_scratch_quota = None
-            return
+    @property
+    def user_scratch_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['scratch']
 
+    @property
+    def vo_data_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['vo']['data']
+
+    @property
+    def vo_scratch_quota(self):
+        if not self._quota_cache:
+            self._init_quota_cache()
+        return self._quota_cache['vo']['scratch']
+
+    def _init_quota_cache(self):
+        all_quota = [mkVscUserSizeQuota(q) for q in self.rest_client.account[self.user_id].quota.get()[1]]
+        # we no longer set defaults, since we do not want to accidentally revert people to some default
+        # that is lower than their actual quota if the accountpage goes down in between retrieving the users
+        # and fetching the quota
         institute_quota = filter(lambda q: q.storage['institute'] == self.person.institute['site'], all_quota)
-
-        # the user's personal quota are imposed on a grouping fileset on all our Tier2 filesystems
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
-        user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
-        self.user_home_quota = ([q.hard for q in institute_quota if user_proposition(q, 'home')] or
-                                [self.storage[VSC_HOME].quota_user])[0]
-        self.user_data_quota = ([q.hard for q in institute_quota if user_proposition(q, 'data')] or
-                                [self.storage[VSC_DATA].quota_user])[0]
-        self.user_scratch_quota = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)  # multiple values!
 
-        # the users' VO quota (if any) are on a fileset that starts with 'gvo'
+        def user_proposition(quota, storage_type):
+            return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
+
+        self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
+        self._quota_cache['data'] = [q.hard for q in institute_quota if user_proposition(q, 'data')][0]
+        self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+
         fileset_name = 'gvo'
-        user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
-        self.vo_data_quota = [q for q in institute_quota if user_proposition(q, 'data')]  # max 1 value
-        self.vo_scratch_quota = [q for q in institute_quota if user_proposition(q, 'scratch')]  # multiple values!
+
+        def user_proposition(quota, storage_type):
+            return quota.fileset.startswith(fileset_name) and quota.storage['storage_type'] == storage_type
+        self._quota_cache['vo'] = {}
+        self._quota_cache['vo']['data'] = [q for q in institute_quota if user_proposition(q, 'data')]
+        self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_proposition(q, 'scratch')]
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
@@ -163,7 +213,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.info("Fileset %s already exists for user group of %s ... not creating again.",
                          fileset_name, self.account.vsc_id)
 
-        self.gpfs.chmod(0755, path)
+        self.gpfs.chmod(0o755, path)
 
     def _get_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage_name."""
@@ -272,7 +322,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         create_stat_directory(
             path,
-            0700,
+            0o700,
             int(self.account.vsc_id_number),
             int(self.usergroup.vsc_id_number),
             self.gpfs
@@ -470,10 +520,10 @@ class MukAccountpageUser(VscAccountPageUser):
         base_home_dir_hierarchy = os.path.dirname(source.rstrip('/'))
         target = None
 
-        if 'VSC_MUK_SCRATCH' in [s.storage['name'] for s in self.home_on_scratch]:
+        if 'VSC_MUK_SCRATCH' in [s.storage.name for s in self.home_on_scratch]:
             logging.info("User %s has his home on Muk scratch" % (self.account.vsc_id))
             target = self._scratch_path()
-        elif 'VSC_MUK_AFM' in [s.storage['name'] for s in self.home_on_scratch]:
+        elif 'VSC_MUK_AFM' in [s.storage.name for s in self.home_on_scratch]:
             logging.info("User %s has his home on Muk AFM" % (self.user_id))
             target = self.muk.user_afm_home_mount(self.account.vsc_id, self.person.institute['site'])
 
@@ -485,7 +535,7 @@ class MukAccountpageUser(VscAccountPageUser):
         self.gpfs.make_dir(base_home_dir_hierarchy)
         try:
             os.symlink(target, source)  # since it's just a link pointing to places that need not exist on the sync host
-        except OSError, err:
+        except OSError as err:
             if err.errno not in [errno.EEXIST]:
                 raise
             else:
@@ -526,7 +576,8 @@ cluster_user_pickle_store_map = {
     'muk': 'VSC_SCRATCH_MUK',
 }
 
-def update_user_status(user, options, client):
+
+def update_user_status(user, client):
     """
     Change the status of the user's account in the account page to active.
     The usergroup status is always in sync with thte accounts status
@@ -542,7 +593,7 @@ def update_user_status(user, options, client):
     payload = {"status": ACTIVE}
     try:
         response_account = client.account[user.user_id].patch(body=payload)
-    except HTTPError, err:
+    except HTTPError as err:
         log.error("Account %s and UserGroup %s status were not changed", user.user_id, user.user_id)
         raise UserStatusUpdateError("Account %s status was not changed - received HTTP code %d" % err.code)
     else:
@@ -577,7 +628,7 @@ def process_users_quota(options, user_quota, storage_name, client):
                 user.set_scratch_quota(storage_name)
 
             ok_quota.append(quota)
-        except:
+        except Exception:
             log.exception("Cannot process user %s" % (user.user_id))
             error_quota.append(quota)
 
@@ -611,7 +662,7 @@ def process_users(options, account_ids, storage_name, client):
             if storage_name in ['VSC_HOME']:
                 user.create_home_dir()
                 user.populate_home_dir()
-                update_user_status(user, options, client)
+                update_user_status(user, client)
 
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
@@ -620,7 +671,7 @@ def process_users(options, account_ids, storage_name, client):
                 user.create_scratch_dir(storage_name)
 
             ok_users.append(user)
-        except:
+        except Exception:
             log.exception("Cannot process user %s" % (user.user_id))
             error_users.append(user)
 

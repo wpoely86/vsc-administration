@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 #
-# Copyright 2012-2016 Ghent University
+# Copyright 2012-2017 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
 # with support of Ghent University (http://ugent.be/hpc),
-# the Flemish Supercomputer Centre (VSC) (https://vscentrum.be/nl/en),
+# the Flemish Supercomputer Centre (VSC) (https://www.vscentrum.be),
 # the Flemish Research Foundation (FWO) (http://www.fwo.be/en)
 # and the Department of Economy, Science and Innovation (EWI) (http://www.ewi-vlaanderen.be/en).
 #
@@ -60,7 +60,7 @@ def main():
     user_fileset_path = os.path.join(scratch['defaultMountPoint'], 'user')
     if not 'user' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(user_fileset_path, 'user')
-        gpfs.chmod(0755, user_fileset_path)
+        gpfs.chmod(0o755, user_fileset_path)
         log.info("Fileset user created and linked at %s" % (user_fileset_path))
 
     # Create the applications fileset that will be used for storing apps and tools
@@ -68,7 +68,7 @@ def main():
     apps_fileset_path = os.path.join(scratch['defaultMountPoint'], 'apps')
     if not 'apps' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(apps_fileset_path, 'apps')
-        gpfs.chmod(0755, apps_fileset_path)
+        gpfs.chmod(0o755, apps_fileset_path)
         log.info("Fileset apps created and linked at %s" % (apps_fileset_path))
 
     # Create the projects fileset that will be used to store the directory
@@ -76,7 +76,7 @@ def main():
     projects_fileset_path = os.path.join(scratch['defaultMountPoint'], 'projects')
     if not 'projects' in [f['filesetName'] for f in gpfs.gpfslocalfilesets[muk.scratch_name].values()]:
         gpfs.make_fileset(projects_fileset_path, 'projects')
-        gpfs.chmod(0755, projects_fileset_path)
+        gpfs.chmod(0o755, projects_fileset_path)
         log.info("Fileset projects created and linked at %s" % (projects_fileset_path))
 
     # If users are to log in, there should be a symlink to the GPFS directory hierarchy
@@ -98,7 +98,7 @@ def main():
         group_name = "%st1_mukusers" % institute
         try:
             group = ldap_query.group_filter_search(CnFilter(group_name))[0]
-        except:
+        except Exception:
             log.error("No LDAP group with the name %s found" % (group_name))
             continue
 
@@ -111,11 +111,11 @@ def main():
             try:
                 gpfs.make_fileset(project_fileset_path, project_fileset_name)
                 log.info("Created new fileset %s with link path %s" % (project_fileset_name, project_fileset_path))
-            except:
+            except Exception:
                 log.exception("Failed to create a new fileset with the name %s and link path %s" %
                               (project_fileset_name, project_fileset_path))
 
-        gpfs.chmod(0755, project_fileset_path)
+        gpfs.chmod(0o755, project_fileset_path)
         os.chown(project_fileset_path, int(owner['uidNumber']), int(group['gidNumber']))
 
         project_quota = 70 * 1024 * 1024 * 1024 * 1024
