@@ -64,6 +64,7 @@ class LdapSyncer(object):
     """
     def __init__(self, client):
         self.client = client
+        self.now = datetime.utcnow().replace(tzinfo=timezone.utc)
 
     def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
         """
@@ -115,7 +116,6 @@ class LdapSyncer(object):
         @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
         """
         changed_accounts = [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
-        now = datetime.now()
 
         accounts = {
             NEW: set(),
@@ -127,7 +127,7 @@ class LdapSyncer(object):
 
         _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
                                                                            last.strftime("%Y%m%d%H%M%SZ"),
-                                                                           now.strftime("%Y%m%d%H%M%SZ")))
+                                                                           self.now.strftime("%Y%m%d%H%M%SZ")))
         _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
 
         for account in sync_accounts:
@@ -176,7 +176,7 @@ class LdapSyncer(object):
 
         return accounts
 
-    def sync_altered_groups(self, last, now, dry_run=True):
+    def sync_altered_groups(self, last, dry_run=True):
         """
         Synchronise altered groups back to LDAP.
         This also includes usergroups
@@ -185,7 +185,7 @@ class LdapSyncer(object):
 
         _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
                                                                          last.strftime("%Y%m%d%H%M%SZ"),
-                                                                         now.strftime("%Y%m%d%H%M%SZ")))
+                                                                         self.now.strftime("%Y%m%d%H%M%SZ")))
         _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
         groups = {
             NEW: set(),
@@ -233,7 +233,6 @@ class LdapSyncer(object):
 
 
 def main():
-    now = datetime.utcnow().replace(tzinfo=timezone.utc)
 
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
@@ -287,11 +286,11 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token)
             syncer = LdapSyncer(client)
-            altered_accounts = syncer.sync_altered_accounts(last, now, opts.options.dry_run)
+            altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s",  syncer.processed_accounts)
 
-            altered_groups = syncer.sync_altered_groups(last, now, opts.options.dry_run)
+            altered_groups = syncer.sync_altered_groups(last, opts.options.dry_run)
 
             _log.debug("Altered groups: %s" % (altered_groups,))
 
@@ -319,7 +318,7 @@ def main():
 
         if not result:
             if not opts.options.start_timestamp:
-                (_, ldap_timestamp) = convert_timestamp(now)
+                (_, ldap_timestamp) = convert_timestamp(self.now)
                 if not opts.options.dry_run:
                     write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             else:
