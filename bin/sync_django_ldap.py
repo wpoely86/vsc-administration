@@ -102,7 +102,7 @@ class LdapSyncer(object):
 
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        pks = self.client.account[vsc_id].pubkey
+        pks = self.client.account[vsc_id].pubkey.get()[1]
         _log.debug('got pks from accountpage: %s', pks)
         pks = [mkVscAccountPubkey(p) for p in pks if not p['deleted']]
         if not pks:
