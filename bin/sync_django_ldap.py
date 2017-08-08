@@ -102,9 +102,12 @@ class LdapSyncer(object):
 
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        pks = [mkVscAccountPubkey(p) for p in self.client.account[vsc_id].pubkey if not p['deleted']]
+        pks = self.client.account[vsc_id].pubkey
+        _log.debug('got pks from accountpage: %s', pks)
+        pks = [mkVscAccountPubkey(p) for p in pks if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
+            _log.warning('account without public keys: %s', vsc_id)
         return pks
 
     def sync_altered_accounts(self, last, dry_run=True):
@@ -126,7 +129,7 @@ class LdapSyncer(object):
         sync_accounts = list(changed_accounts)
 
         _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
-                                                                           last.strftime("%Y%m%d%H%M%SZ"),
+                                                                           datetime.fromtimestamp(last).strftime("%Y%m%d%H%M%SZ"),
                                                                            self.now.strftime("%Y%m%d%H%M%SZ")))
         _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
 
@@ -137,16 +140,18 @@ class LdapSyncer(object):
                 _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
             try:
-                gecos = str(account.user.person.gecos)
+                gecos = str(account.person.gecos)
             except UnicodeEncodeError:
                 gecos = account.person.gecos.encode('ascii', 'ignore')
                 _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
+            _log.debug('fetching quota')
             quotas = self.client.account[account.vsc_id].quota.get()[1]
             account_quota = {}
             for quota in quotas:
                 for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']:
                     if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
                         account_quota[stype] = quota["hard"]
+            _log.debug('fetching public key')
 
             public_keys = self.get_public_keys(account.vsc_id)
 
@@ -184,7 +189,7 @@ class LdapSyncer(object):
         changed_groups = [mkGroup(a) for a in self.client.allgroups.modified[last].get()[1]]
 
         _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
-                                                                         last.strftime("%Y%m%d%H%M%SZ"),
+                                                                         datetime.fromtimestamp(last).strftime("%Y%m%d%H%M%SZ"),
                                                                          self.now.strftime("%Y%m%d%H%M%SZ")))
         _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
         groups = {
