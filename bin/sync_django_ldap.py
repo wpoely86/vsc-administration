@@ -169,15 +169,15 @@ class LdapSyncer(object):
                 'homeQuota': "%d" % account_quota['home'],
                 'dataQuota': "%d" % account_quota['data'],
                 'scratchQuota': "%d" % account_quota['scratch'],
-                'pubkey': public_keys,
+                'pubkey': [str(public_keys)],
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
                 # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
-                'researchField': [account.research_field],
+                'researchField': [str(account.research_field[0])],
                 'status': [str(account.status)],
             }
             result = self.add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
-            accounts[result].add(account)
+            accounts[result].add(account.vsc_id)
 
         return accounts
 
@@ -286,11 +286,11 @@ def main():
             last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
-            _log.debug("Altered accounts: %s",  syncer.processed_accounts)
+            _log.debug("Altered accounts: %s",  altered_accounts)
 
             altered_groups = syncer.sync_altered_groups(last, opts.options.dry_run)
 
-            _log.debug("Altered groups: %s" % (altered_groups,))
+            _log.debug("Altered groups: %s" % altered_groups)
 
             if not altered_accounts[ERROR] \
                     and not altered_groups[ERROR]:
