@@ -25,10 +25,10 @@ import sys
 from datetime import datetime, timezone
 
 from ldap import LDAPError
-from vsc.config.base import GENT, ACTIVE, VSC_CONF_DEFAULT_FILENAME
+from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAutogroup, mkVscGroup, mkVscAccountPubkey, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccountPubkey, mkUserGroup
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -55,7 +55,7 @@ UPDATED = 'updated'
 ERROR = 'error'
 
 
-def class LdapSyncer(object):
+class LdapSyncer(object):
     """
     This class implements a system for syncing changes from the accountpage api
     to the vsc ldap
@@ -97,10 +97,9 @@ def class LdapSyncer(object):
                     return ERROR
             return UPDATED
 
-
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        pks =  [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id].pubkey if not p['deleted']]
+        pks = [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id].pubkey if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
         return pks
@@ -113,7 +112,7 @@ def class LdapSyncer(object):
         @type last: datetime
         @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
         """
-        changed_accounts= [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
+        changed_accounts = [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
         now = datetime.now()
 
         accounts = {
@@ -143,11 +142,9 @@ def class LdapSyncer(object):
             quotas = self.client.account[account.vsc_id].quota.get()[1]
             account_quota = {}
             for quota in quotas:
-                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']
+                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']:
                     if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
-                        account_quota{stype] = quota["hard"]
-
-
+                        account_quota[stype] = quota["hard"]
 
             public_keys = self.get_public_keys(account.vsc_id)
 
@@ -172,7 +169,7 @@ def class LdapSyncer(object):
                 'researchField': [account.research_field],
                 'status': [str(account.status)],
             }
-                        result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
+            result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
             accounts[result].add(account)
 
         return accounts
@@ -182,7 +179,7 @@ def class LdapSyncer(object):
         Synchronise altered groups back to LDAP.
         This also includes usergroups
         """
-        changed_groups= [mkGroup(a) for a in self.client.allgroups.modified[last].get()[1]]
+        changed_groups = [mkGroup(a) for a in self.client.allgroups.modified[last].get()[1]]
 
         _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
                                                                          last.strftime("%Y%m%d%H%M%SZ"),
@@ -192,7 +189,7 @@ def class LdapSyncer(object):
             NEW: set(),
             UPDATED: set(),
             ERROR: set(),
-       }
+        }
 
         for group in changed_groups:
             vo = False
@@ -203,31 +200,20 @@ def class LdapSyncer(object):
                 # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
                 if err.code != 404:
                     raise
-            quotas = self.client.account[group.vsc_id].quota.get()[1]
-            account_quota = {}
-            for quota in quotas:
-                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']
-                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
-                        account_quota{stype] = quota["hard"]
-
-
-
             ldap_attributes = {
                 'cn': str(group.vsc_id),
                 'institute': [str(group.institute)],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': [str(m['vsc_id']) for m in group.moderators],
-                'memberUid': [str(a['vsc_id') for a in group.members],
+                'memberUid': [str(a['vsc_id']) for a in group.members],
                 'status': [str(group.status)],
             }
             if vo:
-            quotas = self.client.account[group.vsc_id].quota.get()[1]
-            vo_quota = {}
-            for quota in quotas:
-                for stype in ['VSC_DATA', 'VSC_SCRATCH_DELCATTY']
-                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('gvo'):
-                        vo_quota{stype] = quota["hard"]
-
+                vo_quota = {}
+                for quota in voquota:
+                    for stype in ['VSC_DATA', 'VSC_SCRATCH_DELCATTY']:
+                        if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('gvo'):
+                            vo_quota[stype] = quota["hard"]
 
                 ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
                 ldap_attributes['description'] = [str(vo.description)]
@@ -235,7 +221,6 @@ def class LdapSyncer(object):
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
                 ldap_attributes['dataQuota'] = [vo_quota['VSC_DATA']],
                 ldap_attributes['scratchQuota'] = [vo_quota['VSC_SCRATCH_DELCATTY']],
-            }
 
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
@@ -308,8 +293,8 @@ def main():
 
             _log.debug("Altered groups: %s" % (altered_groups,))
 
-            if not altered_accounts[ERROR] \
-                and not altered_groups[ERROR] \
+            if not altered_accounts[ynROR] \
+                    and not altered_groups[ERROR]:
                 _log.info("Child process exiting correctly")
                 sys.exit(0)
             else:
