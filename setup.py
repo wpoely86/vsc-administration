@@ -36,6 +36,7 @@ PACKAGE = {
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
+        'pytz',
         # following dependencies are intentionally not declared until #11 is addressed
         #'vsc-postgres',
         #'django',

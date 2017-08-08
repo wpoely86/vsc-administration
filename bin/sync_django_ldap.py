@@ -23,7 +23,8 @@ import pwd
 import sys
 from urllib2 import HTTPError
 
-from datetime import datetime, timezone
+from datetime import datetime
+import pytz as timezone
 
 from ldap import LDAPError
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
