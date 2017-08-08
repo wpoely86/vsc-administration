@@ -251,7 +251,7 @@ def main():
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
             _log.warning("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "201604230000Z"
+            last_timestamp = "201707230000Z"
             _log.warning("We will resync from a while back : %s" % (last_timestamp,))
 
     _log.info("Using timestamp %s" % (last_timestamp))
@@ -282,10 +282,10 @@ def main():
                 _log.info("Now running as %s" % (os.geteuid(),))
             except OSError:
                 _log.raiseException("Could not drop privileges")
-            last = datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ").replace(tzinfo=timezone.utc)
 
             client = AccountpageClient(token=opts.options.access_token)
             syncer = LdapSyncer(client)
+            last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s",  syncer.processed_accounts)
