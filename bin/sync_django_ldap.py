@@ -21,6 +21,7 @@ import grp
 import os
 import pwd
 import sys
+from urllib2 import HTTPError
 
 from datetime import datetime, timezone
 
@@ -28,7 +29,7 @@ from ldap import LDAPError
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAccountPubkey, mkUserGroup
+from vsc.accountpage.wrappers import mkVscAccount, mkVscAccountPubkey, mkUserGroup, mkGroup, mkVo
 
 from vsc.ldap.configuration import VscConfiguration
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
@@ -99,7 +100,7 @@ class LdapSyncer(object):
 
     def get_public_keys(self, vsc_id):
         """Get a list of public keys for a given vsc id"""
-        pks = [mkVscAccountPubkey(p) for p in self.client.account[p.vsc_id].pubkey if not p['deleted']]
+        pks = [mkVscAccountPubkey(p) for p in self.client.account[vsc_id].pubkey if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
         return pks
@@ -169,7 +170,7 @@ class LdapSyncer(object):
                 'researchField': [account.research_field],
                 'status': [str(account.status)],
             }
-            result = add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
+            result = self.add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
             accounts[result].add(account)
 
         return accounts
@@ -224,7 +225,7 @@ class LdapSyncer(object):
 
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
-            result = add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
+            result = self.add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
             groups[result].add(group)
 
         return groups
@@ -293,7 +294,7 @@ def main():
 
             _log.debug("Altered groups: %s" % (altered_groups,))
 
-            if not altered_accounts[ynROR] \
+            if not altered_accounts[ERROR] \
                     and not altered_groups[ERROR]:
                 _log.info("Child process exiting correctly")
                 sys.exit(0)
