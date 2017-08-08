@@ -72,7 +72,7 @@ class LdapSyncer(object):
 
         @return: NEW, UPDATED or ERROR, depending on the operation and its result.
         """
-        ldap_entries = self.vscldapclass.lookup(CnFilter(cn))
+        ldap_entries = VscLdapKlass.lookup(CnFilter(cn))
         if not ldap_entries:
             # add the entry
             _log.debug("add new entry %s %s with the attributes %s", VscLdapKlass.__name__, cn, ldap_attributes)
@@ -148,8 +148,8 @@ class LdapSyncer(object):
             quotas = self.client.account[account.vsc_id].quota.get()[1]
             account_quota = {}
             for quota in quotas:
-                for stype in ['VSC_HOME', 'VSC_DATA', 'VSC_SCRATCH_DELCATTY']:
-                    if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('vsc'):
+                for stype in ['home', 'data', 'scratch']:
+                    if quota['storage']['storage_type'] == stype and quota['fileset'].startswith('vsc'):
                         account_quota[stype] = quota["hard"]
             _log.debug('fetching public key')
 
@@ -166,9 +166,9 @@ class LdapSyncer(object):
                 'homeDirectory': [str(account.home_directory)],
                 'dataDirectory': [str(account.data_directory)],
                 'scratchDirectory': [str(account.scratch_directory)],
-                'homeQuota': ["%d" % account_quota['VSC_HOME']],
-                'dataQuota': ["%d" % account_quota['VSC_DATA']],
-                'scratchQuota': ["%d" % account_quota['VSC_SCRATCH_DELCATTY']],
+                'homeQuota': "%d" % account_quota['home'],
+                'dataQuota': "%d" % account_quota['data'],
+                'scratchQuota': "%d" % account_quota['scratch'],
                 'pubkey': public_keys,
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
@@ -202,7 +202,8 @@ class LdapSyncer(object):
             vo = False
             try:
                 vo = mkVo(self.client.vo[group.vsc_id].get()[1])
-                voquota = self.client.vo[group.vsc_id].quota.get()[1]
+                # dont set vo quota in ldap, it's not usefull
+                # voquota = self.client.vo[group.vsc_id].quota.get()[1]
             except HTTPError as err:
                 # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
                 if err.code != 404:
@@ -216,18 +217,10 @@ class LdapSyncer(object):
                 'status': [str(group.status)],
             }
             if vo:
-                vo_quota = {}
-                for quota in voquota:
-                    for stype in ['VSC_DATA', 'VSC_SCRATCH_DELCATTY']:
-                        if quota['storage']['storage_type'] is stype and quota['fileset'].startswith('gvo'):
-                            vo_quota[stype] = quota["hard"]
-
                 ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
                 ldap_attributes['description'] = [str(vo.description)]
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
-                ldap_attributes['dataQuota'] = [vo_quota['VSC_DATA']],
-                ldap_attributes['scratchQuota'] = [vo_quota['VSC_SCRATCH_DELCATTY']],
 
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
@@ -323,7 +316,7 @@ def main():
 
         if not result:
             if not opts.options.start_timestamp:
-                (_, ldap_timestamp) = convert_timestamp(self.now)
+                (_, ldap_timestamp) = convert_timestamp(datetime.now())
                 if not opts.options.dry_run:
                     write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             else:
