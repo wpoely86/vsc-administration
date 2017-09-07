@@ -111,9 +111,10 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None, account=None,
-                 pubkeys=None):
-        """Initialisation.
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None,
+                 account=None, pubkeys=None):
+        """
+        Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
         """
         super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account, pubkeys)
@@ -156,7 +157,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     @property
     def vo_scratch_quota(self):
         if not self._quota_cache:
-            self.init_quota_cache()
+            self._init_quota_cache()
         return self._quota_cache['vo']['scratch']
 
     def _init_quota_cache(self):
@@ -166,14 +167,18 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # and fetching the quota
         institute_quota = filter(lambda q: q.storage['institute'] == self.person.institute['site'], all_quota)
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
-        user_proposition = lambda q, t: q.fileset == fileset_name and q.storage['storage_type'] in (t,)
+
+        def user_proposition(quota, storage_type):
+            return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
         self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
         self._quota_cache['data'] = [q.hard for q in institute_quota if user_proposition(q, 'data')][0]
         self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
 
         fileset_name = 'gvo'
-        user_proposition = lambda q, t: q.fileset.startswith(fileset_name) and q.storage['storage_type'] in (t,)
+
+        def user_proposition(quota, storage_type):
+            return quota.fileset.startswith(fileset_name) and quota.storage['storage_type'] == storage_type
         self._quota_cache['vo'] = {}
         self._quota_cache['vo']['data'] = [q for q in institute_quota if user_proposition(q, 'data')]
         self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_proposition(q, 'scratch')]
@@ -570,6 +575,7 @@ cluster_user_pickle_store_map = {
     'delcatty': 'VSC_SCRATCH_DELCATTY',
     'muk': 'VSC_SCRATCH_MUK',
 }
+
 
 def update_user_status(user, client):
     """
