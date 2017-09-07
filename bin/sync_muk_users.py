@@ -337,7 +337,7 @@ def notify_purge(user, grace=0, grace_unit=""):
             logger.info("notification: recipient %s [%s] sent expiry mail with subject %s" %
                         (user.account.vsc_id, user.person.gecos, mail_subject))
         except VscMailError as err:
-            logger.error("Sending mail to %s (via %s) failed: %s",  err.mail_to, err.mail_host, err.err)
+            logger.error("Sending mail to %s (via %s) failed: %s", err.mail_to, err.mail_host, err.err)
 
 
 def purge_user(user, client):
