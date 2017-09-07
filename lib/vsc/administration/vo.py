@@ -418,7 +418,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 logging.info("Not deploying default VO %s members" % (vo_id,))
                 continue
 
-            if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
+            if storage_name in GENT_PRODUCTION_SCRATCH:
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
