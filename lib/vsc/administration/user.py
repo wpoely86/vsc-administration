@@ -31,7 +31,7 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch, mkU
 from vsc.accountpage.wrappers import mkVscAccount
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
-from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME
+from vsc.config.base import VSC, Muk, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.ext import ExtOperations
 from vsc.filesystem.gpfs import GpfsOperations
@@ -667,7 +667,7 @@ def process_users(options, account_ids, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 user.create_data_dir()
 
-            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_PHANPY']:
+            if storage_name in GENT_PRODUCTION_SCRATCH:
                 user.create_scratch_dir(storage_name)
 
             ok_users.append(user)
