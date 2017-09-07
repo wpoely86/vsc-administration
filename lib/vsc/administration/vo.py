@@ -31,7 +31,7 @@ from urllib2 import HTTPError
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
-from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, GENT_PRODUCTION_SCRATCH
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
@@ -438,7 +438,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                         vo.set_member_data_quota(member)  # half of the VO quota
                         vo.create_member_data_dir(member)
 
-                    if storage_name in [VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY]:
+                    if storage_name in GENT_PRODUCTION_SCRATCH:
                         vo.set_member_scratch_quota(storage_name, member)  # half of the VO quota
                         vo.create_member_scratch_dir(storage_name, member)
 
