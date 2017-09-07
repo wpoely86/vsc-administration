@@ -25,7 +25,7 @@ from collections import namedtuple
 
 import vsc.administration.vo as vo
 
-from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
+from vsc.config.base import VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
 from vsc.install.testing import TestCase
 
 
@@ -66,7 +66,7 @@ class VoDeploymentTest(TestCase):
                 u'vsc_id_number': 2540075,
         }])
 
-        for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
+        for storage_name in (VSC_HOME, VSC_DATA) + GENT_PRODUCTION_SCRATCH:
             with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
                 with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
                     with mock.patch.object(vo.VscTier2AccountpageVo, 'create_scratch_fileset') as mock_cr_s_fileset:
@@ -136,7 +136,7 @@ class VoDeploymentTest(TestCase):
                 u'vsc_id_number': 2540075,
         }])
 
-        for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
+        for storage_name in (VSC_HOME, VSC_DATA) + GENT_PRODUCTION_SCRATCH:
             with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
                 with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
                     with mock.patch.object(vo.VscTier2AccountpageVo, 'create_scratch_fileset') as mock_cr_s_fileset:
@@ -204,7 +204,7 @@ class VoDeploymentTest(TestCase):
                 u'vsc_id_number': 2540075,
         }])
 
-        for storage_name in (VSC_HOME, VSC_DATA, VSC_SCRATCH_DELCATTY, VSC_SCRATCH_PHANPY):
+        for storage_name in (VSC_HOME, VSC_DATA) + GENT_PRODUCTION_SCRATCH:
             with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
                 with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
                     with mock.patch.object(vo.VscTier2AccountpageVo, 'create_scratch_fileset') as mock_cr_s_fileset:

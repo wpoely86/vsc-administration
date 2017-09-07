@@ -23,14 +23,14 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag
 
 PACKAGE = {
-    'version': '0.36.2',
+    'version': '0.36.3',
     'author': [ag],
     'maintainer': [ag],
     'tests_require': ['mock'],
     'install_requires': [
         'vsc-accountpage-clients >= 0.7',
         'vsc-base >= 2.4.16',
-        'vsc-config >= 1.32.2',
+        'vsc-config >= 1.31.2',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
         'vsc-ldap-extension >= 1.3',
