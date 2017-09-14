@@ -624,7 +624,7 @@ def process_users_quota(options, user_quota, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 user.set_data_quota()
 
-            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_PHANPY', 'VSC_SCRATCH_KYUKON']:
+            if storage_name in GENT_PRODUCTION_SCRATCH:
                 user.set_scratch_quota(storage_name)
 
             ok_quota.append(quota)
