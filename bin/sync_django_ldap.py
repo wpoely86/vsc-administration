@@ -149,7 +149,8 @@ class LdapSyncer(object):
             account_quota = {}
             for quota in quotas:
                 for stype in ['home', 'data', 'scratch']:
-                    if quota['storage']['storage_type'] == stype and quota['fileset'].startswith('vsc'):
+                    # only gent sets filesets for vo's, so not gvo is user. (other institutes is empty or "None"
+                    if quota['storage']['storage_type'] == stype and not quota['fileset'].startswith('gvo'):
                         account_quota[stype] = quota["hard"]
             _log.debug('fetching public key')
 
