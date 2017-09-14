@@ -104,7 +104,7 @@ class LdapSyncer(object):
         """Get a list of public keys for a given vsc id"""
         pks = self.client.account[vsc_id].pubkey.get()[1]
         _log.debug('got pks from accountpage: %s', pks)
-        pks = [mkVscAccountPubkey(p) for p in pks if not p['deleted']]
+        pks = [str(mkVscAccountPubkey(p).pubkey) for p in pks if not p['deleted']]
         if not pks:
             pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
             _log.warning('account without public keys: %s', vsc_id)
@@ -161,7 +161,7 @@ class LdapSyncer(object):
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
                 'gecos': [gecos],
                 'mail': [str(account.email)],
-                'institute': [str(account.person.institute)],
+                'institute': [str(account.person.institute['site'])],
                 'instituteLogin': [str(account.person.institute_login)],
                 'uid': [str(account.vsc_id)],
                 'homeDirectory': [str(account.home_directory)],
@@ -170,7 +170,7 @@ class LdapSyncer(object):
                 'homeQuota': "%d" % account_quota['home'],
                 'dataQuota': "%d" % account_quota['data'],
                 'scratchQuota': "%d" % account_quota['scratch'],
-                'pubkey': [str(public_keys)],
+                'pubkey': public_keys,
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
                 # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
@@ -209,7 +209,7 @@ class LdapSyncer(object):
                     raise
             ldap_attributes = {
                 'cn': str(group.vsc_id),
-                'institute': [str(group.institute)],
+                'institute': [str(group.institute.site)],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': [str(m) for m in group.moderators],
                 'memberUid': [str(a) for a in group.members],
