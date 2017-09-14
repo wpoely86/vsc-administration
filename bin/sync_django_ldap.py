@@ -202,8 +202,6 @@ class LdapSyncer(object):
             vo = False
             try:
                 vo = mkVo(self.client.vo[group.vsc_id].get()[1])
-                # dont set vo quota in ldap, it's not usefull
-                # voquota = self.client.vo[group.vsc_id].quota.get()[1]
             except HTTPError as err:
                 # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
                 if err.code != 404:
@@ -212,8 +210,8 @@ class LdapSyncer(object):
                 'cn': str(group.vsc_id),
                 'institute': [str(group.institute)],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
-                'moderator': [str(m['vsc_id']) for m in group.moderators],
-                'memberUid': [str(a['vsc_id']) for a in group.members],
+                'moderator': [str(m) for m in group.moderators],
+                'memberUid': [str(a) for a in group.members],
                 'status': [str(group.status)],
             }
             if vo:
@@ -225,7 +223,7 @@ class LdapSyncer(object):
             _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
             result = self.add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
-            groups[result].add(group)
+            groups[result].add(group.vsc_id)
 
         return groups
 
