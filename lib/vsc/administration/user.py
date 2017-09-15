@@ -567,12 +567,12 @@ class MukAccountpageUser(VscAccountPageUser):
 
 
 cluster_user_pickle_location_map = {
-    'delcatty': VscTier2AccountpageUser,
+    'kyukon': VscTier2AccountpageUser,
     'muk': MukAccountpageUser,
 }
 
 cluster_user_pickle_store_map = {
-    'delcatty': 'VSC_SCRATCH_KYUKON',
+    'kyukon': 'VSC_SCRATCH_KYUKON',
     'muk': 'VSC_SCRATCH_MUK',
 }
 
