@@ -111,7 +111,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_DELCATTY', rest_client=None,
+    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_KYUKON', rest_client=None,
                  account=None, pubkeys=None):
         """
         Initialisation.
@@ -567,12 +567,12 @@ class MukAccountpageUser(VscAccountPageUser):
 
 
 cluster_user_pickle_location_map = {
-    'delcatty': VscTier2AccountpageUser,
+    'kyukon': VscTier2AccountpageUser,
     'muk': MukAccountpageUser,
 }
 
 cluster_user_pickle_store_map = {
-    'delcatty': 'VSC_SCRATCH_DELCATTY',
+    'kyukon': 'VSC_SCRATCH_KYUKON',
     'muk': 'VSC_SCRATCH_MUK',
 }
 
@@ -624,7 +624,7 @@ def process_users_quota(options, user_quota, storage_name, client):
             if storage_name in ['VSC_DATA']:
                 user.set_data_quota()
 
-            if storage_name in ['VSC_SCRATCH_DELCATTY', 'VSC_SCRATCH_PHANPY']:
+            if storage_name in GENT_PRODUCTION_SCRATCH:
                 user.set_scratch_quota(storage_name)
 
             ok_quota.append(quota)
