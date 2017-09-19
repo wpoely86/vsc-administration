@@ -21,20 +21,16 @@ import grp
 import os
 import pwd
 import sys
-from urllib2 import HTTPError
 
 from datetime import datetime
-import pytz as timezone
 
-from ldap import LDAPError
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
-from vsc.accountpage.wrappers import mkVscAccount, mkVscAccountPubkey, mkUserGroup, mkGroup, mkVo
+
+from vsc.administration.ldapsync import LdapSyncer, ERROR
 
 from vsc.ldap.configuration import VscConfiguration
-from vsc.ldap.entities import VscLdapUser, VscLdapGroup
-from vsc.ldap.filters import CnFilter
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
@@ -45,188 +41,9 @@ NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
 
-ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING = "THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
-
 fancylogger.setLogLevelInfo()
 fancylogger.logToScreen(True)
 _log = fancylogger.getLogger(NAGIOS_HEADER)
-
-DONE = 'done'
-NEW = 'new'
-UPDATED = 'updated'
-ERROR = 'error'
-
-
-class LdapSyncer(object):
-    """
-    This class implements a system for syncing changes from the accountpage api
-    to the vsc ldap
-    """
-    def __init__(self, client):
-        self.client = client
-        self.now = datetime.utcnow().replace(tzinfo=timezone.utc)
-
-    def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
-        """
-        Perform the update in LDAP for the given vsc.ldap.entitities class, cn and the ldap attributes.
-
-        @return: NEW, UPDATED or ERROR, depending on the operation and its result.
-        """
-        ldap_entries = VscLdapKlass.lookup(CnFilter(cn))
-        if not ldap_entries:
-            # add the entry
-            _log.debug("add new entry %s %s with the attributes %s", VscLdapKlass.__name__, cn, ldap_attributes)
-
-            if not dry_run:
-                try:
-                    entry = VscLdapKlass(cn)
-                    entry.add(ldap_attributes)
-                    _log.info("Added a new user %s to LDAP" % (cn,))
-                except LDAPError:
-                    _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
-                    return ERROR
-            return NEW
-        else:
-            ldap_entries[0].status
-            _log.debug("update existing entry %s %s with the attributes %s -- old entry: %s",
-                       VscLdapKlass.__name__, cn, ldap_attributes, ldap_entries[0].ldap_info)
-
-            if not dry_run:
-                try:
-                    ldap_entries[0].modify_ldap(ldap_attributes)
-                    _log.info("Modified %s %s in LDAP" % (VscLdapKlass.__name__, cn,))
-                except LDAPError:
-                    _log.warning("Could not add %s %s to LDAP" % (VscLdapKlass.__name__, cn,))
-                    return ERROR
-            return UPDATED
-
-    def get_public_keys(self, vsc_id):
-        """Get a list of public keys for a given vsc id"""
-        pks = self.client.account[vsc_id].pubkey.get()[1]
-        _log.debug('got pks from accountpage: %s', pks)
-        pks = [str(mkVscAccountPubkey(p).pubkey) for p in pks if not p['deleted']]
-        if not pks:
-            pks = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
-            _log.warning('account without public keys: %s', vsc_id)
-        return pks
-
-    def sync_altered_accounts(self, last, dry_run=True):
-        """
-        Add new users to the LDAP and update altered users. This does not include usergroups.
-
-        this does include pubkeys
-        @type last: datetime
-        @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
-        """
-        changed_accounts = [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
-
-        accounts = {
-            NEW: set(),
-            UPDATED: set(),
-            ERROR: set(),
-        }
-
-        sync_accounts = list(changed_accounts)
-
-        _log.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
-                                                                           datetime.fromtimestamp(last).strftime("%Y%m%d%H%M%SZ"),
-                                                                           self.now.strftime("%Y%m%d%H%M%SZ")))
-        _log.debug("Modified accounts: %s", [a.vsc_id for a in sync_accounts])
-
-        for account in sync_accounts:
-            try:
-                usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
-            except HTTPError:
-                _log.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
-                continue
-            try:
-                gecos = str(account.person.gecos)
-            except UnicodeEncodeError:
-                gecos = account.person.gecos.encode('ascii', 'ignore')
-                _log.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
-            _log.debug('fetching quota')
-            quotas = self.client.account[account.vsc_id].quota.get()[1]
-            account_quota = {}
-            for quota in quotas:
-                for stype in ['home', 'data', 'scratch']:
-                    # only gent sets filesets for vo's, so not gvo is user. (other institutes is empty or "None"
-                    if quota['storage']['storage_type'] == stype and not quota['fileset'].startswith('gvo'):
-                        account_quota[stype] = quota["hard"]
-            _log.debug('fetching public key')
-
-            public_keys = self.get_public_keys(account.vsc_id)
-
-            ldap_attributes = {
-                'cn': str(account.vsc_id),
-                'uidNumber': ["%s" % (account.vsc_id_number,)],
-                'gecos': [gecos],
-                'mail': [str(account.email)],
-                'institute': [str(account.person.institute['site'])],
-                'instituteLogin': [str(account.person.institute_login)],
-                'uid': [str(account.vsc_id)],
-                'homeDirectory': [str(account.home_directory)],
-                'dataDirectory': [str(account.data_directory)],
-                'scratchDirectory': [str(account.scratch_directory)],
-                'homeQuota': "%d" % account_quota['home'],
-                'dataQuota': "%d" % account_quota['data'],
-                'scratchQuota': "%d" % account_quota['scratch'],
-                'pubkey': public_keys,
-                'gidNumber': [str(usergroup.vsc_id_number)],
-                'loginShell': [str(account.login_shell)],
-                # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
-                'researchField': [str(account.research_field[0])],
-                'status': [str(account.status)],
-            }
-            result = self.add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
-            accounts[result].add(account.vsc_id)
-
-        return accounts
-
-    def sync_altered_groups(self, last, dry_run=True):
-        """
-        Synchronise altered groups back to LDAP.
-        This also includes usergroups
-        """
-        changed_groups = [mkGroup(a) for a in self.client.allgroups.modified[last].get()[1]]
-
-        _log.info("Found %d modified groups in the range %s until %s" % (len(changed_groups),
-                                                                         datetime.fromtimestamp(last).strftime("%Y%m%d%H%M%SZ"),
-                                                                         self.now.strftime("%Y%m%d%H%M%SZ")))
-        _log.debug("Modified groups: %s", [g.vsc_id for g in changed_groups])
-        groups = {
-            NEW: set(),
-            UPDATED: set(),
-            ERROR: set(),
-        }
-
-        for group in changed_groups:
-            vo = False
-            try:
-                vo = mkVo(self.client.vo[group.vsc_id].get()[1])
-            except HTTPError as err:
-                # if a 404 occured, the autogroup does not exist, otherwise something else went wrong.
-                if err.code != 404:
-                    raise
-            ldap_attributes = {
-                'cn': str(group.vsc_id),
-                'institute': [str(group.institute.site)],
-                'gidNumber': ["%d" % (group.vsc_id_number,)],
-                'moderator': [str(m) for m in group.moderators],
-                'memberUid': [str(a) for a in group.members],
-                'status': [str(group.status)],
-            }
-            if vo:
-                ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
-                ldap_attributes['description'] = [str(vo.description)]
-                ldap_attributes['dataDirectory'] = [str(vo.data_path)]
-                ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
-
-            _log.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
-
-            result = self.add_or_update(VscLdapGroup, group.vsc_id, ldap_attributes, dry_run)
-            groups[result].add(group.vsc_id)
-
-        return groups
 
 
 def main():
@@ -285,7 +102,7 @@ def main():
             last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
-            _log.debug("Altered accounts: %s",  altered_accounts)
+            _log.debug("Altered accounts: %s", altered_accounts)
 
             altered_groups = syncer.sync_altered_groups(last, opts.options.dry_run)
 

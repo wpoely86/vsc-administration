@@ -28,11 +28,12 @@ PACKAGE = {
     'maintainer': [ag],
     'tests_require': ['mock'],
     'install_requires': [
-        'vsc-accountpage-clients >= 0.7',
+        'vsc-accountpage-clients >= 0.9.0',
         'vsc-base >= 2.4.16',
         'vsc-config >= 1.31.2',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
+        'python-ldap',
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
