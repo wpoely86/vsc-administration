@@ -96,15 +96,12 @@ class LdapSyncer(object):
         @type last: datetime
         @return: tuple (new, updated, error) that indicates what accounts were new, changed or could not be altered.
         """
-        changed_accounts = [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
-
+        sync_accounts = [mkVscAccount(a) for a in self.client.account.modified[last].get()[1]]
         accounts = {
             NEW: set(),
             UPDATED: set(),
             ERROR: set(),
         }
-
-        sync_accounts = list(changed_accounts)
 
         logging.info("Found %d modified accounts in the range %s until %s" % (len(sync_accounts),
                      datetime.fromtimestamp(last).strftime("%Y%m%d%H%M%SZ"),
@@ -122,14 +119,6 @@ class LdapSyncer(object):
             except UnicodeEncodeError:
                 gecos = account.person.gecos.encode('ascii', 'ignore')
                 logging.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
-            logging.debug('fetching quota')
-            quotas = self.client.account[account.vsc_id].quota.get()[1]
-            account_quota = {}
-            for quota in quotas:
-                for stype in ['home', 'data', 'scratch']:
-                    # only gent sets filesets for vo's, so not gvo is user. (other institutes is empty or "None"
-                    if quota['storage']['storage_type'] == stype and not quota['fileset'].startswith('gvo'):
-                        account_quota[stype] = quota["hard"]
             logging.debug('fetching public key')
 
             public_keys = [str(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)]
@@ -147,16 +136,20 @@ class LdapSyncer(object):
                 'homeDirectory': [str(account.home_directory)],
                 'dataDirectory': [str(account.data_directory)],
                 'scratchDirectory': [str(account.scratch_directory)],
-                'homeQuota': ["%d" % account_quota['home']],
-                'dataQuota': ["%d" % account_quota['data']],
-                'scratchQuota': ["%d" % account_quota['scratch']],
                 'pubkey': public_keys,
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
-                # 'mukHomeOnScratch': ["FALSE"],  # FIXME, see #37
                 'researchField': [str(account.research_field[0])],
                 'status': [str(account.status)],
             }
+            logging.debug('fetching quota')
+            quotas = self.client.account[account.vsc_id].quota.get()[1]
+            for quota in quotas:
+                for stype in ['home', 'data', 'scratch']:
+                    # only gent sets filesets for vo's, so not gvo is user. (other institutes is empty or "None"
+                    if quota['storage']['storage_type'] == stype and not quota['fileset'].startswith('gvo'):
+                        ldap_attributes['%sQuota' % stype] = ["%d" % quota["hard"]]
+
             result = self.add_or_update(VscLdapUser, account.vsc_id, ldap_attributes, dry_run)
             accounts[result].add(account.vsc_id)
 
