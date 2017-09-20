@@ -182,7 +182,7 @@ class LdapSyncer(object):
                     raise
             ldap_attributes = {
                 'cn': str(group.vsc_id),
-                'institute': [str(group.institute.site)],
+                'institute': [str(group.institute['site'])],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': [str(m) for m in group.moderators],
                 'memberUid': [str(a) for a in group.members],
