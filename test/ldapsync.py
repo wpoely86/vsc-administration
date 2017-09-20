@@ -107,11 +107,12 @@ class LDAPSyncerTest(TestCase):
                       'fairshare': ['100'], 'description': ['VO']}
         mock_add_or_update.assert_called_with(VscLdapGroup, test_group.vsc_id, ldap_attrs, True)
 
-        # should actually give a 404 in reallity, but use this to pretend it's not a vo
+        #  raise a 404 error on getting the VO to trigger a non vo group add instead of a vo add as above
         test_group = mkGroup(test_usergroup_1)
         mock_client.allgroups.modified[1].get.return_value = (200, [test_usergroup_1])
-        mock_client.vo[test_group.vsc_id].get.side_effect = HTTPError(mock.Mock(status=404), 'not found')
+        mock_client.vo[test_group.vsc_id].get.side_effect = HTTPError("mock_url", 404, "Not Found", "mock_headers", None)
         groups = ldapsyncer.sync_altered_groups(1)
         self.assertEqual(groups, {'error': set([]), 'new': set([]), 'updated': set([test_group.vsc_id])})
-        ldap_attrs = {'status': ['active'], 'cn': 'vsc40075', 'gidNumber': ['2540075'], 'institute': ['gent']}
+        ldap_attrs =  {'status': ['active'], 'cn': 'vsc40075', 'institute': ['gent'], 'memberUid': ['vsc40075'],
+                       'moderator': ['vsc40075'], 'gidNumber': ['2540075']}
         mock_add_or_update.assert_called_with(VscLdapGroup, test_group.vsc_id, ldap_attrs, True)
