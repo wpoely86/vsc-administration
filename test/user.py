@@ -13,11 +13,11 @@
 # All rights reserved.
 #
 """
-Tests for vsc.administration.vo
+Tests for vsc.administration.user
 
 @author: Andy Georges (Ghent University)
+@author: Jens Timmerman (Ghent University)
 """
-import logging
 import mock
 
 from collections import namedtuple
@@ -25,7 +25,7 @@ from collections import namedtuple
 import vsc.administration.user as user
 
 from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkUserGroup, mkGroup
-from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscUserSizeQuota
+from vsc.accountpage.wrappers import mkVscAccountPubkey
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
 from vsc.install.testing import TestCase
 
@@ -445,7 +445,7 @@ class UserDeploymentTest(TestCase):
     @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_scratch_path')
     @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
     @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
-    def test_create_data_dir_tier2_user(self,
+    def test_create_data_dir_tier2_user_2(self,
                                         mock_create_user_dir,
                                         mock_create_grouping_fileset,
                                         mock_grouping_scratch_path,
