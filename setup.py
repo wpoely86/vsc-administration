@@ -17,38 +17,30 @@
 vsc-administration distribution setup.py
 
 @author: Andy Georges (Ghent University)
+@author: Jens Timmerman (Ghent University)
 """
 
 from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '1.0.1',
+    'version': '1.0.9',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
+    'makesetupcfg': False,  # use setup.cfg provided to get pytz instead of python-pytz
     'install_requires': [
         'vsc-accountpage-clients >= 0.9.0',
         'vsc-base >= 2.4.16',
         'vsc-config >= 1.31.2',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
+        'pytz',
         'python-ldap',
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
-        'pytz',
     ],
-    'dependency_links': [
-        "git+https://github.com/hpcugent/vsc-utils.git#egg=vsc-utils-1.8.2",
-        "git+https://github.com/hpcugent/vsc-filesystems.git#egg=vsc-filesystems-0.30.1",
-        "git+ssh://github.com/hpcugent/vsc-accountpage-clients.git#egg=vsc-accountpage-clients-0.7",
-        "git+ssh://github.com/hpcugent/vsc-ldap.git#egg=vsc-ldap-1.4.2",
-        "git+ssh://github.com/hpcugent/vsc-ldap-extension.git#egg=vsc-ldap-extensions-1.10.2",
-    ],
-
-
-
 }
 
 

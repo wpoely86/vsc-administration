@@ -52,6 +52,7 @@ def main():
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
+        'account_page_url': ('url for the account page', None, 'store', None),
         }
     # get access_token from conf file
     ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
@@ -99,7 +100,7 @@ def main():
             except OSError:
                 _log.raiseException("Could not drop privileges")
 
-            client = AccountpageClient(token=opts.options.access_token)
+            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
             last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
