@@ -14,7 +14,7 @@
 # All rights reserved.
 #
 """
-This script synchronises the users and VO's from the HPC LDAP to the central
+This script synchronises the users and VO's from the HPC account page to the central
 UGent storage for home and data.
 
 For each (active) user, the following tasks are done:
@@ -78,7 +78,7 @@ def main():
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
-        'account_page_url': ('URL of the account page REST API', None, 'store', None)
+        'account_page_url': ('URL of the account page where we can find the REST API', None, 'store', None)
     }
 
     opts = ExtendedSimpleOption(options)
@@ -86,7 +86,7 @@ def main():
 
     try:
         now = datetime.utcnow()
-        client = AccountpageClient(token=opts.options.access_token)
+        client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
 
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)

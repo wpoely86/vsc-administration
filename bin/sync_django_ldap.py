@@ -100,7 +100,7 @@ def main():
             except OSError:
                 _log.raiseException("Could not drop privileges")
 
-            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url)
+            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
             last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
