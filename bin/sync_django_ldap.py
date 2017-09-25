@@ -53,6 +53,8 @@ def main():
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
         }
+    # get access_token from conf file
+    ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
     opts = ExtendedSimpleOption(options)
     stats = {}
 
