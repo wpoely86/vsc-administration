@@ -20,12 +20,12 @@ vsc-administration distribution setup.py
 """
 
 from vsc.install import shared_setup
-from vsc.install.shared_setup import ag
+from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '1.0.0',
-    'author': [ag],
-    'maintainer': [ag],
+    'version': '1.0.1',
+    'author': [ag, jt],
+    'maintainer': [ag, jt],
     'tests_require': ['mock'],
     'install_requires': [
         'vsc-accountpage-clients >= 0.9.0',
@@ -38,9 +38,6 @@ PACKAGE = {
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
         'pytz',
-        # following dependencies are intentionally not declared until #11 is addressed
-        #'vsc-postgres',
-        #'django',
     ],
     'dependency_links': [
         "git+https://github.com/hpcugent/vsc-utils.git#egg=vsc-utils-1.8.2",
