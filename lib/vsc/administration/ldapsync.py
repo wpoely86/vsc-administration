@@ -141,6 +141,9 @@ class LdapSyncer(object):
                 'loginShell': [str(account.login_shell)],
                 'researchField': [str(account.research_field[0])],
                 'status': [str(account.status)],
+                'homeQuota': ["1"],
+                'dataQuota': ["1"],
+                'scratchQuota': ["1"],
             }
             logging.debug('fetching quota')
             quotas = self.client.account[account.vsc_id].quota.get()[1]
