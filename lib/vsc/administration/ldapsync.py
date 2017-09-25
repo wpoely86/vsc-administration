@@ -29,6 +29,7 @@ from ldap import LDAPError
 
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
 
+from vsc.config.base import VSC
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
 
 from vsc.ldap.filters import CnFilter
@@ -40,6 +41,7 @@ NEW = 'new'
 UPDATED = 'updated'
 ERROR = 'error'
 
+VSC_CONFIG = VSC()
 
 class LdapSyncer(object):
     """
@@ -196,6 +198,9 @@ class LdapSyncer(object):
                 ldap_attributes['description'] = [str(vo.description)]
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
+                # vsc40024 is moderator for all institute vo's
+                if vo.vsc_id in VSC_CONFIG.institute_vos.values():
+                    ldap_attributes['moderator'] = ['vsc40024']
 
             logging.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
