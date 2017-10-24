@@ -68,8 +68,8 @@ def main():
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
             _log.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "201707230000Z"
-            _log.warning("We will resync from a while back : %s", last_timestamp)
+            last_timestamp = "201710230000Z"
+            _log.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
 
     _log.info("Using timestamp %s", last_timestamp)
     # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
