@@ -22,8 +22,7 @@ import os
 import pwd
 import sys
 
-from datetime import datetime
-
+import datetime
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
@@ -74,7 +73,7 @@ def main():
     _log.info("Using timestamp %s", last_timestamp)
     # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
     # in between the requesting of modified users and writing out the start time
-    start_time = datetime.now() - 10
+    start_time = datetime.datetime.now() + datetime.timedelta(seconds=-10)
     _log.info("startime %s", start_time)
 
     try:
@@ -106,7 +105,7 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
-            last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
+            last = int((datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime.datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s", altered_accounts)
