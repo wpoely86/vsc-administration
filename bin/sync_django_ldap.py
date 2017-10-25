@@ -22,8 +22,7 @@ import os
 import pwd
 import sys
 
-from datetime import datetime
-
+import datetime
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
@@ -67,11 +66,15 @@ def main():
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
-            _log.warning("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "201707230000Z"
-            _log.warning("We will resync from a while back : %s" % (last_timestamp,))
+            _log.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
+            last_timestamp = "201710230000Z"
+            _log.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
 
-    _log.info("Using timestamp %s" % (last_timestamp))
+    _log.info("Using timestamp %s", last_timestamp)
+    # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
+    # in between the requesting of modified users and writing out the start time
+    start_time = datetime.datetime.now() + datetime.timedelta(seconds=-10)
+    _log.info("startime %s", start_time)
 
     try:
         parent_pid = os.fork()
@@ -102,7 +105,7 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
-            last = int((datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime(1970, 1, 1)).total_seconds())
+            last = int((datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime.datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s", altered_accounts)
@@ -135,7 +138,7 @@ def main():
 
         if not result:
             if not opts.options.start_timestamp:
-                (_, ldap_timestamp) = convert_timestamp(datetime.now())
+                (_, ldap_timestamp) = convert_timestamp(start_time)
                 if not opts.options.dry_run:
                     write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             else:
