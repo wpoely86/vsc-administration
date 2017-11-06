@@ -120,6 +120,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         return self._vo_scratch_quota_cache
 
+    @property
+    def data_sharing(self):
+        return False
+
     def members(self):
         """Return a list with all the VO members in it."""
         return self.vo.members
