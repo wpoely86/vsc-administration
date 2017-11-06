@@ -142,6 +142,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Return the path to the VO data fileset on GPFS"""
         return self._get_path(VSC_DATA, mount_point)
 
+    def _data_shared_path(self, mount_point="gpfs"):
+        """Return the path the VO shared data fileset on GPFS"""
+        return self._get_path(VSC_DATA_SHARED, mount_point)
+
     def _scratch_path(self, storage, mount_point="gpfs"):
         """Return the path to the VO scratch fileset on GPFS.
 
@@ -197,6 +201,16 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA,))
+
+    def create_data_shared_fileset(self):
+        """Create a VO directory for sharing data on the HPC data filesystem. Always set the quota."""
+        try:
+            path = self._data_shared_path()
+            self._create_fileset(self.storage[VSC_DATA_SHARED].filesystem, path)
+        except AttributeError:
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+        except KeyError:
+            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -437,6 +451,11 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 vo.create_data_fileset()
                 vo.set_data_quota()
                 update_vo_status(vo, client)
+
+            if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values():
+                if vo.data_sharing:
+                    vo.create_data_share_fileset()
+                    vo.set_data_share_quota()
 
             if vo_id in (VSC().institute_vos[GENT],):
                 logging.info("Not deploying default VO %s members" % (vo_id,))
