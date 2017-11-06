@@ -31,7 +31,7 @@ from urllib2 import HTTPError
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
-from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, GENT_PRODUCTION_SCRATCH
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
@@ -51,13 +51,13 @@ class VscAccountPageVo(object):
         """
         self.vo_id = vo_id
         self.rest_client = rest_client
+        self._vo_cache = None
 
-        # We immediately retrieve this information
-        try:
-            self.vo = mkVo((rest_client.vo[vo_id].get()[1]))
-        except HTTPError:
-            logging.error("Cannot get information from the account page")
-            raise
+    @property
+    def vo(self):
+        if not self._vo_cache:
+            self._vo_cache = mkVo((self.rest_client.vo[self.vo_id].get()[1]))
+        return self._vo_cache
 
 
 class VscTier2AccountpageVo(VscAccountPageVo):
@@ -81,20 +81,44 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-        try:
-            all_quota = [mkVscVoSizeQuota(q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
-        except HTTPError:
-            logging.exception("Unable to retrieve quota information")
-            # to avoid reducing the quota in case of issues with the account page, we will NOT
-            # set quota when they cannot be retrieved.
-            self.vo_data_quota = None
-            self.vo_scratch_quota = None
-        else:
-            institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
-            self.vo_data_quota = ([q.hard for q in institute_quota
-                                   if q.storage['storage_type'] in ('data',)] or
-                                  [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
-            self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
+        self._vo_data_quota_cache = None
+        self._vo_data_shared_quota_cache = None
+        self._vo_scratch_quota_cache = None
+        self._institute_quota_cache = None
+
+    @property
+    def _institute_quota(self):
+        if not self._institute_quota_cache:
+            all_quota = [mkVscVoSizeQuota(q) for q in self.rest_client.vo[self.vo.vsc_id].quota.get()[1]]
+            self._institute_quota_cache = filter(lambda q: q.storage['institute'] == self.vo.institute['site'],
+                                                 all_quota)
+        return self._institute_quota_cache
+
+    @property
+    def vo_data_quota(self):
+        if not self._vo_data_quota_cache:
+            self._vo_data_quota_cache = ([q.hard for q in self._institute_quota
+                                         if q.storage['storage_type'] in ('data',)
+                                         and not q.storage.name.endswith('SHARED')] or
+                                         [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
+        return self.vo_data_quota_cache
+
+    @property
+    def vo_data_shared_quota(self):
+        if not self._vo_data_shared_quota_cache:
+            self._vo_data_shared_quota_cache = ([q.hard for q in self._institute_quota
+                                                 if q.storage['storage_type'] in ('data',)
+                                                 and q.storage.name.endswith('SHARED')] or
+                                                [self.storage[VSC_DATA_SHARED].quota_vo])[0]  # there can be only one :)
+        return self.vo_data_shared_quota_cache
+
+    @property
+    def vo_scratch_quota(self):
+        if not self._vo_scratch_quota_cache:
+            self._vo_scratch_quota_cache = filter(lambda q: q.storage['storage_type'] in ('scratch',),
+                                                  self._institute_quota)
+
+        return self._vo_scratch_quota_cache
 
     def members(self):
         """Return a list with all the VO members in it."""
