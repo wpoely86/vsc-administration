@@ -106,10 +106,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     @property
     def vo_data_shared_quota(self):
         if not self._vo_data_shared_quota_cache:
-            self._vo_data_shared_quota_cache = ([q.hard for q in self._institute_quota
-                                                 if q.storage['storage_type'] in ('data',)
-                                                 and q.storage.name.endswith('SHARED')] or
-                                                [self.storage[VSC_DATA_SHARED].quota_vo])[0]  # there can be only one :)
+            try:
+                self._vo_data_shared_quota_cache = ([q.hard for q in self._institute_quota
+                                                    if q.storage['storage_type'] in ('data',)
+                                                    and q.storage.name.endswith('SHARED')])[0]  # there can be only one :)
+            except IndexError:
+                return None
         return self.vo_data_shared_quota_cache
 
     @property
@@ -122,7 +124,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     @property
     def data_sharing(self):
-        return False
+        return self.vo_data_shared_quota is not None
 
     def members(self):
         """Return a list with all the VO members in it."""
