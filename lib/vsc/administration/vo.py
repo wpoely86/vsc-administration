@@ -41,6 +41,14 @@ class VoStatusUpdateError(Exception):
     pass
 
 
+def whenHTTPErrorRaise(f, msg, **kwargs):
+    try:
+        return f(**kwargs)
+    except HTTPError, err:
+        logging.error("%s: %s", msg, err)
+        raise
+
+
 class VscAccountPageVo(object):
     """
     A Vo that gets its own information from the accountpage through the REST API.
@@ -56,7 +64,8 @@ class VscAccountPageVo(object):
     @property
     def vo(self):
         if not self._vo_cache:
-            self._vo_cache = mkVo((self.rest_client.vo[self.vo_id].get()[1]))
+            self._vo_cache = mkVo(whenHTTPErrorRaise(self.rest_client.vo[self.vo_id].get,
+                                                     "Could not get VO from accountpage")[1])
         return self._vo_cache
 
 
@@ -89,7 +98,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     @property
     def _institute_quota(self):
         if not self._institute_quota_cache:
-            all_quota = [mkVscVoSizeQuota(q) for q in self.rest_client.vo[self.vo.vsc_id].quota.get()[1]]
+            all_quota = [mkVscVoSizeQuota(q) for q in
+                         whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
+                                            "Could not get quotata from accountpage")[1]
+                        ]
             self._institute_quota_cache = filter(lambda q: q.storage['institute'] == self.vo.institute['site'],
                                                  all_quota)
         return self._institute_quota_cache
