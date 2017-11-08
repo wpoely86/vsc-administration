@@ -212,23 +212,25 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        path = self._data_path()
         try:
-            path = self._data_path()
-            self._create_fileset(self.storage[VSC_DATA].filesystem, path)
+            fs = self.storage[VSC_DATA].filesystem
         except AttributeError:
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA,))
+        self._create_fileset(fs, path)
 
     def create_data_shared_fileset(self):
         """Create a VO directory for sharing data on the HPC data filesystem. Always set the quota."""
+        path = self._data_shared_path()
         try:
-            path = self._data_shared_path()
-            self._create_fileset(self.storage[VSC_DATA_SHARED].filesystem, path)
+            fs = self.storage[VSC_DATA_SHARED].filesystem
         except AttributeError:
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
+        self._create_fileset(fs, path)
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
