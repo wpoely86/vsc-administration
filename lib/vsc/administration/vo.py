@@ -470,10 +470,9 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 vo.set_data_quota()
                 update_vo_status(vo, client)
 
-            if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values():
-                if vo.data_sharing:
-                    vo.create_data_share_fileset()
-                    vo.set_data_share_quota()
+            if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values() and vo.data_sharing:
+                vo.create_data_shared_fileset()
+                vo.set_data_share_quota()
 
             if vo_id in (VSC().institute_vos[GENT],):
                 logging.info("Not deploying default VO %s members" % (vo_id,))
