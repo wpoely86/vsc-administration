@@ -36,6 +36,9 @@ from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
 
+DATA = 'data'
+SCRATCH = 'scratch'
+SHARED = 'SHARED'
 
 class VoStatusUpdateError(Exception):
     pass
@@ -102,35 +105,41 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                          whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
                                             "Could not get quotata from accountpage")[1]
                         ]
-            self._institute_quota_cache = filter(lambda q: q.storage['institute'] == self.vo.institute['site'],
-                                                 all_quota)
+            self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['site']]
         return self._institute_quota_cache
+
+    def _get_institute_data_quota(self):
+        return [q for q in self._institute_quota if q.storage['storage_type'] == DATA]
+
+    def _get_institute_shared_data_quota(self):
+        return [x.hard for x in self._get_institute_quota() if x.storage.name.endswith(SHARED)]
+
+    def _get_institute_non_shared_data_quota(self):
+        return [x.hard for x in self._get_institute_quota() if not x.storage.name.endswith(SHARED)]
 
     @property
     def vo_data_quota(self):
         if not self._vo_data_quota_cache:
-            self._vo_data_quota_cache = ([q.hard for q in self._institute_quota
-                                         if q.storage['storage_type'] in ('data',)
-                                         and not q.storage.name.endswith('SHARED')] or
-                                         [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one
-        return self.vo_data_quota_cache
+            self._vo_data_quota_cache = self._get_institute_shared_data_quota()
+            if not self._vo_data_quota_cache:
+                self._vo_data_quota_cache = [self.storage[VSC_DATA].quota_vo]
+
+        return self._vo_data_quota_cache[0]  # there can be only one
 
     @property
     def vo_data_shared_quota(self):
         if not self._vo_data_shared_quota_cache:
             try:
-                self._vo_data_shared_quota_cache = ([q.hard for q in self._institute_quota
-                                                    if q.storage['storage_type'] in ('data',)
-                                                    and q.storage.name.endswith('SHARED')])[0]  # there can be only one
+                self._vo_data_shared_quota_cache = self._get_institute_non_shared_data_quota()[0]
             except IndexError:
                 return None
-        return self.vo_data_shared_quota_cache
+        return self._vo_data_shared_quota_cache
 
     @property
     def vo_scratch_quota(self):
         if not self._vo_scratch_quota_cache:
-            self._vo_scratch_quota_cache = filter(lambda q: q.storage['storage_type'] in ('scratch',),
-                                                  self._institute_quota)
+            self._vo_scratch_quota_cache = [q for q in self._institute_quota
+                                            if q.storage['storage_type'] == SCRATCH]
 
         return self._vo_scratch_quota_cache
 
