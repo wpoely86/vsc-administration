@@ -44,7 +44,7 @@ class VoStatusUpdateError(Exception):
 def whenHTTPErrorRaise(f, msg, **kwargs):
     try:
         return f(**kwargs)
-    except HTTPError, err:
+    except HTTPError as err:
         logging.error("%s: %s", msg, err)
         raise
 
