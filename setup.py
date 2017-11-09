@@ -32,7 +32,7 @@ PACKAGE = {
     'install_requires': [
         'vsc-accountpage-clients >= 0.9.0',
         'vsc-base >= 2.4.16',
-        'vsc-config >= 1.31.2',
+        'vsc-config >= 1.35.2',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
         'pytz',
