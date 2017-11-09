@@ -111,16 +111,16 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def _get_institute_data_quota(self):
         return [q for q in self._institute_quota if q.storage['storage_type'] == DATA]
 
-    def _get_institute_shared_data_quota(self):
-        return [x.hard for x in self._get_institute_quota() if x.storage.name.endswith(SHARED)]
-
     def _get_institute_non_shared_data_quota(self):
         return [x.hard for x in self._get_institute_quota() if not x.storage.name.endswith(SHARED)]
+
+    def _get_institute_shared_data_quota(self):
+        return [x.hard for x in self._get_institute_quota() if x.storage.name.endswith(SHARED)]
 
     @property
     def vo_data_quota(self):
         if not self._vo_data_quota_cache:
-            self._vo_data_quota_cache = self._get_institute_shared_data_quota()
+            self._vo_data_quota_cache = self._get_institute_non_shared_data_quota()
             if not self._vo_data_quota_cache:
                 self._vo_data_quota_cache = [self.storage[VSC_DATA].quota_vo]
 
@@ -130,7 +130,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def vo_data_shared_quota(self):
         if not self._vo_data_shared_quota_cache:
             try:
-                self._vo_data_shared_quota_cache = self._get_institute_non_shared_data_quota()[0]
+                self._vo_data_shared_quota_cache = self._get_institute_shared_data_quota()[0]
             except IndexError:
                 return None
         return self._vo_data_shared_quota_cache
@@ -281,6 +281,11 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             self._set_quota(VSC_DATA, self._data_path(), int(self.vo_data_quota))
         else:
             self._set_quota(VSC_DATA, self._data_path(), 16 * 1024)
+
+    def set_data_shared_quota(self):
+        """Set FILESET quota on the data FS for the VO fileset."""
+        if self.vo_data_shared_quota:
+            self._set_quota(VSC_DATA_SHARED, self._data_shared_path(), int(self.vo_data_shared_quota))
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -483,7 +488,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
 
             if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values() and vo.data_sharing:
                 vo.create_data_shared_fileset()
-                vo.set_data_share_quota()
+                vo.set_data_shared_quota()
 
             if vo_id in (VSC().institute_vos[GENT],):
                 logging.info("Not deploying default VO %s members" % (vo_id,))

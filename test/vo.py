@@ -269,8 +269,8 @@ class VoDeploymentTest(TestCase):
                   with mock.patch.object(vo.VscTier2AccountpageVo, 'set_scratch_quota') as mock_s_s_quota:
                     with mock.patch.object(vo.VscTier2AccountpageVo, 'create_data_fileset') as mock_cr_d_fileset:
                       with mock.patch.object(vo.VscTier2AccountpageVo, 'set_data_quota') as mock_s_d_quota:
-                        with mock.patch.object(vo.VscTier2AccountpageVo, 'create_data_fileset') as mock_cr_d_shared_fileset:
-                          with mock.patch.object(vo.VscTier2AccountpageVo, 'set_data_quota') as mock_s_d_shared_quota:
+                        with mock.patch.object(vo.VscTier2AccountpageVo, 'create_data_shared_fileset') as mock_cr_d_shared_fileset:
+                          with mock.patch.object(vo.VscTier2AccountpageVo, 'set_data_shared_quota') as mock_s_d_shared_quota:
                             with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_data_quota') as mock_s_m_d_quota:
                               with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_data_dir') as mock_cr_m_d_dir:
                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_scratch_quota') as mock_s_m_s_quota:
