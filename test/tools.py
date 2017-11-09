@@ -18,17 +18,10 @@ Tests for vsc.administration.vo
 @author: Andy Georges (Ghent University)
 """
 import mock
-import os
-import stat
 
 from collections import namedtuple
 
-import vsc.filesystem.posix
-import vsc.administration.tools
-
-from vsc.accountpage.wrappers import mkVscAccount
-from vsc.administration.tools import create_stat_directory, cleanup_purgees
-
+from vsc.administration.tools import create_stat_directory
 from vsc.install.testing import TestCase
 
 
@@ -143,51 +136,3 @@ class StatDirTest(TestCase):
         mock_os_stat.assert_called_with(test_path)
         self.assertFalse(mock_posix.make_dir.called)
         mock_posix.chmod.assert_called_with(test_permissions, test_path)
-
-
-class PurgeesTest(TestCase):
-    """"
-    Testcases for everything related to purged users.
-    """
-
-    @mock.patch('vsc.administration.user.MukAccountpageUser', autospec=True)
-    @mock.patch('vsc.administration.tools.notify_reinstatement')
-    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    def test_cleanup_purgees(self, mock_client, mock_notify_reinstatement, mock_accountpage_user):
-        """
-        Test that we're selecting the correct people to remove from the purgees list
-        """
-        test_current_users = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e'}
-        test_current_purgees = {8: 'a', 2: 'b', 4: 'c', 6: 'd', 7: 'e'}
-        test_account = mkVscAccount({
-            u'broken': False,
-            u'create_timestamp': u'1970-01-01T00:00:00.197Z',
-            u'data_directory': u'/user/data/gent/vsc400/vsc40075',
-            u'email': u'foobar@ugent.be',
-            u'home_directory': u'/user/home/gent/vsc400/vsc40075',
-            u'login_shell': u'/bin/bash',
-            u'person': {
-                u'gecos': u'Foo Bar',
-                u'institute': {u'site': u'gent'},
-                u'institute_login': u'foobar'
-            },
-            u'research_field': [u'Bollocks', u'Pluto'],
-            u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
-            u'status': u'active',
-            u'vsc_id': u'vsc40075',
-            u'vsc_id_number': 2540075
-        })
-
-        mock_notify_reinstatement.return_value = None
-        mock_accountpage_user.return_value = mock.MagicMock()
-        mock_accountpage_user.person = test_account.person
-        mock_accountpage_user.dry_run = False
-        mock_client.return_value = mock.MagicMock()
-        mock_client.group = mock.MagicMock()
-        mock_client.group["gt1_mukgraceusers"] = mock.MagicMock()
-        mock_client.group["gt1_mukgraceusers"].member = mock.MagicMock()
-
-        purgees_undone = cleanup_purgees(test_current_users, test_current_purgees, mock_client, False)
-
-        self.assertNotEqual(mock_notify_reinstatement.calls, [])
-        self.assertTrue(purgees_undone == 2)
