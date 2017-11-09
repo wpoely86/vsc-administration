@@ -234,36 +234,14 @@ class VoDeploymentTest(TestCase):
     @patch('vsc.administration.vo.VscStorage', autospec=True)
     def test_process_gent_institute_vo_data_share(self, mock_storage, mock_client):
 
-        test_vo_id = "gvo00012"
+        test_vo_id = "gvo00002"
         Options = namedtuple("Options", ['dry_run'])
         options = Options(dry_run=False)
 
         mc = mock_client.return_value
         mc.vo = mock.MagicMock()
-        date = "20321231"
-        mc.vo['gvo00012'].member.modified[date].get.return_value = (
-            200, [{
-                u'broken': False,
-                u'create_timestamp': u'2014-04-23T09:11:22.460Z',
-                u'data_directory': u'/user/leuven/data/vsc400/vsc40075',
-                u'email': u'andy.georges@kuleuven.be',
-                u'home_directory': u'/user/leuven/home/vsc400/vsc40075',
-                u'login_shell': u'/bin/bash',
-                u'person': {
-                    u'gecos': u'Andy Georges',
-                    u'institute': {u'site': u'leuven'},
-                    u'institute_login': u'ageorges'
-                },
-                u'research_field': [u'Computer systems, architectures, networks', u'nwo'],
-                u'scratch_directory': u'/user/leuven/scratch/vsc400/vsc40075',
-                u'status': u'active',
-                u'vsc_id': u'vsc40075',
-                u'vsc_id_number': 2540075,
-        }])
-
 
         for storage_name in (VSC_DATA_SHARED,):
-            with mock.patch('vsc.administration.vo.VscTier2AccountpageUser', autospec=True) as mock_user:
               with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
                 with mock.patch.object(vo.VscTier2AccountpageVo, 'create_scratch_fileset') as mock_cr_s_fileset:
                   with mock.patch.object(vo.VscTier2AccountpageVo, 'set_scratch_quota') as mock_s_s_quota:
@@ -276,8 +254,7 @@ class VoDeploymentTest(TestCase):
                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_scratch_quota') as mock_s_m_s_quota:
                                   with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
 
-                                        mock_user.return_value = mock.MagicMock()
-                                        mock_user.data_sharing = True
+                                        mc.vo.data_sharing = True
                                         ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
                                         self.assertEqual(errors, {})
 
