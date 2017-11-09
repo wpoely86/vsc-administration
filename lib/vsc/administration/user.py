@@ -20,7 +20,6 @@ This file contains the utilities for dealing with users on the VSC.
 @author: Andy Georges (Ghent University)
 """
 
-import errno
 import logging
 import os
 

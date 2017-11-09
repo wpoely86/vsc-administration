@@ -45,7 +45,11 @@ test_account_1 = {
     u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
     u'status': u'active',
     u'vsc_id': u'vsc40075',
-    u'vsc_id_number': 2540075
+    u'vsc_id_number': 2540075,
+    u'expiry_date': u'2032-01-01',
+    u'home_on_scratch': False,
+    u'force_active': False,
+
 }
 
 test_account_2 = {
@@ -64,7 +68,10 @@ test_account_2 = {
     u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
     u'status': u'active',
     u'vsc_id': u'vsc40075',
-    u'vsc_id_number': 2540075
+    u'vsc_id_number': 2540075,
+    u'expiry_date': u'2034-01-01',
+    u'home_on_scratch': False,
+    u'force_active': False,
 }
 
 test_usergroup_1 = {
@@ -132,8 +139,10 @@ test_hos_1 = [
                 "institute": {
                     "site": "gent"
                 },
-                "institute_login": "ageorges"
-            }
+                "institute_login": "ageorges",
+            },
+            u'home_on_scratch': False,
+            u'force_active': False,
         },
         "storage": {
             "institute": "gent",

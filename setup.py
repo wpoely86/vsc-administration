@@ -30,7 +30,7 @@ PACKAGE = {
     'tests_require': ['mock'],
     'makesetupcfg': False,  # use setup.cfg provided to get pytz instead of python-pytz
     'install_requires': [
-        'vsc-accountpage-clients >= 0.9.0',
+        'vsc-accountpage-clients >= 0.9.1',
         'vsc-base >= 2.4.16',
         'vsc-config >= 1.35.2',
         'vsc-filesystems >= 0.19',
