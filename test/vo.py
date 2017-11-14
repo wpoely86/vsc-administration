@@ -240,6 +240,9 @@ class VoDeploymentTest(TestCase):
 
         mc = mock_client.return_value
         mc.vo = mock.MagicMock()
+        v = mock.MagicMock()
+        v.data_sharing = True
+        mc.vo[test_vo_id].get.return_value = v
 
         for storage_name in (VSC_DATA_SHARED,):
               with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
@@ -254,9 +257,10 @@ class VoDeploymentTest(TestCase):
                                 with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_scratch_quota') as mock_s_m_s_quota:
                                   with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
 
-                                        mc.vo.data_sharing = True
                                         ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
                                         self.assertEqual(errors, {})
+
+                                        self.assertEqual(v.data_sharing, True)
 
                                         mock_cr_s_fileset.assert_not_called()
                                         mock_s_s_quota.assert_not_called()
