@@ -32,12 +32,10 @@ from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
-from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
+from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRATCH_KEY
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
 
-DATA = 'data'
-SCRATCH = 'scratch'
 SHARED = 'SHARED'
 
 class VoStatusUpdateError(Exception):
@@ -109,7 +107,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         return self._institute_quota_cache
 
     def _get_institute_data_quota(self):
-        return [q for q in self._institute_quota if q.storage['storage_type'] == DATA]
+        return [q for q in self._institute_quota if q.storage['storage_type'] == DATA_KEY]
 
     def _get_institute_non_shared_data_quota(self):
         return [x.hard for x in self._get_institute_data_quota() if not x.storage.name.endswith(SHARED)]
@@ -139,7 +137,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def vo_scratch_quota(self):
         if not self._vo_scratch_quota_cache:
             self._vo_scratch_quota_cache = [q for q in self._institute_quota
-                                            if q.storage['storage_type'] == SCRATCH]
+                                            if q.storage['storage_type'] == SCRATCH_KEY]
 
         return self._vo_scratch_quota_cache
 
