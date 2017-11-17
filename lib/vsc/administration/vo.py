@@ -66,7 +66,7 @@ class VscAccountPageVo(object):
     def vo(self):
         if not self._vo_cache:
             self._vo_cache = mkVo(whenHTTPErrorRaise(self.rest_client.vo[self.vo_id].get,
-                                                     "Could not get VO from accountpage")[1])
+                                                     "Could not get VO from accountpage for VO %s" % self.vo_id)[1])
         return self._vo_cache
 
 
@@ -101,7 +101,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if not self._institute_quota_cache:
             all_quota = [mkVscVoSizeQuota(q) for q in
                          whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
-                                            "Could not get quotata from accountpage")[1]
+                                            "Could not get quotata from accountpage for VO %s" % self.vo.vsc_id)[1]
                         ]
             self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['site']]
         return self._institute_quota_cache
