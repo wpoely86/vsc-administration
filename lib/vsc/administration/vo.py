@@ -38,6 +38,7 @@ from vsc.utils.missing import Monoid, MonoidDict
 
 SHARED = 'SHARED'
 
+
 class VoStatusUpdateError(Exception):
     pass
 
@@ -288,7 +289,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_data_shared_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.vo_data_shared_quota:
-            self._set_quota(VSC_DATA_SHARED, self._data_shared_path(), int(self.vo_data_shared_quota), fileset_name=self.vo.vsc_id.replace("gvo", "gvos"))
+            self._set_quota(VSC_DATA_SHARED,
+                            self._data_shared_path(),
+                            int(self.vo_data_shared_quota),
+                            fileset_name=self.vo.vsc_id.replace("gvo", "gvos"))
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
