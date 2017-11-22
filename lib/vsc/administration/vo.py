@@ -179,7 +179,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """
         return self._get_path(storage, mount_point)
 
-    def _create_fileset(self, filesystem_name, path, parent_fileset=None):
+    def _create_fileset(self, filesystem_name, path, parent_fileset=None, fileset_name=None):
         """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
@@ -188,7 +188,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
         """
         self.gpfs.list_filesets()
-        fileset_name = self.vo.vsc_id
+        if not fileset_name:
+            fileset_name = self.vo.vsc_id
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
             logging.info("Creating new fileset on %s with name %s and path %s" %
@@ -237,7 +238,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
-        self._create_fileset(fs, path)
+        self._create_fileset(fs, path, fileset_name=self.vo.vsc_id.replace('gvo', 'gvos'))
+
+        # TODO: change group ownership of this fileset junction path to that of the autogroup corresponding with the VO
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -256,18 +259,20 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-    def _set_quota(self, storage_name, path, quota):
+    def _set_quota(self, storage_name, path, quota, fileset_name=None):
         """Set FILESET quota on the FS for the VO fileset.
         @type quota: int
         @param quota: soft quota limit expressed in KiB
         """
+        if not fileset_name:
+            fileset_name = self.vo.vsc_id
         try:
             # expressed in bytes, retrieved in KiB from the backend
             hard = quota * 1024 * self.storage[storage_name].data_replication_factor
             soft = int(hard * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
-            self.gpfs.set_fileset_quota(soft, path, self.vo_id, hard)
+            self.gpfs.set_fileset_quota(soft, path, fileset_name, hard)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
         except GpfsOperationError:
             logging.exception("Unable to set quota on path %s" % (path))
@@ -283,7 +288,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_data_shared_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.vo_data_shared_quota:
-            self._set_quota(VSC_DATA_SHARED, self._data_shared_path(), int(self.vo_data_shared_quota))
+            self._set_quota(VSC_DATA_SHARED, self._data_shared_path(), int(self.vo_data_shared_quota), fileset_name=self.vo.vsc_id.replace("gvo", "gvos"))
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
