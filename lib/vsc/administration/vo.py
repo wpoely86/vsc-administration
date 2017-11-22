@@ -110,10 +110,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         return [q for q in self._institute_quota if q.storage['storage_type'] == DATA_KEY]
 
     def _get_institute_non_shared_data_quota(self):
-        return [x.hard for x in self._get_institute_data_quota() if not x.storage['name'].endswith(SHARED)]
+        return [q.hard for q in self._get_institute_data_quota() if not q.storage['name'].endswith(SHARED)]
 
     def _get_institute_shared_data_quota(self):
-        return [x.hard for x in self._get_institute_data_quota() if x.storage['name'].endswith(SHARED)]
+        return [q.hard for q in self._get_institute_data_quota() if q.storage['name'].endswith(SHARED)]
 
     @property
     def vo_data_quota(self):
