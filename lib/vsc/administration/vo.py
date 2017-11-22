@@ -31,14 +31,24 @@ from urllib2 import HTTPError
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
 from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
-from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, GENT_PRODUCTION_SCRATCH
-from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT
+from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
+from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRATCH_KEY
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
+
+SHARED = 'SHARED'
 
 
 class VoStatusUpdateError(Exception):
     pass
+
+
+def whenHTTPErrorRaise(f, msg, **kwargs):
+    try:
+        return f(**kwargs)
+    except HTTPError as err:
+        logging.error("%s: %s", msg, err)
+        raise
 
 
 class VscAccountPageVo(object):
@@ -51,13 +61,14 @@ class VscAccountPageVo(object):
         """
         self.vo_id = vo_id
         self.rest_client = rest_client
+        self._vo_cache = None
 
-        # We immediately retrieve this information
-        try:
-            self.vo = mkVo((rest_client.vo[vo_id].get()[1]))
-        except HTTPError:
-            logging.error("Cannot get information from the account page")
-            raise
+    @property
+    def vo(self):
+        if not self._vo_cache:
+            self._vo_cache = mkVo(whenHTTPErrorRaise(self.rest_client.vo[self.vo_id].get,
+                                                     "Could not get VO from accountpage for VO %s" % self.vo_id)[1])
+        return self._vo_cache
 
 
 class VscTier2AccountpageVo(VscAccountPageVo):
@@ -81,20 +92,59 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self.gpfs = GpfsOperations()
         self.posix = PosixOperations()
 
-        try:
-            all_quota = [mkVscVoSizeQuota(q) for q in rest_client.vo[self.vo.vsc_id].quota.get()[1]]
-        except HTTPError:
-            logging.exception("Unable to retrieve quota information")
-            # to avoid reducing the quota in case of issues with the account page, we will NOT
-            # set quota when they cannot be retrieved.
-            self.vo_data_quota = None
-            self.vo_scratch_quota = None
-        else:
-            institute_quota = filter(lambda q: q.storage['institute'] == self.vo.institute['site'], all_quota)
-            self.vo_data_quota = ([q.hard for q in institute_quota
-                                   if q.storage['storage_type'] in ('data',)] or
-                                  [self.storage[VSC_DATA].quota_vo])[0]  # there can be only one :)
-            self.vo_scratch_quota = filter(lambda q: q.storage['storage_type'] in ('scratch',), institute_quota)
+        self._vo_data_quota_cache = None
+        self._vo_data_shared_quota_cache = None
+        self._vo_scratch_quota_cache = None
+        self._institute_quota_cache = None
+
+    @property
+    def _institute_quota(self):
+        if not self._institute_quota_cache:
+            all_quota = [mkVscVoSizeQuota(q) for q in
+                         whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
+                                            "Could not get quotata from accountpage for VO %s" % self.vo.vsc_id)[1]
+                        ]
+            self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['site']]
+        return self._institute_quota_cache
+
+    def _get_institute_data_quota(self):
+        return [q for q in self._institute_quota if q.storage['storage_type'] == DATA_KEY]
+
+    def _get_institute_non_shared_data_quota(self):
+        return [q.hard for q in self._get_institute_data_quota() if not q.storage['name'].endswith(SHARED)]
+
+    def _get_institute_shared_data_quota(self):
+        return [q.hard for q in self._get_institute_data_quota() if q.storage['name'].endswith(SHARED)]
+
+    @property
+    def vo_data_quota(self):
+        if not self._vo_data_quota_cache:
+            self._vo_data_quota_cache = self._get_institute_non_shared_data_quota()
+            if not self._vo_data_quota_cache:
+                self._vo_data_quota_cache = [self.storage[VSC_DATA].quota_vo]
+
+        return self._vo_data_quota_cache[0]  # there can be only one
+
+    @property
+    def vo_data_shared_quota(self):
+        if not self._vo_data_shared_quota_cache:
+            try:
+                self._vo_data_shared_quota_cache = self._get_institute_shared_data_quota()[0]
+            except IndexError:
+                return None
+        return self._vo_data_shared_quota_cache
+
+    @property
+    def vo_scratch_quota(self):
+        if not self._vo_scratch_quota_cache:
+            self._vo_scratch_quota_cache = [q for q in self._institute_quota
+                                            if q.storage['storage_type'] == SCRATCH_KEY]
+
+        return self._vo_scratch_quota_cache
+
+    @property
+    def data_sharing(self):
+        return self.vo_data_shared_quota is not None
 
     def members(self):
         """Return a list with all the VO members in it."""
@@ -118,6 +168,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Return the path to the VO data fileset on GPFS"""
         return self._get_path(VSC_DATA, mount_point)
 
+    def _data_shared_path(self, mount_point="gpfs"):
+        """Return the path the VO shared data fileset on GPFS"""
+        return self._get_path(VSC_DATA_SHARED, mount_point)
+
     def _scratch_path(self, storage, mount_point="gpfs"):
         """Return the path to the VO scratch fileset on GPFS.
 
@@ -126,7 +180,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """
         return self._get_path(storage, mount_point)
 
-    def _create_fileset(self, filesystem_name, path, parent_fileset=None):
+    def _create_fileset(self, filesystem_name, path, parent_fileset=None, fileset_name=None):
         """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
@@ -135,7 +189,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
         """
         self.gpfs.list_filesets()
-        fileset_name = self.vo.vsc_id
+        if not fileset_name:
+            fileset_name = self.vo.vsc_id
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
             logging.info("Creating new fileset on %s with name %s and path %s" %
@@ -166,13 +221,27 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        path = self._data_path()
         try:
-            path = self._data_path()
-            self._create_fileset(self.storage[VSC_DATA].filesystem, path)
+            fs = self.storage[VSC_DATA].filesystem
         except AttributeError:
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA,))
+        self._create_fileset(fs, path)
+
+    def create_data_shared_fileset(self):
+        """Create a VO directory for sharing data on the HPC data filesystem. Always set the quota."""
+        path = self._data_shared_path()
+        try:
+            fs = self.storage[VSC_DATA_SHARED].filesystem
+        except AttributeError:
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+        except KeyError:
+            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
+        self._create_fileset(fs, path, fileset_name=self.vo.vsc_id.replace('gvo', 'gvos'))
+
+        # TODO: change group ownership of this fileset junction path to that of the autogroup corresponding with the VO
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -191,18 +260,20 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """Create a user owned directory on the GPFS."""
         self.gpfs.make_dir(path)
 
-    def _set_quota(self, storage_name, path, quota):
+    def _set_quota(self, storage_name, path, quota, fileset_name=None):
         """Set FILESET quota on the FS for the VO fileset.
         @type quota: int
         @param quota: soft quota limit expressed in KiB
         """
+        if not fileset_name:
+            fileset_name = self.vo.vsc_id
         try:
             # expressed in bytes, retrieved in KiB from the backend
             hard = quota * 1024 * self.storage[storage_name].data_replication_factor
             soft = int(hard * self.vsc.quota_soft_fraction)
 
             # LDAP information is expressed in KiB, GPFS wants bytes.
-            self.gpfs.set_fileset_quota(soft, path, self.vo_id, hard)
+            self.gpfs.set_fileset_quota(soft, path, fileset_name, hard)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
         except GpfsOperationError:
             logging.exception("Unable to set quota on path %s" % (path))
@@ -214,6 +285,14 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             self._set_quota(VSC_DATA, self._data_path(), int(self.vo_data_quota))
         else:
             self._set_quota(VSC_DATA, self._data_path(), 16 * 1024)
+
+    def set_data_shared_quota(self):
+        """Set FILESET quota on the data FS for the VO fileset."""
+        if self.vo_data_shared_quota:
+            self._set_quota(VSC_DATA_SHARED,
+                            self._data_shared_path(),
+                            int(self.vo_data_shared_quota),
+                            fileset_name=self.vo.vsc_id.replace("gvo", "gvos"))
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -413,6 +492,10 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
                 vo.create_data_fileset()
                 vo.set_data_quota()
                 update_vo_status(vo, client)
+
+            if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values() and vo.data_sharing:
+                vo.create_data_shared_fileset()
+                vo.set_data_shared_quota()
 
             if vo_id in (VSC().institute_vos[GENT],):
                 logging.info("Not deploying default VO %s members" % (vo_id,))

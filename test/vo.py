@@ -25,7 +25,7 @@ from collections import namedtuple
 
 import vsc.administration.vo as vo
 
-from vsc.config.base import VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
+from vsc.config.base import VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, VSC_DATA_SHARED
 from vsc.install.testing import TestCase
 
 
@@ -228,3 +228,47 @@ class VoDeploymentTest(TestCase):
 
                                                     mock_s_m_d_quota.assert_not_called()
                                                     mock_cr_m_d_dir.assert_not_called()
+
+
+    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
+    @patch('vsc.administration.vo.VscStorage', autospec=True)
+    def test_process_gent_institute_vo_data_share(self, mock_storage, mock_client):
+
+        test_vo_id = "gvo03442"
+        Options = namedtuple("Options", ['dry_run'])
+        options = Options(dry_run=False)
+
+        mc = mock_client.return_value
+        mc.vo = mock.MagicMock()
+        v = mock.MagicMock()
+        mc.vo[test_vo_id].get.return_value = v
+
+        for storage_name in (VSC_DATA_SHARED,):
+            with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.data_sharing", new_callable=mock.PropertyMock) as mock_data_sharing:
+              with mock.patch('vsc.administration.vo.update_vo_status') as mock_update_vo_status:
+                with mock.patch.object(vo.VscTier2AccountpageVo, 'create_scratch_fileset') as mock_cr_s_fileset:
+                  with mock.patch.object(vo.VscTier2AccountpageVo, 'set_scratch_quota') as mock_s_s_quota:
+                    with mock.patch.object(vo.VscTier2AccountpageVo, 'create_data_fileset') as mock_cr_d_fileset:
+                      with mock.patch.object(vo.VscTier2AccountpageVo, 'set_data_quota') as mock_s_d_quota:
+                        with mock.patch.object(vo.VscTier2AccountpageVo, 'create_data_shared_fileset') as mock_cr_d_shared_fileset:
+                          with mock.patch.object(vo.VscTier2AccountpageVo, 'set_data_shared_quota') as mock_s_d_shared_quota:
+                            with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_data_quota') as mock_s_m_d_quota:
+                              with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_data_dir') as mock_cr_m_d_dir:
+                                with mock.patch.object(vo.VscTier2AccountpageVo, 'set_member_scratch_quota') as mock_s_m_s_quota:
+                                  with mock.patch.object(vo.VscTier2AccountpageVo, 'create_member_scratch_dir') as mock_cr_m_s_dir:
+
+                                        mock_data_sharing.return_value = True
+
+                                        ok, errors = vo.process_vos(options, [test_vo_id], storage_name, mc, "99991231")
+                                        self.assertEqual(errors, {})
+
+                                        mock_cr_s_fileset.assert_not_called()
+                                        mock_s_s_quota.assert_not_called()
+                                        mock_cr_d_fileset.assert_not_called()
+                                        mock_s_d_quota.assert_not_called()
+                                        mock_cr_d_shared_fileset.assert_called()
+                                        mock_s_d_shared_quota.assert_called()
+                                        mock_update_vo_status.assert_not_called()
+
+                                        mock_s_m_d_quota.assert_not_called()
+                                        mock_cr_m_d_dir.assert_not_called()
