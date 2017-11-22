@@ -170,7 +170,9 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
         self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
-        self._quota_cache['data'] = [q.hard for q in institute_quota if user_proposition(q, 'data')][0]
+        self._quota_cache['data'] = [q.hard for q in institute_quota
+                                            if user_proposition(q, 'data')
+                                               and not q.storage['name'].endswith('SHARED')][0]
         self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
 
         fileset_name = 'gvo'
