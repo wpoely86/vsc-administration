@@ -18,6 +18,7 @@ Tests for vsc.administration.vo
 @author: Andy Georges (Ghent University)
 """
 import mock
+import os
 
 from mock import patch
 
@@ -283,36 +284,40 @@ class VoDeploymentTest(TestCase):
                                         mock_cr_m_d_dir.assert_not_called()
 
     @mock.patch('vsc.administration.vo.GpfsOperations', autospec=True)
-    @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @patch('vsc.administration.vo.VscStorage', autospec=True)
-    def test_create_sharing_fileset(self, mock_storage, mock_client, mock_gpfs):
+    def test_create_sharing_fileset(self,  mock_gpfs):
 
         test_vo_id = "gvo03442"
 
-        mc = mock_client.return_value
+        mc = mock.MagicMock()
         mc.vo = mock.MagicMock()
         v = mock.MagicMock()
         mc.vo[test_vo_id].get.return_value = v
+    
 
-        mock_storage[VSC_DATA_SHARED].filesystem = "test_filesystem"
-        mock_gpfs.get_fileset_info.return_value = False
-        mock_gpfs.make_dir.return_value = None
-        mock_gpfs.make_fileset.return_value = None
+        with mock.patch('vsc.administration.vo.mkVscAccount') as mock_mkvscaccount:
+            mock_mkvscaccount.side_effect = IndexError("Nope")
 
-        test_vo = vo.VscTier2AccountpageVo(test_vo_id, storage=mock_storage, rest_client=mc)
+            mock_storage = mock.MagicMock()
+            mock_storage[VSC_DATA_SHARED].filesystem = "test_filesystem"
+            mock_storage.path_templates[VSC_DATA_SHARED]['vo'] = ("gent", lambda vo_id: os.path.join("shared", self.vsc.vo_grouping(vo_id), vo_id))
+            mock_gpfs.get_fileset_info.return_value = False
+            mock_gpfs.make_dir.return_value = None
+            mock_gpfs.make_fileset.return_value = None
 
-        for storage_name in (VSC_DATA_SHARED,):
-            with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.data_sharing", new_callable=mock.PropertyMock) as mock_data_sharing:
-                with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.sharing_group", new_callable=mock.PropertyMock) as mock_sharing_group:
+            test_vo = vo.VscTier2AccountpageVo(test_vo_id, storage=mock_storage, rest_client=mc)
 
-                    mock_data_sharing.return_value = True
-                    mock_sharing_group.return_value = VscAutogroup(
-                        vsc_id=test_vo_id.replace('gvo', 'gvos'),
-                        status='active',
-                        vsc_id_number=123456,
-                        institute='Gent',
-                        members=['vsc40075'],
-                        description="test autogroup"
-                    )
+            for storage_name in (VSC_DATA_SHARED,):
+                with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.data_sharing", new_callable=mock.PropertyMock) as mock_data_sharing:
+                    with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.sharing_group", new_callable=mock.PropertyMock) as mock_sharing_group:
 
-                    test_vo.create_data_shared_fileset()
+                        mock_data_sharing.return_value = True
+                        mock_sharing_group.return_value = VscAutogroup(
+                            vsc_id=test_vo_id.replace('gvo', 'gvos'),
+                            status='active',
+                            vsc_id_number=123456,
+                            institute='Gent',
+                            members=['vsc40075'],
+                            description="test autogroup"
+                        )
+
+                        test_vo.create_data_shared_fileset()

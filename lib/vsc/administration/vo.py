@@ -209,7 +209,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if not fileset_name:
             fileset_name = self.vo.vsc_id
 
-        if not group_owner_id:
+        if group_owner_id:
+            fileset_group_owner_id = group_owner_id
+        else:
             fileset_group_owner_id = self.vo.vsc_id_number
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
@@ -259,8 +261,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
-        sharing_group = self.sharing_group()
-        self._create_fileset(fs, path, fileset_name=sharing_group.vsc_id, group_owner_id=sharing_group.vsc_id_number)
+        self._create_fileset(fs, path,
+                             fileset_name=self.sharing_group.vsc_id,
+                             group_owner_id=self.sharing_group.vsc_id_number)
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
