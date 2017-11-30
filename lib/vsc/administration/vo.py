@@ -28,7 +28,7 @@ import pwd
 
 from urllib2 import HTTPError
 
-from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount
+from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount, mkVscAutogroup
 from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
@@ -97,6 +97,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         self._vo_scratch_quota_cache = None
         self._institute_quota_cache = None
 
+        self._sharing_group_cache = None
+
     @property
     def _institute_quota(self):
         if not self._institute_quota_cache:
@@ -143,6 +145,19 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         return self._vo_scratch_quota_cache
 
     @property
+    def sharing_group(self):
+        if not self.data_sharing:
+            return None
+
+        if not self._sharing_group_cache:
+            group_name = self.vo.vsc_id.replace('gvo', 'gvos')
+            self._sharing_group_cache = mkVscAutogroup(
+                whenHTTPErrorRaise(self.rest_client.autogroup[group_name].get,
+                                   "Could not get autogroup %s details" % group_name)[1])
+
+        return self._sharing_group_cache
+
+    @property
     def data_sharing(self):
         return self.vo_data_shared_quota is not None
 
@@ -180,17 +195,24 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         """
         return self._get_path(storage, mount_point)
 
-    def _create_fileset(self, filesystem_name, path, parent_fileset=None, fileset_name=None):
+    def _create_fileset(self, filesystem_name, path, parent_fileset=None, fileset_name=None, group_owner_id=None):
         """Create a fileset for the VO on the data filesystem.
 
         - creates the fileset if it does not already exist
-        - sets the (fixed) quota on this fileset for the VO
+        - sets ownership to the first (active) VO moderator, or to nobody if there is no moderator
+        - sets group ownership to the supplied value (group_owner_id) or if that is missing to the
+          vsc_id of the VO owning the fileset
 
         The parent_fileset is used to support older (< 3.5.x) GPFS setups still present in our system
         """
         self.gpfs.list_filesets()
         if not fileset_name:
             fileset_name = self.vo.vsc_id
+
+        if group_owner_id:
+            fileset_group_owner_id = group_owner_id
+        else:
+            fileset_group_owner_id = self.vo.vsc_id_number
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
             logging.info("Creating new fileset on %s with name %s and path %s" %
@@ -212,12 +234,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             moderator = mkVscAccount(self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
             logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
-            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, fileset_group_owner_id, path)
         except IndexError:
             logging.error("There is no moderator available for VO %s" % (self.vo.vsc_id,))
-            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, self.vo.vsc_id_number, path)
+            self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, fileset_group_owner_id, path)
         else:
-            self.gpfs.chown(moderator.vsc_id_number, self.vo.vsc_id_number, path)
+            self.gpfs.chown(moderator.vsc_id_number, fileset_group_owner_id, path)
 
     def create_data_fileset(self):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
@@ -239,9 +261,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
         except KeyError:
             logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
-        self._create_fileset(fs, path, fileset_name=self.vo.vsc_id.replace('gvo', 'gvos'))
-
-        # TODO: change group ownership of this fileset junction path to that of the autogroup corresponding with the VO
+        self._create_fileset(fs, path,
+                             fileset_name=self.sharing_group.vsc_id,
+                             group_owner_id=self.sharing_group.vsc_id_number)
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
