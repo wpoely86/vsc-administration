@@ -367,6 +367,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             return
 
         if member.vo_data_quota:
+            # users having belonged to multiple VOs have multiple quota on VSC_DATA, so we
+            # only need to deploy the quota for the VO the user currently belongs to.
             quota = [q for q in member.vo_data_quota if q.fileset == self.vo.vsc_id]
             logging.info("Setting the data quota for VO %s member %s to %d KiB" %
                          (self.vo.vsc_id, member.account.vsc_id, quota[0].hard))
