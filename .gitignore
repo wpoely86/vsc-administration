@@ -14,7 +14,6 @@ develop-eggs
 .eggs
 
 *~
-setup.cfg
 
 # Installer logs
 pip-log.txt
@@ -32,6 +31,5 @@ pip-log.txt
 html
 test-reports
 
-setup.cfg
 
 *.orig
