@@ -1,6 +1,6 @@
 # -*- coding: latin-1 -*-
 #
-# Copyright 2012-2017 Ghent University
+# Copyright 2012-2018 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -367,9 +367,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             return
 
         if member.vo_data_quota:
-            logging.info("Setting the data quota for VO %s member %s to %d GiB" %
-                         (self.vo.vsc_id, member.account.vsc_id, member.vo_data_quota[0].hard))
-            self._set_member_quota(VSC_DATA, self._data_path(), member, member.vo_data_quota[0].hard)
+            # users having belonged to multiple VOs have multiple quota on VSC_DATA, so we
+            # only need to deploy the quota for the VO the user currently belongs to.
+            quota = [q for q in member.vo_data_quota if q.fileset == self.vo.vsc_id]
+            logging.info("Setting the data quota for VO %s member %s to %d KiB" %
+                         (self.vo.vsc_id, member.account.vsc_id, quota[0].hard))
+            self._set_member_quota(VSC_DATA, self._data_path(), member, quota[0].hard)
         else:
             logging.error("No VO %s data quota set for member %s" % (self.vo.vsc_id, member.account.vsc_id))
 

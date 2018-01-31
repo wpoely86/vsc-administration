@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2017 Ghent University
+# Copyright 2018-2018 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -12,7 +12,6 @@
 #
 # All rights reserved.
 #
-# Due to #11
 from vsc.install import commontest
 
 class ImportTest(commontest.CommonTest):
