@@ -197,12 +197,25 @@ def create_add_user_command(user, vo_id, cluster):
     )
 
 
-def create_change_user_command(user, vo_id):
-    return ""
+def create_change_user_command(user, vo_id, cluster):
+    CHANGE_USER_COMMAND = "{sacctmgr} update user={user} where Cluster={cluster} set DefaultAccount={account} Account={account}"
+
+    return CHANGE_USER_COMMAND.format(
+        sacctmgr=SLURM_SACCT_MGR,
+        user=user,
+        account=vo_id,
+        cluster=cluster,
+    )
 
 
-def create_remove_user_command(user):
-    return ""
+def create_remove_user_command(user, cluster):
+    REMOVE_USER_COMMAND = "{sacctmgr} delete user name={user} Cluster={cluster}"
+
+    return REMOVE_USER_COMMAND.format(
+        sacctmgr=SLURM_SACCT_MGR,
+        user=user,
+        cluster=cluster,
+    )
 
 
 def slurm_institute_accounts(slurm_account_info, clusters):
@@ -281,7 +294,7 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
         moved_users = [(user, reverse_vo_mapping[user]) for user in changed_users]
 
         commands.extend([create_add_user_command(user=user, vo_id=vo_id, cluster=cluster) for (user, vo_id, _) in new_users])
-        commands.extend([create_remove_user_command(user=user) for user in remove_users])
+        commands.extend([create_remove_user_command(user=user, cluster=cluster) for user in remove_users])
         commands.extend([create_change_user_command(user=user, vo_id=vo_id, cluster=cluster) for (user, (vo_id, _)) in moved_users])
 
     return commands
