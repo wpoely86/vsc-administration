@@ -20,9 +20,12 @@ The script must result in an idempotent execution, to ensure nothing breaks.
 """
 
 import logging
+import os
+import shlex
+import subprocess
 import sys
 import tempfile
-import subprocess
+import time
 
 from collections import namedtuple, Mapping
 from datetime import datetime
@@ -33,10 +36,13 @@ from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
-from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
-from vsc.utils.run import run_simple
+from vsc.utils.run import RunQA, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
+
+RunQA.LOOP_MAX_MISS_COUNT=3600
+RunQAStdout.LOOP_MAX_MISS_COUNT=3600
+
 
 NAGIOS_HEADER = "sync_slurm_acct"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 60 * 60  # 60 minutes
@@ -59,6 +65,8 @@ fancylogger.setLogLevelInfo()
 
 ACCOUNTS = "accounts"
 USERS = "users"
+IGNORE_USERS = ["root"]
+IGNORE_ACCOUNTS = ["root"]
 
 
 # https://stackoverflow.com/questions/11351032/namedtuple-and-default-values-for-optional-keyword-arguments
@@ -86,11 +94,17 @@ SlurmUser = namedtuple_with_defaults('SlurmUser', SacctUserFields)
 
 
 def mkSlurmAccount(fields):
-    return mkNamedTupleInstance(fields, SlurmAccount)
+    account = mkNamedTupleInstance(fields, SlurmAccount)
+    if account.Account in IGNORE_ACCOUNTS:
+        return None
+    return account
 
 
 def mkSlurmUser(fields):
-    return mkNamedTupleInstance(fields, SlurmUser)
+    user = mkNamedTupleInstance(fields, SlurmUser)
+    if user.User in IGNORE_USERS:
+        return None
+    return user
 
 
 def parse_slurm_acct_line(header, line, creator):
@@ -114,7 +128,9 @@ def parse_slurm_acct_dump(lines, info_type):
     for line in lines[1:]:
         line = line.rstrip()
         try:
-            acct_info.add(parse_slurm_acct_line(header, line, creator))
+            info = parse_slurm_acct_line(header, line, creator)
+            if info:
+                acct_info.add(info)
         except Exception, err:
             logging.warning("Slurm acct sync: could not process line %s [%s]", line, err)
 
@@ -300,6 +316,17 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
     return commands
 
 
+def execute_commands(commands):
+    """Run the specified commands"""
+
+    for command in commands:
+        logging.info("Running command: %s", command)
+
+        # if one fails, we simply fail the script and should get notified
+        RunQA.run(shlex.split(command), qa={"(N/y):": "y"})
+        time.sleep(5)
+
+
 def main():
     """
     Main script. The usual.
@@ -358,6 +385,8 @@ def main():
         sacctmgr_commands += slurm_user_accounts(account_page_members, slurm_user_info, clusters)
 
         print "\n".join(sacctmgr_commands)
+
+        execute_commands(sacctmgr_commands)
 
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
