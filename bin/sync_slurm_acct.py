@@ -20,7 +20,6 @@ The script must result in an idempotent execution, to ensure nothing breaks.
 """
 
 import logging
-import os
 import shlex
 import subprocess
 import sys
@@ -34,14 +33,13 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
-from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import RunQA, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
 
-RunQA.LOOP_MAX_MISS_COUNT=3600
-RunQAStdout.LOOP_MAX_MISS_COUNT=3600
+RunQA.LOOP_MAX_MISS_COUNT = 30
+RunQAStdout.LOOP_MAX_MISS_COUNT = 30
 
 
 NAGIOS_HEADER = "sync_slurm_acct"
