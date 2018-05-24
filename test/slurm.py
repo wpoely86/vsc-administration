@@ -25,7 +25,7 @@ from vsc.install.testing import TestCase
 from vsc.administration.slurm.sync import slurm_vo_accounts
 
 
-VO = namedtuple("VO", ["vsc_id"])
+VO = namedtuple("VO", ["vsc_id", "institute"])
 
 
 class SlurmSyncTest(TestCase):
@@ -34,12 +34,12 @@ class SlurmSyncTest(TestCase):
     def test_slurm_vo_accounts(self):
 
         vos = [
-            VO(vsc_id="gvo00001"),
-            VO(vsc_id="gvo00002"),
-            VO(vsc_id="gvo00012"),
-            VO(vsc_id="gvo00016"),
-            VO(vsc_id="gvo00017"),
-            VO(vsc_id="gvo00018"),
+            VO(vsc_id="gvo00001", institute="gent"),
+            VO(vsc_id="gvo00002", institute="gent"),
+            VO(vsc_id="gvo00012", institute="gent"),
+            VO(vsc_id="gvo00016", institute="gent"),
+            VO(vsc_id="gvo00017", institute="gent"),
+            VO(vsc_id="gvo00018", institute="gent"),
         ]
 
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
