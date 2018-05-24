@@ -18,10 +18,33 @@ Tests for vsc.administration.slurm.*
 @author: Andy Georges (Ghent University)
 """
 
+from collections import namedtuple
 
 from vsc.install.testing import TestCase
 
-from vsc.administration.slurm.sync import *
+from vsc.administration.slurm.sync import slurm_vo_accounts
+
+
+VO = namedtuple("VO", ["vsc_id"])
+
 
 class SlurmSyncTest(TestCase):
-    pass
+    """Test for the slurm account sync."""
+
+    def test_slurm_vo_accounts(self):
+
+        vos = [
+            VO(vsc_id="gvo00001"),
+            VO(vsc_id="gvo00002"),
+            VO(vsc_id="gvo00012"),
+            VO(vsc_id="gvo00016"),
+            VO(vsc_id="gvo00017"),
+            VO(vsc_id="gvo00018"),
+        ]
+
+        commands = slurm_vo_accounts(vos, [], ["mycluster"])
+
+        self.assertEqual(commands, [
+            "/usr/bin/sacctmgr add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster",
+            "/usr/bin/sacctmgr add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster",
+        ])

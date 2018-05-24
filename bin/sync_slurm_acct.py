@@ -118,7 +118,8 @@ def main():
         sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters)
 
         if opts.options.dry_run:
-            print "\n".join(sacctmgr_commands)
+            print "Commands to be executed:\n"
+            "\n".join(sacctmgr_commands)
         else:
             execute_commands(sacctmgr_commands[:10])
 

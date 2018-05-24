@@ -139,8 +139,7 @@ def get_slurm_acct_info(info_type):
         f.flush()
         f.seek(0)
         contents = f.readlines()
-        print "read %d lines" % len(contents)
-        print "first lines:\n%s" % "\n".join(contents[:4])
+        logging.debug("read %d lines" % len(contents))
 
     info = parse_slurm_acct_dump(contents, info_type)
 
@@ -245,9 +244,13 @@ def slurm_institute_accounts(slurm_account_info, clusters):
         cluster_accounts = [acct.Account for acct in slurm_account_info if acct and acct.Cluster == cluster]
         for (inst, vo) in INSTITUTE_VOS.items():
             if inst not in cluster_accounts:
-                commands.append(create_add_account_command(account=inst, parent=None, cluster=cluster, organisation=inst))
+                commands.append(
+                    create_add_account_command(account=inst, parent=None, cluster=cluster, organisation=inst)
+                )
             if vo not in cluster_accounts:
-                commands.append(create_add_account_command(account=vo, parent=inst, cluster=cluster, organisation=inst))
+                commands.append(
+                    create_add_account_command(account=vo, parent=inst, cluster=cluster, organisation=inst)
+                )
 
     return commands
 
@@ -296,7 +299,8 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
         ]
         cluster_users = [u[0] for u in cluster_users_acct]
 
-        # these are the users that need to be removed as they are no longer an active user in any (including the institute default) VO
+        # these are the users that need to be removed as they are no longer an active user in any
+        # (including the institute default) VO
         remove_users = [user for user in cluster_users if user not in active_vo_members]
 
         new_users = set()
