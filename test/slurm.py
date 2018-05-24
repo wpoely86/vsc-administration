@@ -34,12 +34,12 @@ class SlurmSyncTest(TestCase):
     def test_slurm_vo_accounts(self):
 
         vos = [
-            VO(vsc_id="gvo00001", institute="gent"),
-            VO(vsc_id="gvo00002", institute="gent"),
-            VO(vsc_id="gvo00012", institute="gent"),
-            VO(vsc_id="gvo00016", institute="gent"),
-            VO(vsc_id="gvo00017", institute="gent"),
-            VO(vsc_id="gvo00018", institute="gent"),
+            VO(vsc_id="gvo00001", institute={"site": "gent"}),
+            VO(vsc_id="gvo00002", institute={"site": "gent"}),
+            VO(vsc_id="gvo00012", institute={"site": "gent"}),
+            VO(vsc_id="gvo00016", institute={"site": "gent"}),
+            VO(vsc_id="gvo00017", institute={"site": "gent"}),
+            VO(vsc_id="gvo00018", institute={"site": "gent"}),
         ]
 
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
