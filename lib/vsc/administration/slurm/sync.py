@@ -287,7 +287,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
         for m in members:
             reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
 
-    active_vo_members = [u for vo in vo_members.values() for u in vo[0] if u in active_accounts]
+    active_vo_members = set([u for (members, _) in vo_members.values() for u in members]) & active_accounts
 
     for cluster in clusters:
         cluster_users_acct = [
@@ -297,7 +297,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
 
         # these are the users that need to be removed as they are no longer an active user in any
         # (including the institute default) VO
-        remove_users = [user for user in cluster_users if user not in active_vo_members]
+        remove_users = cluster_users - active_vo_members
 
         new_users = set()
         changed_users = set()
@@ -307,7 +307,8 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
             # these are users not yet in the Slurm DB for this cluster
             new_users |= set([
                 (user, vo.vsc_id, vo.institute["site"])
-                for user in members if user not in cluster_users and user in active_accounts])
+                for user in (members & active_accounts) - cluster_users
+            ])
 
             # these are the current Slurm users per Account, i.e., the VO currently being processed
             slurm_acct_users = [user for (user, acct) in cluster_users_acct if acct == vo_id]
@@ -315,7 +316,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
             # these are the users that should no longer be in this account, but should not be removed
             # we need to look up their new VO
             # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
-            changed_users |= set([user for user in slurm_acct_users if user not in members and user in active_accounts])
+            changed_users |= (slurm_acct_users - members) & active_accounts
 
         moved_users = [(user, reverse_vo_mapping[user]) for user in changed_users]
 
