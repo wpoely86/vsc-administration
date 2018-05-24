@@ -265,7 +265,7 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
         cluster_accounts = [acct.Account for acct in slurm_account_info if acct and acct.Cluster == cluster]
 
         for vo in account_page_vos:
-            if vo.vsc_id in INSTITUTE_VOS:
+            if vo.vsc_id in INSTITUTE_VOS.values():
                 continue
 
             if vo.vsc_id not in cluster_accounts:
