@@ -27,12 +27,12 @@ import tempfile
 import time
 
 from collections import namedtuple, Mapping
-from datetime import datetime
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
+from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_CLUSTERS
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import RunQA, RunQAStdout
@@ -105,8 +105,19 @@ def mkSlurmUser(fields):
     return user
 
 
-def parse_slurm_acct_line(header, line, creator):
+def parse_slurm_acct_line(header, line, info_type):
     fields = line.split("|")
+
+    if info_type == ACCOUNTS:
+        (user_field_number, _) = filter(lambda (i, n): n.lower() == 'user', zip(range(0, len(header)), header))[0]
+        print "Checking is user or account: field %d: %s [%s]" % (user_field_number, header[user_field_number], fields[user_field_number])
+        if fields[user_field_number]:
+            print "a user"
+            return None
+        creator = mkSlurmAccount
+    elif info_type == USERS:
+        creator = mkSlurmUser
+
     return creator(dict(zip(header, fields)))
 
 
@@ -116,21 +127,16 @@ def parse_slurm_acct_dump(lines, info_type):
     """
     acct_info = set()
 
-    if info_type == ACCOUNTS:
-        creator = mkSlurmAccount
-    elif info_type == USERS:
-        creator = mkSlurmUser
-
     header = [w.replace(' ', '_') for w in lines[0].rstrip().split("|")]
 
     for line in lines[1:]:
         line = line.rstrip()
         try:
-            info = parse_slurm_acct_line(header, line, creator)
+            info = parse_slurm_acct_line(header, line, info_type)
             if info:
                 acct_info.add(info)
         except Exception, err:
-            logging.warning("Slurm acct sync: could not process line %s [%s]", line, err)
+            logging.exception("Slurm acct sync: could not process line %s [%s]", line, err)
 
     return acct_info
 
@@ -138,7 +144,6 @@ def parse_slurm_acct_dump(lines, info_type):
 def get_slurm_acct_info(info_type):
     """Get slurm account info for the given clusterself.
 
-    @param cluster: the cluster for which to get information
     @param info_type: this is either "accounts" or "users"
     """
     contents = None
@@ -162,6 +167,7 @@ def get_slurm_acct_info(info_type):
         f.seek(0)
         contents = f.readlines()
         print "read %d lines" % len(contents)
+        print "first lines:\n%s" % "\n".join(contents[:4])
 
     info = parse_slurm_acct_dump(contents, info_type)
 
@@ -180,6 +186,13 @@ def create_add_account_command(account, parent, organisation, cluster):
     @returns: string comprising the command
     """
     CREATE_ACCOUNT_COMMAND = "{sacctmgr} add account {account} Parent={parent} Organization={organisation} Cluster={cluster}"
+    logging.debug(
+        "Adding account %s with Parent=%s Cluster=%s Organization=%s",
+        account,
+        parent,
+        cluster,
+        organisation,
+        )
 
     return CREATE_ACCOUNT_COMMAND.format(
         sacctmgr=SLURM_SACCT_MGR,
@@ -202,6 +215,12 @@ def create_add_user_command(user, vo_id, cluster):
     @returns: string comprising the command
     """
     CREATE_USER_COMMAND = "{sacctmgr} add user {user} Account={account} Cluster={cluster}"
+    logging.debug(
+        "Adding user %s with Account=%s Cluster=%s",
+        user,
+        vo_id,
+        cluster,
+        )
 
     return CREATE_USER_COMMAND.format(
         sacctmgr=SLURM_SACCT_MGR,
@@ -213,6 +232,12 @@ def create_add_user_command(user, vo_id, cluster):
 
 def create_change_user_command(user, vo_id, cluster):
     CHANGE_USER_COMMAND = "{sacctmgr} update user={user} where Cluster={cluster} set DefaultAccount={account} Account={account}"
+    logging.debug(
+        "Changing user %s on Cluster=%s to DefaultAccount=%s",
+        user,
+        cluster,
+        vo_id,
+        )
 
     return CHANGE_USER_COMMAND.format(
         sacctmgr=SLURM_SACCT_MGR,
@@ -224,6 +249,11 @@ def create_change_user_command(user, vo_id, cluster):
 
 def create_remove_user_command(user, cluster):
     REMOVE_USER_COMMAND = "{sacctmgr} delete user name={user} Cluster={cluster}"
+    logging.debug(
+        "Removing user %s from Cluster=%s",
+        user,
+        cluster,
+        )
 
     return REMOVE_USER_COMMAND.format(
         sacctmgr=SLURM_SACCT_MGR,
@@ -263,7 +293,12 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
                 continue
 
             if vo.vsc_id not in cluster_accounts:
-                commands.append(create_add_account_command(account=vo.vsc_id, parent=vo.institute['site'], cluster=cluster, organisation=vo.institute['site']))
+                commands.append(create_add_account_command(
+                    account=vo.vsc_id,
+                    parent=vo.institute['site'],
+                    cluster=cluster,
+                    organisation=vo.institute['site']
+                ))
 
     return commands
 
@@ -283,7 +318,9 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
             reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
 
     for cluster in clusters:
-        cluster_users_acct = [(user.User, user.Def_Acct) for user in slurm_user_info if user and user.Cluster == cluster]
+        cluster_users_acct = [
+            (user.User, user.Def_Acct) for user in slurm_user_info if user and user.Cluster == cluster
+        ]
         cluster_users = [u[0] for u in cluster_users_acct]
 
         # these are the users that need to be removed as they are no longer in any (including the institute default) VO
@@ -307,9 +344,17 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
 
         moved_users = [(user, reverse_vo_mapping[user]) for user in changed_users]
 
-        commands.extend([create_add_user_command(user=user, vo_id=vo_id, cluster=cluster) for (user, vo_id, _) in new_users])
+        commands.extend([create_add_user_command(
+            user=user,
+            vo_id=vo_id,
+            cluster=cluster) for (user, vo_id, _) in new_users
+        ])
         commands.extend([create_remove_user_command(user=user, cluster=cluster) for user in remove_users])
-        commands.extend([create_change_user_command(user=user, vo_id=vo_id, cluster=cluster) for (user, (vo_id, _)) in moved_users])
+        commands.extend([create_change_user_command(
+            user=user,
+            vo_id=vo_id,
+            cluster=cluster) for (user, (vo_id, _)) in moved_users
+        ])
 
     return commands
 
@@ -333,37 +378,36 @@ def main():
     options = {
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
-        'account_page_url': ('URL of the account page where we can find the REST API', str, 'store', 'https://apivsc.ugent.be/django'),
-        'clusters': ('Cluster(s) (comma-separated) to get the info for', str, 'store', 'banette'),
+        'account_page_url': ('URL of the account page where we can find the REST API', str, 'store',
+            'https://apivsc.ugent.be/django'),
+        'clusters': ('Cluster(s) (comma-separated) to sync for. '
+                     'Overrides GENT_SLURM_COMPUTE_CLUSTERS that are in production.', str, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
     stats = {}
 
     try:
-        now = datetime.utcnow()
         client = AccountpageClient(
             token=opts.options.access_token,
             url=opts.options.account_page_url + "/api/")
 
-        try:
-            last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
-        except Exception:
-            logging.exception("Error reading from %s" % SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "200901010000Z"  # the beginning of time
-        if last_timestamp is None:
-            last_timestamp = "201804010000Z"  # the beginning of time
-        last_timestamp = "201704010000Z"  # the beginning of time
+        last_timestamp = "201804010000Z"  # the beginning of time
 
         logging.info("Last recorded timestamp was %s" % (last_timestamp))
 
         slurm_account_info = get_slurm_acct_info(ACCOUNTS)
         slurm_user_info = get_slurm_acct_info(USERS)
 
-        #print slurm_account_info
-        #print slurm_users_info
+        print "%d accounts found" % len(slurm_account_info)
+        print "%d users found" % len(slurm_user_info)
+        print "\n".join([str(s) for s in slurm_user_info])
 
-        clusters = opts.options.clusters.split(",")
+        if opts.options.clusters is not None:
+            clusters = opts.options.clusters.split(",")
+        else:
+            clusters = [c for c in GENT_SLURM_COMPUTE_CLUSTERS if c in GENT_PRODUCTION_CLUSTERS]
+
         sacctmgr_commands = []
 
         # make sure the institutes and the default accounts (VOs) are there for each cluster
@@ -382,9 +426,10 @@ def main():
         # process VO members
         sacctmgr_commands += slurm_user_accounts(account_page_members, slurm_user_info, clusters)
 
-        print "\n".join(sacctmgr_commands)
-
-        execute_commands(sacctmgr_commands)
+        if opts.options.dry_run:
+            print "\n".join(sacctmgr_commands)
+        else:
+            execute_commands(sacctmgr_commands)
 
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
