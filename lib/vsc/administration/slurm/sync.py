@@ -157,7 +157,8 @@ def create_add_account_command(account, parent, organisation, cluster):
 
     @returns: string comprising the command
     """
-    CREATE_ACCOUNT_COMMAND = "{sacctmgr} add account {account} Parent={parent} Organization={organisation} Cluster={cluster}"
+    CREATE_ACCOUNT_COMMAND = \
+        "{sacctmgr} add account {account} Parent={parent} Organization={organisation} Cluster={cluster}"
     logging.debug(
         "Adding account %s with Parent=%s Cluster=%s Organization=%s",
         account,
@@ -203,7 +204,8 @@ def create_add_user_command(user, vo_id, cluster):
 
 
 def create_change_user_command(user, vo_id, cluster):
-    CHANGE_USER_COMMAND = "{sacctmgr} update user={user} where Cluster={cluster} set DefaultAccount={account} Account={account}"
+    CHANGE_USER_COMMAND = \
+        "{sacctmgr} update user={user} where Cluster={cluster} set DefaultAccount={account} Account={account}"
     logging.debug(
         "Changing user %s on Cluster=%s to DefaultAccount=%s",
         user,
