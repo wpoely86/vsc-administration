@@ -107,9 +107,8 @@ def main():
         # The VOs do not track active state of users, so we need to fetch all accounts as well
         active_accounts = set([a['vsc_id'] for a in client.account.get()[1] if a['isactive']])
 
-        account_page_members = {}
-        for vo in account_page_vos:
-            account_page_members[vo.vsc_id] = (set([v for v in vo.members]), vo)
+        # dictionary mapping the VO vsc_id on a tuple with the VO members and the VO itself
+        account_page_members = dict([(vo.vsc_id, (set(vo.members), vo)) for vo in account_page_vos])
 
         # process all regular VOs
         sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters)
@@ -121,7 +120,7 @@ def main():
             print "Commands to be executed:\n"
             "\n".join(sacctmgr_commands)
         else:
-            execute_commands(sacctmgr_commands[:10])
+            execute_commands(sacctmgr_commands)
 
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))

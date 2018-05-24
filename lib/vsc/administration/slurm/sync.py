@@ -24,6 +24,7 @@ from collections import namedtuple, Mapping
 
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
+from vsc.utils.missing import namedtuple_with_defaults
 
 SLURM_SACCT_MGR = "/usr/bin/sacctmgr"
 
@@ -41,16 +42,7 @@ IGNORE_USERS = ["root"]
 IGNORE_ACCOUNTS = ["root"]
 
 
-# https://stackoverflow.com/questions/11351032/namedtuple-and-default-values-for-optional-keyword-arguments
-def namedtuple_with_defaults(typename, field_names, default_values=()):
-    T = namedtuple(typename, field_names)
-    T.__new__.__defaults__ = (None,) * len(T._fields)
-    if isinstance(default_values, Mapping):
-        prototype = T(**default_values)
-    else:
-        prototype = T(*default_values)
-    T.__new__.__defaults__ = tuple(prototype)
-    return T
+#
 
 
 SacctUserFields = ["User", "Def_Acct", "Admin", "Cluster", "Account", "Partition", "Share",
@@ -89,6 +81,8 @@ def parse_slurm_acct_line(header, line, info_type, user_field_number):
         creator = mkSlurmAccount
     elif info_type == USERS:
         creator = mkSlurmUser
+    else:
+        return None
 
     return creator(dict(zip(header, fields)))
 
@@ -100,7 +94,7 @@ def parse_slurm_acct_dump(lines, info_type):
     acct_info = set()
 
     header = [w.replace(' ', '_') for w in lines[0].rstrip().split("|")]
-    (user_field_number, _) = filter(lambda (i, n): n.lower() == 'user', zip(range(0, len(header)), header))[0]
+    user_field_number = [h.lower() for h in header].index("user")
 
     for line in lines[1:]:
         line = line.rstrip()
@@ -237,7 +231,7 @@ def create_remove_user_command(user, cluster):
 
 
 def slurm_institute_accounts(slurm_account_info, clusters):
-    """Check for the presence of the institutes and their default VOs in the slurm account listself.
+    """Check for the presence of the institutes and their default VOs in the slurm account list.
 
     @returns: list of sacctmgr commands to add the accounts to the clusters if needed
     """
