@@ -105,14 +105,12 @@ def mkSlurmUser(fields):
     return user
 
 
-def parse_slurm_acct_line(header, line, info_type):
+def parse_slurm_acct_line(header, line, info_type, user_field_number):
     fields = line.split("|")
 
     if info_type == ACCOUNTS:
-        (user_field_number, _) = filter(lambda (i, n): n.lower() == 'user', zip(range(0, len(header)), header))[0]
-        print "Checking is user or account: field %d: %s [%s]" % (user_field_number, header[user_field_number], fields[user_field_number])
         if fields[user_field_number]:
-            print "a user"
+            # association information for a user. Users are processed later.
             return None
         creator = mkSlurmAccount
     elif info_type == USERS:
@@ -128,11 +126,12 @@ def parse_slurm_acct_dump(lines, info_type):
     acct_info = set()
 
     header = [w.replace(' ', '_') for w in lines[0].rstrip().split("|")]
+    (user_field_number, _) = filter(lambda (i, n): n.lower() == 'user', zip(range(0, len(header)), header))[0]
 
     for line in lines[1:]:
         line = line.rstrip()
         try:
-            info = parse_slurm_acct_line(header, line, info_type)
+            info = parse_slurm_acct_line(header, line, info_type, user_field_number)
             if info:
                 acct_info.add(info)
         except Exception, err:
@@ -303,7 +302,7 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
     return commands
 
 
-def slurm_user_accounts(vo_members, slurm_user_info, clusters):
+def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
     """Check for the presence of the user in his/her account.
 
     @returns: list of sacctmgr commands to add the users if needed.
@@ -311,11 +310,11 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
     commands = []
 
     reverse_vo_mapping = dict()
-    all_vo_members = [u for vo in vo_members.values() for u in vo[0]]
-
     for (members, vo) in vo_members.values():
         for m in members:
             reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
+
+    active_vo_members = [u for vo in vo_members.values() for u in vo[0] if u in active_accounts]
 
     for cluster in clusters:
         cluster_users_acct = [
@@ -323,8 +322,8 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
         ]
         cluster_users = [u[0] for u in cluster_users_acct]
 
-        # these are the users that need to be removed as they are no longer in any (including the institute default) VO
-        remove_users = [user for user in cluster_users if user not in all_vo_members]
+        # these are the users that need to be removed as they are no longer an active user in any (including the institute default) VO
+        remove_users = [user for user in cluster_users if user not in active_vo_members]
 
         new_users = set()
         changed_users = set()
@@ -332,7 +331,7 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
         for (vo_id, (members, vo)) in vo_members.items():
 
             # these are users not yet in the Slurm DB for this cluster
-            new_users |= set([(user, vo.vsc_id, vo.institute["site"]) for user in members if user not in cluster_users])
+            new_users |= set([(user, vo.vsc_id, vo.institute["site"]) for user in members if user not in cluster_users and user in active_accounts])
 
             # these are the current Slurm users per Account, i.e., the VO currently being processed
             slurm_acct_users = [user for (user, acct) in cluster_users_acct if acct == vo_id]
@@ -340,7 +339,7 @@ def slurm_user_accounts(vo_members, slurm_user_info, clusters):
             # these are the users that should no longer be in this account, but should not be removed
             # we need to look up their new VO
             # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
-            changed_users |= set([user for user in slurm_acct_users if user not in members])
+            changed_users |= set([user for user in slurm_acct_users if user not in members and user in active_accounts])
 
         moved_users = [(user, reverse_vo_mapping[user]) for user in changed_users]
 
@@ -367,7 +366,6 @@ def execute_commands(commands):
 
         # if one fails, we simply fail the script and should get notified
         RunQA.run(shlex.split(command), qa={"(N/y):": "y"})
-        time.sleep(5)
 
 
 def main():
@@ -399,9 +397,8 @@ def main():
         slurm_account_info = get_slurm_acct_info(ACCOUNTS)
         slurm_user_info = get_slurm_acct_info(USERS)
 
-        print "%d accounts found" % len(slurm_account_info)
-        print "%d users found" % len(slurm_user_info)
-        print "\n".join([str(s) for s in slurm_user_info])
+        logging.debug("%d accounts found", len(slurm_account_info))
+        logging.debug("%d users found", len(slurm_user_info))
 
         if opts.options.clusters is not None:
             clusters = opts.options.clusters.split(",")
@@ -413,23 +410,26 @@ def main():
         # make sure the institutes and the default accounts (VOs) are there for each cluster
         sacctmgr_commands += slurm_institute_accounts(slurm_account_info, clusters)
 
-        # All users belong to a VO, so fetching the VOs is necessary and sufficient.
+        # All users belong to a VO, so fetching the VOs is necessary/
         account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
+
+        # The VOs do not track active state of users, so we need to fetch all accounts as well
+        active_accounts = set([a['vsc_id'] for a in client.account.get()[1] if a['isactive']])
 
         account_page_members = {}
         for vo in account_page_vos:
-            account_page_members[vo.vsc_id] = (set(vo.members), vo)
+            account_page_members[vo.vsc_id] = (set([v for v in vo.members]), vo)
 
         # process all regular VOs
         sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters)
 
         # process VO members
-        sacctmgr_commands += slurm_user_accounts(account_page_members, slurm_user_info, clusters)
+        sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters)
 
         if opts.options.dry_run:
             print "\n".join(sacctmgr_commands)
         else:
-            execute_commands(sacctmgr_commands)
+            execute_commands(sacctmgr_commands[:10])
 
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
