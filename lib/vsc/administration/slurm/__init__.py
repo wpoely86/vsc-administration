@@ -13,15 +13,3 @@
 #
 # All rights reserved.
 #
-"""
-This module provides support for all things slurm and VSC accounts.
-
-@author Andy Georges
-
-@created May 24, 2018
-"""
-import pkg_resources
-pkg_resources.declare_namespace(__name__)
-
-__author__ = 'ageorges'
-__date__ = 'May 24, 2018'
