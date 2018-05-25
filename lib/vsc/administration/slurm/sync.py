@@ -38,10 +38,6 @@ USERS = "users"
 IGNORE_USERS = ["root"]
 IGNORE_ACCOUNTS = ["root"]
 
-
-#
-
-
 SacctUserFields = ["User", "Def_Acct", "Admin", "Cluster", "Account", "Partition", "Share",
                    "MaxJobs", "MaxNodes", "MaxCPUs", "MaxSubmit", "MaxWall", "MaxCPUMins",
                    "QOS", "Def_QOS"]
@@ -279,12 +275,13 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
     """
     commands = []
 
+    active_vo_members = set()
     reverse_vo_mapping = dict()
     for (members, vo) in vo_members.values():
+        active_vo_members |= members & active_accounts
+
         for m in members:
             reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
-
-    active_vo_members = set([u for (members, _) in vo_members.values() for u in members]) & active_accounts
 
     for cluster in clusters:
         cluster_users_acct = [
