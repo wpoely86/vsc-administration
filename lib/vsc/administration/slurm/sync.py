@@ -19,9 +19,6 @@ import logging
 import subprocess
 import tempfile
 
-
-from collections import namedtuple, Mapping
-
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.missing import namedtuple_with_defaults
