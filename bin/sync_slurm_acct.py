@@ -65,21 +65,28 @@ def main():
     """
 
     options = {
-        'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
-        'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
-        'account_page_url': ('URL of the account page where we can find the REST API', str, 'store',
-            'https://apivsc.ugent.be/django'),
-        'clusters': ('Cluster(s) (comma-separated) to sync for. '
-                     'Overrides GENT_SLURM_COMPUTE_CLUSTERS that are in production.', str, 'store', None),
+        "nagios-check-interval-threshold": NAGIOS_CHECK_INTERVAL_THRESHOLD,
+        "access_token": ("OAuth2 token to access the account page REST API", None, "store", None),
+        "account_page_url": (
+            "URL of the account page where we can find the REST API",
+            str,
+            "store",
+            "https://apivsc.ugent.be/django",
+        ),
+        "clusters": (
+            "Cluster(s) (comma-separated) to sync for. "
+            "Overrides GENT_SLURM_COMPUTE_CLUSTERS that are in production.",
+            str,
+            "store",
+            None,
+        ),
     }
 
     opts = ExtendedSimpleOption(options)
     stats = {}
 
     try:
-        client = AccountpageClient(
-            token=opts.options.access_token,
-            url=opts.options.account_page_url + "/api/")
+        client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
 
         last_timestamp = "201804010000Z"  # the beginning of time
 
@@ -105,7 +112,7 @@ def main():
         account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
 
         # The VOs do not track active state of users, so we need to fetch all accounts as well
-        active_accounts = set([a['vsc_id'] for a in client.account.get()[1] if a['isactive']])
+        active_accounts = set([a["vsc_id"] for a in client.account.get()[1] if a["isactive"]])
 
         # dictionary mapping the VO vsc_id on a tuple with the VO members and the VO itself
         account_page_members = dict([(vo.vsc_id, (set(vo.members), vo)) for vo in account_page_vos])
@@ -117,7 +124,7 @@ def main():
         sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters)
 
         if opts.options.dry_run:
-            print "Commands to be executed:\n"
+            print("Commands to be executed:\n")
             "\n".join(sacctmgr_commands)
         else:
             execute_commands(sacctmgr_commands)
@@ -130,5 +137,5 @@ def main():
     opts.epilogue("Accounts synced to slurm", stats)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
