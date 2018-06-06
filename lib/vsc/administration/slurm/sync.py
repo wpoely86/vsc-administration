@@ -51,6 +51,7 @@ SlurmUser = namedtuple_with_defaults('SlurmUser', SacctUserFields)
 
 
 def mkSlurmAccount(fields):
+    """Make a named tuple from the given fields."""
     account = mkNamedTupleInstance(fields, SlurmAccount)
     if account.Account in IGNORE_ACCOUNTS:
         return None
@@ -58,6 +59,7 @@ def mkSlurmAccount(fields):
 
 
 def mkSlurmUser(fields):
+    """Make a named tuple from the given fields."""
     user = mkNamedTupleInstance(fields, SlurmUser)
     if user.User in IGNORE_USERS:
         return None
@@ -65,6 +67,7 @@ def mkSlurmUser(fields):
 
 
 def parse_slurm_acct_line(header, line, info_type, user_field_number):
+    """Parse the line into the correct data type."""
     fields = line.split("|")
 
     if info_type == ACCOUNTS:
@@ -82,7 +85,7 @@ def parse_slurm_acct_line(header, line, info_type, user_field_number):
 
 def parse_slurm_acct_dump(lines, info_type):
     """
-    Parse the accounts from the listing
+    Parse the accounts from the listing.
     """
     acct_info = set()
 
@@ -144,8 +147,15 @@ def create_add_account_command(account, parent, organisation, cluster):
 
     @returns: string comprising the command
     """
-    CREATE_ACCOUNT_COMMAND = \
-        "{sacctmgr} add account {account} Parent={parent} Organization={organisation} Cluster={cluster}"
+    CREATE_ACCOUNT_COMMAND = [
+        SLURM_SACCT_MGR,
+        "add", 
+        "account", 
+        account, 
+        "Parent={parent}".format(parent=(parent or "root")),
+        "Organization={organisation}".format(organisation=SLURM_ORGANISATIONS[organisation]),
+        "Cluster={cluster}".format(cluster=cluster),
+    ]
     logging.debug(
         "Adding account %s with Parent=%s Cluster=%s Organization=%s",
         account,
@@ -154,13 +164,7 @@ def create_add_account_command(account, parent, organisation, cluster):
         organisation,
         )
 
-    return CREATE_ACCOUNT_COMMAND.format(
-        sacctmgr=SLURM_SACCT_MGR,
-        parent=(parent or "root"),
-        account=account,
-        organisation=SLURM_ORGANISATIONS[organisation],
-        cluster=cluster,
-    )
+    return CREATE_ACCOUNT_COMMAND
 
 
 def create_add_user_command(user, vo_id, cluster):
@@ -174,7 +178,14 @@ def create_add_user_command(user, vo_id, cluster):
 
     @returns: string comprising the command
     """
-    CREATE_USER_COMMAND = "{sacctmgr} add user {user} Account={account} Cluster={cluster}"
+    CREATE_USER_COMMAND = [
+        SLURM_SACCT_MGR,
+        "add",
+        "user", 
+        user,
+        "Account={account}".format(account=vo_id),
+        "Cluster={cluster}".format(cluster=cluster)
+    ]
     logging.debug(
         "Adding user %s with Account=%s Cluster=%s",
         user,
@@ -182,17 +193,20 @@ def create_add_user_command(user, vo_id, cluster):
         cluster,
         )
 
-    return CREATE_USER_COMMAND.format(
-        sacctmgr=SLURM_SACCT_MGR,
-        user=user,
-        account=vo_id,
-        cluster=cluster,
-    )
+    return CREATE_USER_COMMAND
 
 
 def create_change_user_command(user, vo_id, cluster):
-    CHANGE_USER_COMMAND = \
-        "{sacctmgr} update user={user} where Cluster={cluster} set DefaultAccount={account} Account={account}"
+    CHANGE_USER_COMMAND = [
+        SLURM_SACCT_MGR,
+        "update",
+        "user={user}".format(user=user),
+        "where",
+        "Cluster={cluster}".format(cluster=cluster),
+        "set",
+        "DefaultAccount={account}".format(account=vo_id),
+        "Account={account}".format(account=vo_id)
+    ]
     logging.debug(
         "Changing user %s on Cluster=%s to DefaultAccount=%s",
         user,
@@ -200,27 +214,24 @@ def create_change_user_command(user, vo_id, cluster):
         vo_id,
         )
 
-    return CHANGE_USER_COMMAND.format(
-        sacctmgr=SLURM_SACCT_MGR,
-        user=user,
-        account=vo_id,
-        cluster=cluster,
-    )
+    return CHANGE_USER_COMMAND
 
 
 def create_remove_user_command(user, cluster):
-    REMOVE_USER_COMMAND = "{sacctmgr} delete user name={user} Cluster={cluster}"
+    REMOVE_USER_COMMAND = [
+        SLURM_SACCT_MGR,
+        "delete",
+        "user",
+        "name={user}".format(user=user),
+        "Cluster={cluster}".format(cluster=cluster)
+    ]
     logging.debug(
         "Removing user %s from Cluster=%s",
         user,
         cluster,
         )
 
-    return REMOVE_USER_COMMAND.format(
-        sacctmgr=SLURM_SACCT_MGR,
-        user=user,
-        cluster=cluster,
-    )
+    return REMOVE_USER_COMMAND
 
 
 def slurm_institute_accounts(slurm_account_info, clusters):

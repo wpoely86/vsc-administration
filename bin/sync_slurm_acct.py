@@ -56,7 +56,7 @@ def execute_commands(commands):
         logging.info("Running command: %s", command)
 
         # if one fails, we simply fail the script and should get notified
-        RunQA.run(shlex.split(command), qa={"(N/y):": "y"})
+        RunQA.run(command, qa={"(N/y):": "y"})
 
 
 def main():
