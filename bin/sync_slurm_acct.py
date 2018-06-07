@@ -20,9 +20,7 @@ The script must result in an idempotent execution, to ensure nothing breaks.
 """
 
 import logging
-import shlex
 import sys
-
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
