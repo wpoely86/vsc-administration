@@ -323,7 +323,10 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
             # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
             changed_users |= (slurm_acct_users - members) & active_accounts
 
-        moved_users = set([(user, reverse_vo_mapping[user]) for user in changed_users])
+        try:
+            moved_users = set([(user, reverse_vo_mapping[user]) for user in changed_users])
+        except KeyError, err:
+            logging.error("Found user not belonging to any VO in the reverse VO map: %s", err)
 
         commands.extend([create_add_user_command(
             user=user,
