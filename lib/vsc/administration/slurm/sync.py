@@ -298,7 +298,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
         cluster_users_acct = [
             (user.User, user.Def_Acct) for user in slurm_user_info if user and user.Cluster == cluster
         ]
-        cluster_users = [u[0] for u in cluster_users_acct]
+        cluster_users = set([u[0] for u in cluster_users_acct])
 
         # these are the users that need to be removed as they are no longer an active user in any
         # (including the institute default) VO
