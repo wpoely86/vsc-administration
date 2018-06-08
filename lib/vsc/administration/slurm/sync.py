@@ -316,14 +316,14 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
             ])
 
             # these are the current Slurm users per Account, i.e., the VO currently being processed
-            slurm_acct_users = [user for (user, acct) in cluster_users_acct if acct == vo_id]
+            slurm_acct_users = set([user for (user, acct) in cluster_users_acct if acct == vo_id])
 
             # these are the users that should no longer be in this account, but should not be removed
             # we need to look up their new VO
             # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
             changed_users |= (slurm_acct_users - members) & active_accounts
 
-        moved_users = [(user, reverse_vo_mapping[user]) for user in changed_users]
+        moved_users = set([(user, reverse_vo_mapping[user]) for user in changed_users])
 
         commands.extend([create_add_user_command(
             user=user,
