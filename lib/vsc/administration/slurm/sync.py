@@ -336,6 +336,10 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
                         logging.warning("Dry run, cannot find up user %s in reverse VO map",
                                         user)
 
+        logging.debug("%d new users", len(new_users))
+        logging.debug("%d removed users", len(moved_users))
+        logging.debug("%d changed users", len(changed_users))
+
         commands.extend([create_add_user_command(
             user=user,
             vo_id=vo_id,
