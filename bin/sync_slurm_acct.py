@@ -123,7 +123,7 @@ def main():
 
         if opts.options.dry_run:
             print("Commands to be executed:\n")
-            "\n".join(sacctmgr_commands)
+            "\n".join([" ".join(c) for c in sacctmgr_commands])
         else:
             execute_commands(sacctmgr_commands)
 
