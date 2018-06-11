@@ -119,7 +119,7 @@ def main():
         sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters)
 
         # process VO members
-        sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters)
+        sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters, opts.options.dry_run)
 
         if opts.options.dry_run:
             print("Commands to be executed:\n")

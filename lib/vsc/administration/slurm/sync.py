@@ -279,7 +279,7 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
     return commands
 
 
-def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
+def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, dry_run=False):
     """Check for the presence of the user in his/her account.
 
     @returns: list of sacctmgr commands to add the users if needed.
@@ -327,6 +327,14 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters):
             moved_users = set([(user, reverse_vo_mapping[user]) for user in changed_users])
         except KeyError, err:
             logging.error("Found user not belonging to any VO in the reverse VO map: %s", err)
+            moved_users = set()
+            if dry_run:
+                for user in changed_users:
+                    try:
+                        moved_users.add((user, reverse_vo_mapping[user]))
+                    except KeyError, err:
+                        logging.warning("Dry run, cannot find up user %s in reverse VO map",
+                                        user)
 
         commands.extend([create_add_user_command(
             user=user,
