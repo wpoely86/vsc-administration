@@ -202,11 +202,11 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
     REMOVE_ASSOCIATION_USER_COMMAND = [
         SLURM_SACCT_MGR,
         "delete",
-        "user"
-        "name={user}".format(user=user),
-        "Account={account}".format(account=current_vo_id),
+        "user",
+        "name={0}".format(user),
+        "Account={0}".format(current_vo_id),
         "where",
-        "Cluster={cluster}".format(cluster=cluster),
+        "Cluster={0}".format(cluster),
     ]
     logging.debug(
         "Changing user %s on Cluster=%s from Account=%s to DefaultAccount=%s",
