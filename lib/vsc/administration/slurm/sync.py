@@ -152,9 +152,9 @@ def create_add_account_command(account, parent, organisation, cluster):
         "add", 
         "account", 
         account, 
-        "Parent={parent}".format(parent=(parent or "root")),
-        "Organization={organisation}".format(organisation=SLURM_ORGANISATIONS[organisation]),
-        "Cluster={cluster}".format(cluster=cluster),
+        "Parent={0}".format(parent or "root"),
+        "Organization={0}".format(SLURM_ORGANISATIONS[organisation]),
+        "Cluster={0}".format(cluster),
     ]
     logging.debug(
         "Adding account %s with Parent=%s Cluster=%s Organization=%s",
@@ -183,8 +183,9 @@ def create_add_user_command(user, vo_id, cluster):
         "add",
         "user", 
         user,
-        "Account={account}".format(account=vo_id),
-        "Cluster={cluster}".format(cluster=cluster)
+        "Account={0}".format(vo_id),
+        "DefaultAccount={0}".format(vo_id),
+        "Cluster={0}".format(cluster)
     ]
     logging.debug(
         "Adding user %s with Account=%s Cluster=%s",
@@ -196,25 +197,26 @@ def create_add_user_command(user, vo_id, cluster):
     return CREATE_USER_COMMAND
 
 
-def create_change_user_command(user, vo_id, cluster):
-    CHANGE_USER_COMMAND = [
+def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
+    add_user_command = create_add_user_command(user, new_vo_id, cluster)
+    REMOVE_ASSOCIATION_USER_COMMAND = [
         SLURM_SACCT_MGR,
-        "update",
-        "user={user}".format(user=user),
+        "delete",
+        "user"
+        "name={user}".format(user=user),
+        "Account={account}".format(account=current_vo_id),
         "where",
         "Cluster={cluster}".format(cluster=cluster),
-        "set",
-        "DefaultAccount={account}".format(account=vo_id),
-        "Account={account}".format(account=vo_id)
     ]
     logging.debug(
-        "Changing user %s on Cluster=%s to DefaultAccount=%s",
+        "Changing user %s on Cluster=%s from Account=%s to DefaultAccount=%s",
         user,
         cluster,
-        vo_id,
+        current_vo_id,
+        new_vo_id
         )
 
-    return CHANGE_USER_COMMAND
+    return [add_user_command, REMOVE_ASSOCIATION_USER_COMMAND]
 
 
 def create_remove_user_command(user, cluster):
@@ -306,6 +308,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
 
         new_users = set()
         changed_users = set()
+        moved_users = set()
 
         for (vo_id, (members, vo)) in vo_members.items():
 
@@ -321,24 +324,24 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
             # these are the users that should no longer be in this account, but should not be removed
             # we need to look up their new VO
             # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
-            changed_users |= (slurm_acct_users - members) & active_accounts
+            changed_users_vo = (slurm_acct_users - members) & active_accounts
+            changed_users |= changed_users_vo
 
-        try:
-            moved_users = set([(user, reverse_vo_mapping[user]) for user in changed_users])
-        except KeyError, err:
-            logging.error("Found user not belonging to any VO in the reverse VO map: %s", err)
-            moved_users = set()
-            if dry_run:
-                for user in changed_users:
-                    try:
-                        moved_users.add((user, reverse_vo_mapping[user]))
-                    except KeyError, err:
-                        logging.warning("Dry run, cannot find up user %s in reverse VO map",
-                                        user)
+            try:
+                moved_users |= set([(user, vo_id, reverse_vo_mapping[user]) for user in changed_users_vo])
+            except KeyError, err:
+                logging.error("Found user not belonging to any VO in the reverse VO map: %s", err)
+                if dry_run:
+                    for user in changed_users:
+                        try:
+                            moved_users.add((user, reverse_vo_mapping[user]))
+                        except KeyError, err:
+                            logging.warning("Dry run, cannot find up user %s in reverse VO map",
+                                            user)
 
         logging.debug("%d new users", len(new_users))
-        logging.debug("%d removed users", len(moved_users))
-        logging.debug("%d changed users", len(changed_users))
+        logging.debug("%d removed users", len(remove_users))
+        logging.debug("%d changed users", len(moved_users))
 
         commands.extend([create_add_user_command(
             user=user,
@@ -346,10 +349,15 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
             cluster=cluster) for (user, vo_id, _) in new_users
         ])
         commands.extend([create_remove_user_command(user=user, cluster=cluster) for user in remove_users])
-        commands.extend([create_change_user_command(
+
+        def flatten(s):
+            return [i for l in s for i in l]
+
+        commands.extend(flatten([create_change_user_command(
             user=user,
-            vo_id=vo_id,
-            cluster=cluster) for (user, (vo_id, _)) in moved_users
-        ])
+            current_vo_id=current_vo_id,
+            new_vo_id=new_vo_id,
+            cluster=cluster) for (user, current_vo_id, (new_vo_id, _)) in moved_users])
+        )
 
     return commands
