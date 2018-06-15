@@ -74,9 +74,9 @@ class SlurmSyncTest(TestCase):
             shlex.split("/usr/bin/sacctmgr add user user6 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
             shlex.split("/usr/bin/sacctmgr delete user name=user2 Cluster=banette"),
             shlex.split("/usr/bin/sacctmgr add user user3 Account=vo1 DefaultAccount=vo1 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr delete user name=user3 Account=vo2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr delete user name=user3 Account=vo2 where Cluster=banette"),
             shlex.split("/usr/bin/sacctmgr add user user4 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr delete user name=user4 Account=vo1 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr delete user name=user4 Account=vo1 where Cluster=banette"),
         ]]))
 
 
