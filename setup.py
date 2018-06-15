@@ -31,7 +31,7 @@ PACKAGE = {
     'makesetupcfg': False,  # use setup.cfg provided to get pytz instead of python-pytz
     'install_requires': [
         'vsc-accountpage-clients >= 0.9.1',
-        'vsc-base >= 2.4.16',
+        'vsc-base >= 2.8.2',
         'vsc-config >= 1.35.3',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
