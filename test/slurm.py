@@ -55,11 +55,11 @@ class SlurmSyncTest(TestCase):
     def test_slurm_user_accounts(self):
         """Test that the commands to create, change and remove users are correctly generated."""
         vo_members = {
-            "vo1": (["user1", "user2", "user3"], VO(vsc_id="vo1", institute={"site": "gent"})),
-            "vo2": (["user4", "user5", "user6"], VO(vsc_id="vo2", institute={"site": "gent"})),
+            "vo1": (set(["user1", "user2", "user3"]), VO(vsc_id="vo1", institute={"site": "gent"})),
+            "vo2": (set(["user4", "user5", "user6")], VO(vsc_id="vo2", institute={"site": "gent"})),
         }
 
-        active_accounts = ["user1", "user3", "user4", "user5", "user6", "user7"]
+        active_accounts = set(["user1", "user3", "user4", "user5", "user6", "user7"])
         slurm_user_info = [
             SlurmUser(User='user1', Def_Acct='vo1', Admin='None', Cluster='banette', Account='vo1', Partition='', Share='1', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
             SlurmUser(User='user2', Def_Acct='vo1', Admin='None', Cluster='banette', Account='vo1', Partition='', Share='1', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
