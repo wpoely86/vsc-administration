@@ -47,10 +47,10 @@ class SlurmSyncTest(TestCase):
 
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
 
-        self.assertEqual(commands, [
+        self.assertEqual([tuple(x) for x in commands], [tuple(x) for x in [
             shlex.split("/usr/bin/sacctmgr add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster"),
             shlex.split("/usr/bin/sacctmgr add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster")
-        ])
+        ]])
 
     def test_slurm_user_accounts(self):
         """Test that the commands to create, change and remove users are correctly generated."""
@@ -70,12 +70,12 @@ class SlurmSyncTest(TestCase):
 
         commands = slurm_user_accounts(vo_members, active_accounts, slurm_user_info, ["banette"])
 
-        self.assertEqual(set(commands), set([
+        self.assertEqual([tuple(x) for x in commands], [tuple(x) for x in [
             shlex.split("/usr/bin/sacctmgr add user user6 Account=vo2 Cluster=banette"),
             shlex.split("/usr/bin/sacctmgr delete user name=user2 Cluster=banette"),
             shlex.split("/usr/bin/sacctmgr update user=user3 where Cluster=banette set DefaultAccount=vo1 Account=vo1"),
             shlex.split("/usr/bin/sacctmgr update user=user4 where Cluster=banette set DefaultAccount=vo2 Account=vo2"),
-        ]))
+        ]])
 
 
     def test_parse_slurmm_acct_dump(self):
