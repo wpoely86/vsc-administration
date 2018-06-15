@@ -291,7 +291,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
     active_vo_members = set()
     reverse_vo_mapping = dict()
     for (members, vo) in vo_members.values():
-        active_vo_members |= set(members) & set(active_accounts)
+        active_vo_members |= members & active_accounts
 
         for m in members:
             reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
