@@ -56,7 +56,7 @@ class SlurmSyncTest(TestCase):
         """Test that the commands to create, change and remove users are correctly generated."""
         vo_members = {
             "vo1": (set(["user1", "user2", "user3"]), VO(vsc_id="vo1", institute={"site": "gent"})),
-            "vo2": (set(["user4", "user5", "user6")], VO(vsc_id="vo2", institute={"site": "gent"})),
+            "vo2": (set(["user4", "user5", "user6"]), VO(vsc_id="vo2", institute={"site": "gent"})),
         }
 
         active_accounts = set(["user1", "user3", "user4", "user5", "user6", "user7"])
