@@ -1,6 +1,5 @@
-# -*- coding: latin-1 -*-
 #
-# Copyright 2018-2018 Ghent University
+# Copyright 2015-2018 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -13,6 +12,7 @@
 #
 # All rights reserved.
 #
+
 # Allow other packages to extend this namespace, zip safe setuptools style
 import pkg_resources
 pkg_resources.declare_namespace(__name__)
