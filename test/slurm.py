@@ -17,6 +17,7 @@ Tests for vsc.administration.slurm.*
 
 @author: Andy Georges (Ghent University)
 """
+import shlex
 
 from collections import namedtuple
 
@@ -47,8 +48,8 @@ class SlurmSyncTest(TestCase):
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
 
         self.assertEqual(commands, [
-            "/usr/bin/sacctmgr add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster",
-            "/usr/bin/sacctmgr add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster",
+            shlex.split("/usr/bin/sacctmgr add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster"),
+            shlex.split("/usr/bin/sacctmgr add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster")
         ])
 
     def test_slurm_user_accounts(self):
@@ -70,10 +71,10 @@ class SlurmSyncTest(TestCase):
         commands = slurm_user_accounts(vo_members, active_accounts, slurm_user_info, ["banette"])
 
         self.assertEqual(set(commands), set([
-            "/usr/bin/sacctmgr add user user6 Account=vo2 Cluster=banette",
-            "/usr/bin/sacctmgr delete user name=user2 Cluster=banette",
-            "/usr/bin/sacctmgr update user=user3 where Cluster=banette set DefaultAccount=vo1 Account=vo1",
-            "/usr/bin/sacctmgr update user=user4 where Cluster=banette set DefaultAccount=vo2 Account=vo2",
+            shlex.split("/usr/bin/sacctmgr add user user6 Account=vo2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr delete user name=user2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr update user=user3 where Cluster=banette set DefaultAccount=vo1 Account=vo1"),
+            shlex.split("/usr/bin/sacctmgr update user=user4 where Cluster=banette set DefaultAccount=vo2 Account=vo2"),
         ]))
 
 
