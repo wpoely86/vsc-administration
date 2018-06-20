@@ -40,6 +40,7 @@ PACKAGE = {
         'vsc-ldap-extension >= 1.3',
         'vsc-utils >= 1.4.4',
         'lockfile >= 0.9.1',
+        'enum34',
     ],
 }
 

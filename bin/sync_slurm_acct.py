@@ -24,7 +24,7 @@ import sys
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
-from vsc.administration.slurm.sync import get_slurm_acct_info, ACCOUNTS, USERS
+from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_CLUSTERS
 from vsc.utils import fancylogger
@@ -90,8 +90,8 @@ def main():
 
         logging.info("Last recorded timestamp was %s" % (last_timestamp))
 
-        slurm_account_info = get_slurm_acct_info(ACCOUNTS)
-        slurm_user_info = get_slurm_acct_info(USERS)
+        slurm_account_info = get_slurm_acct_info(SyncTypes.accounts)
+        slurm_user_info = get_slurm_acct_info(SyncTypes.users)
 
         logging.debug("%d accounts found", len(slurm_account_info))
         logging.debug("%d users found", len(slurm_user_info))

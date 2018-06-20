@@ -19,6 +19,8 @@ import logging
 import subprocess
 import tempfile
 
+from enum import Enum
+
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.missing import namedtuple_with_defaults
@@ -33,8 +35,11 @@ SLURM_ORGANISATIONS = {
 }
 
 
-ACCOUNTS = "accounts"
-USERS = "users"
+class SyncTypes(Enum):
+    accounts = "accounts"
+    users = "users"
+
+
 IGNORE_USERS = ["root"]
 IGNORE_ACCOUNTS = ["root"]
 
@@ -107,7 +112,7 @@ def parse_slurm_acct_dump(lines, info_type):
 def get_slurm_acct_info(info_type):
     """Get slurm account info for the given clusterself.
 
-    @param info_type: this is either "accounts" or "users"
+    @param info_type: SyncTypes
     """
     contents = None
     outputFile = tempfile.NamedTemporaryFile(delete=True)
@@ -118,7 +123,7 @@ def get_slurm_acct_info(info_type):
                 "-s",
                 "-P",
                 "list",
-                "%s" % info_type,
+                info_type.value,
                 ],
                 stdout=f
             )
