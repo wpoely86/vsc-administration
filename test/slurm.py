@@ -24,7 +24,7 @@ from collections import namedtuple
 from vsc.install.testing import TestCase
 
 from vsc.administration.slurm.sync import slurm_vo_accounts, slurm_user_accounts, parse_slurm_acct_dump
-from vsc.administration.slurm.sync import ACCOUNTS, USERS, SlurmAccount, SlurmUser
+from vsc.administration.slurm.sync import SyncTypes, SlurmAccount, SlurmUser
 
 
 VO = namedtuple("VO", ["vsc_id", "institute"])
@@ -93,7 +93,7 @@ class SlurmSyncTest(TestCase):
             "vo2|vo2|gvo00002|banette||someuser|1||||||||||||||normal|",
         ]
 
-        info = parse_slurm_acct_dump(sacctmgr_account_output, ACCOUNTS)
+        info = parse_slurm_acct_dump(sacctmgr_account_output, SyncTypes.accounts)
 
         self.assertEqual(set(info), set([
             SlurmAccount(Account='brussel', Descr='brussel', Org='vub', Cluster='banette', Par_Name='root', User='', Share='1', GrpJobs='', GrpNodes='', GrpCPUs='', GrpMem='', GrpSubmit='', GrpWall='', GrpCPUMins='', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
@@ -113,7 +113,7 @@ class SlurmSyncTest(TestCase):
             "account3|vo2|None|banette|vo2||1|||||||normal|",
         ]
 
-        info = parse_slurm_acct_dump(sacctmgr_user_output, USERS)
+        info = parse_slurm_acct_dump(sacctmgr_user_output, SyncTypes.users)
 
         self.assertEqual(set(info), set([
             SlurmUser(User='account1', Def_Acct='vo1', Admin='None', Cluster='banette', Account='vo1', Partition='', Share='1', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
