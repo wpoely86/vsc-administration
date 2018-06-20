@@ -75,12 +75,12 @@ def parse_slurm_acct_line(header, line, info_type, user_field_number):
     """Parse the line into the correct data type."""
     fields = line.split("|")
 
-    if info_type == ACCOUNTS:
+    if info_type == SyncTypes.accounts:
         if fields[user_field_number]:
             # association information for a user. Users are processed later.
             return None
         creator = mkSlurmAccount
-    elif info_type == USERS:
+    elif info_type == SyncTypes.users:
         creator = mkSlurmUser
     else:
         return None
