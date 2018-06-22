@@ -103,6 +103,7 @@ def parse_slurm_acct_dump(lines, info_type):
                 acct_info.add(info)
         except Exception, err:
             logging.exception("Slurm acct sync: could not process line %s [%s]", line, err)
+            raise
 
     return acct_info
 
