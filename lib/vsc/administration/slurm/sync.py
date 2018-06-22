@@ -148,7 +148,7 @@ def create_add_account_command(account, parent, organisation, cluster):
     @param organisation: name of the organisation to which the account belongs.
     @param cluster: cluster to which the account must be added
 
-    @returns: string comprising the command
+    @returns: list comprising the command
     """
     CREATE_ACCOUNT_COMMAND = [
         SLURM_SACCT_MGR,
@@ -179,7 +179,7 @@ def create_add_user_command(user, vo_id, cluster):
     @param organisation: name of the organisation to which the account belongs.
     @param cluster: cluster to which the account must be added
 
-    @returns: string comprising the command
+    @returns: list comprising the command
     """
     CREATE_USER_COMMAND = [
         SLURM_SACCT_MGR,
@@ -201,7 +201,10 @@ def create_add_user_command(user, vo_id, cluster):
 
 
 def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
-    """Creates the commands to change a user's account."""
+    """Creates the commands to change a user's account.
+    
+    @returns: two lists comprising the commands
+    """
     add_user_command = create_add_user_command(user, new_vo_id, cluster)
     REMOVE_ASSOCIATION_USER_COMMAND = [
         SLURM_SACCT_MGR,
@@ -224,7 +227,10 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
 
 
 def create_remove_user_command(user, cluster):
-    """Create the command to remove a user."""
+    """Create the command to remove a user.
+    
+    @returns: list comprising the command
+    """
     REMOVE_USER_COMMAND = [
         SLURM_SACCT_MGR,
         "delete",
@@ -335,8 +341,8 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
 
             try:
                 moved_users |= set([(user, vo_id, reverse_vo_mapping[user]) for user in changed_users_vo])
-            except KeyError, err:
-                logging.error("Found user not belonging to any VO in the reverse VO map: %s", err)
+            except KeyError as err:
+                logging.warning("Found user not belonging to any VO in the reverse VO map: %s", err)
                 if dry_run:
                     for user in changed_users:
                         try:
@@ -356,8 +362,9 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
         ])
         commands.extend([create_remove_user_command(user=user, cluster=cluster) for user in remove_users])
 
-        def flatten(s):
-            return [i for l in s for i in l]
+        def flatten(ls):
+            """Turns a list of lists (ls) into a list, a.k.a. flatten a list."""
+            return [item for l in ls for item in l]
 
         commands.extend(flatten([create_change_user_command(
             user=user,
