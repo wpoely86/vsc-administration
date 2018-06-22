@@ -89,9 +89,7 @@ def parse_slurm_acct_line(header, line, info_type, user_field_number):
 
 
 def parse_slurm_acct_dump(lines, info_type):
-    """
-    Parse the accounts from the listing.
-    """
+    """Parse the accounts from the listing."""
     acct_info = set()
 
     header = [w.replace(' ', '_') for w in lines[0].rstrip().split("|")]
@@ -162,7 +160,7 @@ def create_add_account_command(account, parent, organisation, cluster):
         "Cluster={0}".format(cluster),
     ]
     logging.debug(
-        "Adding account %s with Parent=%s Cluster=%s Organization=%s",
+        "Adding command to add account %s with Parent=%s Cluster=%s Organization=%s",
         account,
         parent,
         cluster,
@@ -193,7 +191,7 @@ def create_add_user_command(user, vo_id, cluster):
         "Cluster={0}".format(cluster)
     ]
     logging.debug(
-        "Adding user %s with Account=%s Cluster=%s",
+        "Adding command to add user %s with Account=%s Cluster=%s",
         user,
         vo_id,
         cluster,
@@ -203,6 +201,7 @@ def create_add_user_command(user, vo_id, cluster):
 
 
 def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
+    """Creates the commands to change a user's account."""
     add_user_command = create_add_user_command(user, new_vo_id, cluster)
     REMOVE_ASSOCIATION_USER_COMMAND = [
         SLURM_SACCT_MGR,
@@ -214,7 +213,7 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
         "Cluster={0}".format(cluster),
     ]
     logging.debug(
-        "Changing user %s on Cluster=%s from Account=%s to DefaultAccount=%s",
+        "Adding commands to change user %s on Cluster=%s from Account=%s to DefaultAccount=%s",
         user,
         cluster,
         current_vo_id,
@@ -225,6 +224,7 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
 
 
 def create_remove_user_command(user, cluster):
+    """Create the command to remove a user."""
     REMOVE_USER_COMMAND = [
         SLURM_SACCT_MGR,
         "delete",
@@ -233,7 +233,7 @@ def create_remove_user_command(user, cluster):
         "Cluster={cluster}".format(cluster=cluster)
     ]
     logging.debug(
-        "Removing user %s from Cluster=%s",
+        "Adding command to remove user %s from Cluster=%s",
         user,
         cluster,
         )
@@ -296,6 +296,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
     active_vo_members = set()
     reverse_vo_mapping = dict()
     for (members, vo) in vo_members.values():
+        # basic set arithmetic: take the intersection of the RHS sets and make the union with the LHS set
         active_vo_members |= members & active_accounts
 
         for m in members:
@@ -328,7 +329,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
 
             # these are the users that should no longer be in this account, but should not be removed
             # we need to look up their new VO
-            # TODO: verify that we have sufficient information with the user and do not need the current Def_Acct
+            # Again, basic set arithmetic. LHS is the intersection of the people we have left and the active users
             changed_users_vo = (slurm_acct_users - members) & active_accounts
             changed_users |= changed_users_vo
 

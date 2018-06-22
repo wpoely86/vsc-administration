@@ -132,7 +132,10 @@ def main():
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    opts.epilogue("Accounts synced to slurm", stats)
+    if not opts.options.dry_run:
+        opts.epilogue("Accounts synced to slurm", stats)
+    else:
+        logger.info("Dry run done")
 
 
 if __name__ == "__main__":
