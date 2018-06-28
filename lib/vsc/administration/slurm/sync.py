@@ -16,8 +16,6 @@
 Functions to deploy users to slurm.
 """
 import logging
-import subprocess
-import tempfile
 
 from enum import Enum
 
@@ -119,7 +117,7 @@ def get_slurm_acct_info(info_type):
 
     @param info_type: SyncTypes
     """
-    (exitcode,contents) = run([
+    (exitcode, contents) = run([
         SLURM_SACCT_MGR,
         "-s",
         "-P",
