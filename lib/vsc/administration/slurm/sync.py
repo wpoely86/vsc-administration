@@ -22,7 +22,7 @@ from enum import Enum
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.missing import namedtuple_with_defaults
-from vsc.utils.run import run
+from vsc.utils.run import asyncloop
 
 
 SLURM_SACCT_MGR = "/usr/bin/sacctmgr"
@@ -117,7 +117,7 @@ def get_slurm_acct_info(info_type):
 
     @param info_type: SyncTypes
     """
-    (exitcode, contents) = run([
+    (exitcode, contents) = asyncloop([
         SLURM_SACCT_MGR,
         "-s",
         "-P",
