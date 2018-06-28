@@ -24,6 +24,8 @@ from enum import Enum
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.missing import namedtuple_with_defaults
+from vsc.utils.run import run
+
 
 SLURM_SACCT_MGR = "/usr/bin/sacctmgr"
 
@@ -33,6 +35,10 @@ SLURM_ORGANISATIONS = {
     GENT: 'ugent',
     LEUVEN: 'kuleuven',
 }
+
+
+class SacctMgrException(Exception):
+    pass
 
 
 class SyncTypes(Enum):
@@ -113,28 +119,15 @@ def get_slurm_acct_info(info_type):
 
     @param info_type: SyncTypes
     """
-    contents = None
-    outputFile = tempfile.NamedTemporaryFile(delete=True)
-    with open(outputFile.name, 'r+') as f:
-        try:
-            subprocess.check_call([
-                SLURM_SACCT_MGR,
-                "-s",
-                "-P",
-                "list",
-                info_type.value,
-                ],
-                stdout=f
-            )
-        except subprocess.CalledProcessError, err:
-            logging.error("Could not get sacctmgr output: error %d", err.returncode)
-            raise
-
-        f.flush()
-        f.seek(0)
-        contents = f.readlines()
-        logging.debug("read %d lines" % len(contents))
-
+    (exitcode,contents) = run([
+        SLURM_SACCT_MGR,
+        "-s",
+        "-P",
+        "list",
+        info_type.value,
+    ])
+    if exitcode != 0:
+        raise SacctMgrException("Cannot run sacctmgr")
     info = parse_slurm_acct_dump(contents, info_type)
 
     return info
