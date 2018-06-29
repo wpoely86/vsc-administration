@@ -126,7 +126,7 @@ def get_slurm_acct_info(info_type):
     ])
     if exitcode != 0:
         raise SacctMgrException("Cannot run sacctmgr")
-    info = parse_slurm_acct_dump(contents, info_type)
+    info = parse_slurm_acct_dump(contents.splitlines(), info_type)
 
     return info
 
