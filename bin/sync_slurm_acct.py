@@ -24,7 +24,7 @@ import sys
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
-from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes
+from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_CLUSTERS
 from vsc.utils import fancylogger
@@ -54,7 +54,9 @@ def execute_commands(commands):
         logging.info("Running command: %s", command)
 
         # if one fails, we simply fail the script and should get notified
-        RunQA.run(command, qa={"(N/y):": "y"})
+        (ec, _) = RunQA.run(command, qa={"(N/y):": "y"})
+        if ec != 0:
+            raise SacctMgrException("Command failed: {0}".format(command))
 
 
 def main():
@@ -119,7 +121,15 @@ def main():
         sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters)
 
         # process VO members
-        sacctmgr_commands += slurm_user_accounts(account_page_members, active_accounts, slurm_user_info, clusters, opts.options.dry_run)
+        sacctmgr_commands += slurm_user_accounts(
+            account_page_members, 
+            active_accounts, 
+            slurm_user_info, 
+            clusters, 
+            opts.options.dry_run
+        )
+
+        logging.info("Executing %d commands", len(sacctmgr_commands))
 
         if opts.options.dry_run:
             print("Commands to be executed:\n")
