@@ -105,6 +105,8 @@ def parse_slurm_acct_dump(lines, info_type):
             info = parse_slurm_acct_line(header, line, info_type, user_field_number)
             if info:
                 acct_info.add(info)
+            else:
+                logging.warning("Could not parse slurm acct line: %s", line)
         except Exception, err:
             logging.exception("Slurm acct sync: could not process line %s [%s]", line, err)
             raise
