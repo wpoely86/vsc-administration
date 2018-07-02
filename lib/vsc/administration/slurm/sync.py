@@ -103,10 +103,10 @@ def parse_slurm_acct_dump(lines, info_type):
         line = line.rstrip()
         try:
             info = parse_slurm_acct_line(header, line, info_type, user_field_number)
+            # This fails when we get e.g., the users and look at the account lines. 
+            # We should them just skip that line instead of raising an exception
             if info:
                 acct_info.add(info)
-            else:
-                logging.warning("Could not parse slurm acct line: %s", line)
         except Exception, err:
             logging.exception("Slurm acct sync: could not process line %s [%s]", line, err)
             raise
