@@ -24,14 +24,14 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '1.3.1',
+    'version': '1.3.2',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
     'makesetupcfg': False,  # use setup.cfg provided to get pytz instead of python-pytz
     'install_requires': [
         'vsc-accountpage-clients >= 0.9.1',
-        'vsc-base >= 2.8.2',
+        'vsc-base >= 2.8.3',
         'vsc-config >= 1.35.3',
         'vsc-filesystems >= 0.19',
         'vsc-ldap >= 1.1',
