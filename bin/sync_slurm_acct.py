@@ -54,7 +54,7 @@ def execute_commands(commands):
         logging.info("Running command: %s", command)
 
         # if one fails, we simply fail the script and should get notified
-        (ec, _) = RunQA.run(command, qa={"(N/y):": "y"})
+        (ec, _) = RunQA.run(command, qa={"(N/y):": "y"}, add_newline=False)
         if ec != 0:
             raise SacctMgrException("Command failed: {0}".format(command))
 
