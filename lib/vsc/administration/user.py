@@ -30,7 +30,7 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
+from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, GENT
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -163,25 +163,32 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # we no longer set defaults, since we do not want to accidentally revert people to some default
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
-        institute_quota = filter(lambda q: q.storage['institute'] == self.person.institute['site'], all_quota)
+        institute_quota = [q for q in all_quota if q.storage['institute'] == GENT]  # self.person.institute['site'], all_quota)
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
-        self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
-        self._quota_cache['data'] = [q.hard for q in institute_quota
-                                            if user_proposition(q, 'data')
-                                               and not q.storage['name'].endswith('SHARED')][0]
-        self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+        # this will fail for non-UGent users when run at UGent
+        if self.person.institute['site'] == GENT:
+            self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
+            self._quota_cache['data'] = [q.hard for q in institute_quota
+                                         if user_proposition(q, 'data')
+                                            and not q.storage['name'].endswith('SHARED')][0]
+            self._quota_cache['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+        else:
+            self._quota_cache['home'] = None
+            self._quota_cache['data'] = None
+            self._quota_cache['scratch'] = None
 
         fileset_name = 'gvo'
 
-        def user_proposition(quota, storage_type):
+        def user_vo_proposition(quota, storage_type):
             return quota.fileset.startswith(fileset_name) and quota.storage['storage_type'] == storage_type
+
         self._quota_cache['vo'] = {}
-        self._quota_cache['vo']['data'] = [q for q in institute_quota if user_proposition(q, 'data')]
-        self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_proposition(q, 'scratch')]
+        self._quota_cache['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, 'data')]
+        self._quota_cache['vo']['scratch'] = [q for q in institute_quota if user_vo_proposition(q, 'scratch')]
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
