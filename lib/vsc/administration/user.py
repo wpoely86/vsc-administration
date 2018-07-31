@@ -163,13 +163,13 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # we no longer set defaults, since we do not want to accidentally revert people to some default
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
-        institute_quota = [q for q in all_quota if q.storage['institute'] == GENT]  # self.person.institute['site'], all_quota)
+        institute_quota = [q for q in all_quota if q.storage['institute'] == GENT]
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
-        # this will fail for non-UGent users when run at UGent
+        # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
         if self.person.institute['site'] == GENT:
             self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
             self._quota_cache['data'] = [q.hard for q in institute_quota
