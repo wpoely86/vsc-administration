@@ -30,7 +30,7 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, GENT
+from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -110,7 +110,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     to retrieve its information.
     """
     def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_KYUKON', rest_client=None,
-                 account=None, pubkeys=None):
+                 account=None, pubkeys=None, host_institute=None):
         """
         Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
@@ -127,6 +127,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.vsc = VSC()
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
+        self.host_institute = host_institute
 
     @property
     def user_home_quota(self):
@@ -163,14 +164,14 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # we no longer set defaults, since we do not want to accidentally revert people to some default
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
-        institute_quota = [q for q in all_quota if q.storage['institute'] == GENT]
+        institute_quota = [q for q in all_quota if q.storage['institute'] == self.host_institute]
         fileset_name = self.vsc.user_grouping(self.account.vsc_id)
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
         # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
-        if self.person.institute['site'] == GENT:
+        if self.person.institute['site'] == self.host_institute:
             self._quota_cache['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
             self._quota_cache['data'] = [q.hard for q in institute_quota
                                          if user_proposition(q, 'data')
@@ -475,7 +476,7 @@ def process_users_quota(options, user_quota, storage_name, client):
     return (ok_quota, error_quota)
 
 
-def process_users(options, account_ids, storage_name, client):
+def process_users(options, account_ids, storage_name, client, host_institute=None):
     """
     Process the users.
 
@@ -495,7 +496,7 @@ def process_users(options, account_ids, storage_name, client):
 
     for vsc_id in sorted(account_ids):
 
-        user = VscTier2AccountpageUser(vsc_id, rest_client=client)
+        user = VscTier2AccountpageUser(vsc_id, rest_client=client, host_institute=host_institute)
         user.dry_run = options.dry_run
 
         try:

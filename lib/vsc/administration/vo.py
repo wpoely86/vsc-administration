@@ -492,7 +492,7 @@ def update_vo_status(vo, client):
                                         (vo.vo_id, virtual_organisation.status))
 
 
-def process_vos(options, vo_ids, storage_name, client, datestamp):
+def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute=None):
     """Process the virtual organisations.
 
     - make the fileset per VO
@@ -536,7 +536,8 @@ def process_vos(options, vo_ids, storage_name, client, datestamp):
 
             modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
             modified_members = [
-                VscTier2AccountpageUser(a["vsc_id"], rest_client=client) for a in modified_member_list[1]
+                VscTier2AccountpageUser(a["vsc_id"], rest_client=client, host_institute=host_institute) 
+                for a in modified_member_list[1]
             ]
 
             for member in modified_members:
