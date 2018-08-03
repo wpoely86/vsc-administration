@@ -36,6 +36,7 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
+from vsc.config.base import GENT
 from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
@@ -78,7 +79,8 @@ def main():
         'user': ('process users', None, 'store_true', False),
         'vo': ('process vos', None, 'store_true', False),
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
-        'account_page_url': ('URL of the account page where we can find the REST API', None, 'store', None)
+        'account_page_url': ('URL of the account page where we can find the REST API', None, 'store', None),
+        'host_institute': ('Name of the institute where this script is being run', str, 'store', GENT),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -110,7 +112,8 @@ def main():
                 (users_ok, users_fail) = process_users(opts.options,
                                                        ugent_accounts,
                                                        storage_name,
-                                                       client)
+                                                       client,
+                                                       opts.options.host_institute)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
@@ -145,7 +148,8 @@ def main():
                                                  ugent_vos,
                                                  storage_name,
                                                  client,
-                                                 last_timestamp[:12])
+                                                 last_timestamp[:12],
+                                                 opts.options.host_institute)
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING

@@ -26,7 +26,7 @@ import vsc.administration.user as user
 
 from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkUserGroup, mkGroup
 from vsc.accountpage.wrappers import mkVscAccountPubkey
-from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY
+from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY, GENT
 from vsc.install.testing import TestCase
 
 test_account_1 = {
@@ -315,7 +315,7 @@ class VscTier2AccountpageUserTest(TestCase):
         test_account = mkVscAccount(test_account_1)
         mock_client.account[test_account.vsc_id].quota.get.return_value = (200, test_quota_1)
 
-        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
 
         self.assertEqual(accountpageuser.user_home_quota, [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_HOME' and q['fileset'] == 'vsc400'][0])
         self.assertEqual(accountpageuser.user_data_quota, [q['hard'] for q in test_quota_1 if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == 'vsc400'][0])
@@ -398,7 +398,7 @@ class UserDeploymentTest(TestCase):
         mock_home_path.return_value = 'my_home_path'
         mock_grouping_home_path.return_value = 'my_grouping_home_path'
 
-        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
         mock_storage.assert_called_with()
 
         self.assertTrue(mock_storage()['VSC_HOME'].filesystem == "vulpixhome")
@@ -435,7 +435,7 @@ class UserDeploymentTest(TestCase):
         mock_data_path.return_value = 'my_data_path'
         mock_grouping_data_path.return_value = 'my_grouping_data_path'
 
-        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
         mock_storage.assert_called_with()
 
         self.assertTrue(mock_storage()['VSC_DATA'].filesystem == "vulpixdata")
@@ -472,7 +472,7 @@ class UserDeploymentTest(TestCase):
         mock_scratch_path.return_value = 'my_scratch_path'
         mock_grouping_scratch_path.return_value = 'my_grouping_scratch_path'
 
-        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account)
+        accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
         mock_storage.assert_called_with()
 
         self.assertTrue(mock_storage()['VSC_SCRATCH_DELCATTY'].filesystem == "scratchdelcatty")
