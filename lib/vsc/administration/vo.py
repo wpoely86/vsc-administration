@@ -226,7 +226,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             else:
                 self.gpfs.make_fileset(path, fileset_name, parent_fileset)
         else:
-            logging.info("Fileset %s already exists for VO %s ... not creating again." % (fileset_name, self.vo.vsc_id))
+            logging.info("Fileset %s already exists for VO %s ... not creating again.",
+                         fileset_name, self.vo.vsc_id)
 
         self.gpfs.chmod(0o770, path)
 
@@ -247,26 +248,28 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         try:
             fs = self.storage[VSC_DATA].filesystem
         except AttributeError:
-            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the data storage instance")
         except KeyError:
-            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA,))
+            logging.exception("Trying to access non-existent field %s in the data storage dictionary" % (VSC_DATA,))
         self._create_fileset(fs, path)
 
     def create_data_shared_fileset(self):
         """Create a VO directory for sharing data on the HPC data filesystem. Always set the quota."""
         path = self._data_shared_path()
+        msg = "Trying to access non-existent"
         try:
             fs = self.storage[VSC_DATA_SHARED].filesystem
         except AttributeError:
-            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+            logging.exception(msg + " attribute 'filesystem' in the shared data storage instance")
         except KeyError:
-            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (VSC_DATA_SHARED,))
+            logging.exception(msg + " field %s in the shared data storage dictionary" % (VSC_DATA_SHARED,))
         self._create_fileset(fs, path,
                              fileset_name=self.sharing_group.vsc_id,
                              group_owner_id=self.sharing_group.vsc_id_number)
 
     def create_scratch_fileset(self, storage_name):
         """Create the VO's directory on the HPC data filesystem. Always set the quota."""
+        msg = "Trying to access non-existent"
         try:
             path = self._scratch_path(storage_name)
             if self.storage[storage_name].version >= (3, 5, 0, 0):
@@ -274,9 +277,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             else:
                 self._create_fileset(self.storage[storage_name].filesystem, path, 'root')
         except AttributeError:
-            logging.exception("Trying to access non-existent attribute 'filesystem' in the storage instance")
+            logging.exception(msg + " attribute 'filesystem' in the scratch storage instance")
         except KeyError:
-            logging.exception("Trying to access non-existent field %s in the storage dictionary" % (storage_name))
+            logging.exception(msg + " field %s in the scratch storage dictionary" % (storage_name))
 
     def _create_vo_dir(self, path):
         """Create a user owned directory on the GPFS."""
@@ -324,9 +327,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             quota = None
 
         if not quota:
-            logging.error("No VO %s scratch quota information available for %s" % (self.vo.vsc_id, storage_name,))
-            logging.info("Setting default VO %s scratch quota on storage %s to %d" %
-                         (self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo))
+            logging.error("No VO %s scratch quota information available for %s", self.vo.vsc_id, storage_name)
+            logging.info("Setting default VO %s scratch quota on storage %s to %d",
+                         self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo)
             self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
 
@@ -397,12 +400,16 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if member.vo_scratch_quota:
             quota = filter(lambda q: q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,),
                            member.vo_scratch_quota)
-            logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s" %
-                         (self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name))
-            self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
+            if quota:
+                logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s",
+                             self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name)
+                self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
+            else:
+                logging.error("No VO %s scratch quota for member %s on %s after filter (all %s)",
+                              self.vo.vsc_id, member.account.vsc_id, storage_name, member.vo_scratch_quota)
         else:
-            logging.error("No VO %s scratch quota set for member %s on %s" %
-                          (self.vo.vsc_id, member.account.vsc_id, storage_name))
+            logging.error("No VO %s scratch quota set for member %s on %s",
+                          self.vo.vsc_id, member.account.vsc_id, storage_name)
 
     def _set_member_symlink(self, member, origin, target, fake_target):
         """Create a symlink for this user from origin to target"""
@@ -473,7 +480,7 @@ def update_vo_status(vo, client):
         return
 
     if vo.vo.status not in (NEW, MODIFIED, MODIFY):
-        logging.info("Account %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
+        logging.info("VO %s has status %s, not changing" % (vo.vo_id, vo.vo.status))
         return
 
     payload = {"status": ACTIVE}
