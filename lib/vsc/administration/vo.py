@@ -332,6 +332,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                          self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo)
             self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
+        elif len(quota) > 1:
+            logging.exception("Cannot set scratch quota for %s with multiple quota instances %s" % (
+                storage_name, quota))
+            raise
 
         logging.info("Setting VO %s quota on storage %s to %d" % (self.vo.vsc_id, storage_name, quota[0].hard))
         self._set_quota(storage_name, self._scratch_path(storage_name), quota[0].hard)
@@ -372,10 +376,16 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if member.vo_data_quota:
             # users having belonged to multiple VOs have multiple quota on VSC_DATA, so we
             # only need to deploy the quota for the VO the user currently belongs to.
-            quota = [q for q in member.vo_data_quota if q.fileset == self.vo.vsc_id]
-            logging.info("Setting the data quota for VO %s member %s to %d KiB" %
-                         (self.vo.vsc_id, member.account.vsc_id, quota[0].hard))
-            self._set_member_quota(VSC_DATA, self._data_path(), member, quota[0].hard)
+            quota = [q for q in member.vo_data_quota
+                     if q.fileset == self.vo.vsc_id and not q.storage['name'].endswith(SHARED)]
+            if len(quota) > 1:
+                logging.exception("Cannot set data quota for member %s with multiple quota instances %s" % (
+                    member, quota))
+                raise
+            else:
+                logging.info("Setting the data quota for VO %s member %s to %d KiB" %
+                             (self.vo.vsc_id, member.account.vsc_id, quota[0].hard))
+                self._set_member_quota(VSC_DATA, self._data_path(), member, quota[0].hard)
         else:
             logging.error("No VO %s data quota set for member %s" % (self.vo.vsc_id, member.account.vsc_id))
 
@@ -542,10 +552,11 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
                 continue
 
             modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
-            modified_members = [
-                VscTier2AccountpageUser(a["vsc_id"], rest_client=client, host_institute=host_institute) 
-                for a in modified_member_list[1]
-            ]
+            factory = lambda vid: VscTier2AccountpageUser(vid,
+                                                          rest_client=client,
+                                                          host_institute=host_institute,
+                                                          use_user_cache=True)
+            modified_members = [factory(a["vsc_id"]) for a in modified_member_list[1]]
 
             for member in modified_members:
                 try:
