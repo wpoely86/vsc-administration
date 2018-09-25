@@ -128,7 +128,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     to retrieve its information.
     """
     def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_KYUKON', rest_client=None,
-                 account=None, pubkeys=None, host_institute=None, use_user_cache=True):
+                 account=None, pubkeys=None, host_institute=None, use_user_cache=False):
         """
         Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
