@@ -24,7 +24,7 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '1.4.2',
+    'version': '1.5',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
@@ -38,7 +38,7 @@ PACKAGE = {
         'pytz',
         'python-ldap',
         'vsc-ldap-extension >= 1.3',
-        'vsc-utils >= 1.4.4',
+        'vsc-utils >= 1.9.0',
         'lockfile >= 0.9.1',
         'enum34',
     ],
