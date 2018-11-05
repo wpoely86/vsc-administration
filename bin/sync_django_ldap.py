@@ -30,7 +30,7 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.administration.ldapsync import LdapSyncer, ERROR
 
 from vsc.ldap.configuration import VscConfiguration
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
@@ -105,7 +105,8 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
-            last = int((datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") - datetime.datetime(1970, 1, 1)).total_seconds())
+            last = int((datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") -
+                       datetime.datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s", altered_accounts)
