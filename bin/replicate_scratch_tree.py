@@ -44,7 +44,14 @@ fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
 
 
-def set_up_filesystem(gpfs, storage_settings, storage, filesystem_info, filesystem_name, vo_support=False, dry_run=False):
+def set_up_filesystem(
+        gpfs,
+        storage_settings,
+        storage,
+        filesystem_info,
+        filesystem_name,
+        vo_support=False,
+        dry_run=False):
     """Set up the filesets and directories such that user, vo directories and friends can be created."""
 
     # Create the basic gent fileset
