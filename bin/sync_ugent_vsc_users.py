@@ -37,7 +37,7 @@ from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
 from vsc.config.base import GENT
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL

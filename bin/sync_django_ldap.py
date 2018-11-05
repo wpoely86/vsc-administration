@@ -30,7 +30,7 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.administration.ldapsync import LdapSyncer, ERROR
 
 from vsc.ldap.configuration import VscConfiguration
-from vsc.ldap.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
