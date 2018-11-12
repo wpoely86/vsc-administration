@@ -243,10 +243,8 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         self.gpfs.chmod(0o755, path)
 
-    def _get_path(self, storage_name, mount_point="gpfs"):
-        """Get the path for the (if any) user directory on the given storage_name."""
-
-        (path, _) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+    def _get_mount_path(self, storage_name, mount_point):
+        """Get the mount point for the location we're running"""
         if mount_point == "login":
             mount_path = self.storage[storage_name].login_mount_point
         elif mount_point == "gpfs":
@@ -255,21 +253,17 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.error("mount_point (%s) is not login or gpfs", mount_point)
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
 
-        return os.path.join(mount_path, path)
+        return mount_path
+
+    def _get_path(self, storage_name, mount_point="gpfs"):
+        """Get the path for the (if any) user directory on the given storage_name."""
+        (path, _) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+        return os.path.join(self._get_mount_path(storage_name, mount_point), path)
 
     def _get_grouping_path(self, storage_name, mount_point="gpfs"):
         """Get the path and the fileset for the user group directory (and associated fileset)."""
-
         (path, fileset) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
-        if mount_point == "login":
-            mount_path = self.storage[storage_name].login_mount_point
-        elif mount_point == "gpfs":
-            mount_path = self.storage[storage_name].gpfs_mount_point
-        else:
-            logging.error("mount_point (%s) is not login or gpfs", mount_point)
-            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
-
-        return (os.path.join(mount_path, os.path.dirname(path)), fileset)
+        return (os.path.join(self._get_mount_path(storage_name, mount_point), os.path.dirname(path)), fileset)
 
     def _home_path(self, mount_point="gpfs"):
         """Return the path to the home dir."""
@@ -295,66 +289,46 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """Return the path to the grouping fileset for the users on the given scratch filesystem."""
         return self._get_grouping_path(storage_name, mount_point)
 
-    def create_home_dir(self):
-        """Create all required files in the (future) user's home directory.
-
-        Requires to be run on a system where the appropriate GPFS is mounted.
-        Always set the quota.
+    def _create_user_dir(self, grouping_f, path_f, storage_name):
+        """Create the directories and files for some user location.
+        
+        @type grouping: function that yields the grouping path for the location.
+        @type path: function that yields the actual path for the location.
         """
         try:
-            (path, fileset) = self._grouping_home_path()
-            self._create_grouping_fileset(self.storage[VSC_HOME].filesystem, path, fileset)
+            (grouping_path, fileset) = grouping_f()
+            self._create_grouping_fileset(self.storage[storage_name].filesystem, grouping_path, fileset)
 
-            path = self._home_path()
-            self._create_user_dir(path)
+            path = path_f()
+            if self.gpfs.is_symlink(path):
+                logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
+                return
+
+            create_stat_directory(
+                path,
+                0o700,
+                int(self.account.vsc_id_number),
+                int(self.usergroup.vsc_id_number),
+                self.gpfs
+            )
         except Exception:
             logging.exception("Could not create home dir for user %s", self.account.vsc_id)
             raise
 
+    def create_home_dir(self):
+        """Create all required files in the (future) user's home directory."""
+        self._create_user_dir(self._grouping_home_path, self._home_path, VSC_HOME)
+
     def create_data_dir(self):
-        """Create the user's directory on the HPC data filesystem.
-
-        Required to be run on a system where the appropriate GPFS is mounted."""
-        try:
-            (path, fileset) = self._grouping_data_path()
-            self._create_grouping_fileset(self.storage[VSC_DATA].filesystem, path, fileset)
-
-            path = self._data_path()
-            self._create_user_dir(path)
-        except Exception:
-            logging.exception("Could not create data dir for user %s", self.account.vsc_id)
-            raise
+        """Create the user's directory on the HPC data filesystem."""
+        self._create_user_dir(self._grouping_data_path, self._data_path, VSC_DATA)
 
     def create_scratch_dir(self, storage_name):
-        """Create the user's directory on the given scratch filesystem
-
-        @type storage_name: string
-        @param storage_name: name of the storage system as defined in /etc/filesystem_info.conf
-        """
-        try:
-            if self.storage[storage_name].user_grouping_fileset:
-                (path, fileset) = self._grouping_scratch_path(storage_name)
-                self._create_grouping_fileset(self.storage[storage_name].filesystem, path, fileset)
-
-            path = self._scratch_path(storage_name)
-            self._create_user_dir(path)
-        except Exception:
-            logging.exception("Could not create scratch dir for user %s", self.account.vsc_id)
-            raise
-
-    def _create_user_dir(self, path):
-        """Create a user owned directory on the GPFS."""
-        if self.gpfs.is_symlink(path):
-            logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
-            return
-
-        create_stat_directory(
-            path,
-            0o700,
-            int(self.account.vsc_id_number),
-            int(self.usergroup.vsc_id_number),
-            self.gpfs
-        )
+        """Create the user's directory on the given scratch filesystem."""
+        self._create_user_dir(
+            lambda: self._grouping_data_path(storage_name),
+            lambda: self._scratch_path(storage_name),
+            storage_name)
 
     def _set_quota(self, storage_name, path, hard):
         """Set the given quota on the target path.
