@@ -176,7 +176,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def _get_path(self, storage, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage."""
 
-        template = self.storage.path_templates[storage]['vo']
+        (path, _) = self.storage.path_templates[storage]['vo'](self.vo.vsc_id)
         if mount_point == "login":
             mount_path = self.storage[storage].login_mount_point
         elif mount_point == "gpfs":
@@ -185,7 +185,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.error("mount_point (%s)is not login or gpfs" % (mount_point))
             raise Exception()
 
-        return os.path.join(mount_path, template[0], template[1](self.vo.vsc_id))
+        return os.path.join(mount_path, path)
 
     def _data_path(self, mount_point="gpfs"):
         """Return the path to the VO data fileset on GPFS"""
