@@ -189,7 +189,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
         institute_quota = [q for q in all_quota if q.storage['institute'] == self.host_institute]
-        fileset_name = self.vsc.user_grouping(self.account.vsc_id)  # FIXME
+        fileset_name = self.vsc.user_grouping_fileset(self.account.vsc_id)
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
