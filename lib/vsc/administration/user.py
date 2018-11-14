@@ -189,7 +189,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
         institute_quota = [q for q in all_quota if q.storage['institute'] == self.host_institute]
-        fileset_name = self.vsc.user_grouping(self.account.vsc_id)
+        fileset_name = self.vsc.user_grouping(self.account.vsc_id)  # FIXME
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
@@ -357,7 +357,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def set_data_quota(self):
         """Set USR quota on the data FS in the user fileset."""
-        path = self._grouping_data_path()
+        (path, _) = self._grouping_data_path()
         hard = self.user_data_quota
         self._set_quota(VSC_DATA, path, hard)
 
@@ -369,7 +369,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             return
 
         if self.storage[storage_name].user_grouping_fileset:
-            path = self._grouping_scratch_path(storage_name)
+            (path, _) = self._grouping_scratch_path(storage_name)
         else:
             # Hack; this should actually become the link path of the fileset
             # that contains the path (the file, not the followed symlink)
