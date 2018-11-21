@@ -29,6 +29,14 @@ from ldap import LDAPError
 
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
 
+# temporary workaround for INSTITUTE_VOS being renamed to INSTITUTE_VOS_GENT, to avoid fallout...
+try:
+    from vsc.config.base import INSTITUTE_VOS_GENT
+except ImportError:
+    # fallback in case INSTITUTE_VOS_GENT is not defined yet
+    # (cfr. renaming of INSTITUTE_VOS to INSTITUTE_VOS_GENT in https://github.com/hpcugent/vsc-config/pull/74)
+    from vsc.config.base import INSTITUTE_VOS as INSTITUTE_VOS_GENT
+
 from vsc.config.base import VSC
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
 
@@ -199,7 +207,7 @@ class LdapSyncer(object):
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
                 # vsc40024 is moderator for all institute vo's
-                if vo.vsc_id in VSC_CONFIG.institute_vos.values():
+                if vo.vsc_id in INSTITUTE_VOS_GENT.values():
                     ldap_attributes['moderator'] = ['vsc40024']
 
             logging.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)

@@ -36,6 +36,14 @@ from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRAT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
 
+# temporary workaround for INSTITUTE_VOS being renamed to INSTITUTE_VOS_GENT, to avoid fallout...
+try:
+    from vsc.config.base import INSTITUTE_VOS_GENT
+except ImportError:
+    # fallback in case INSTITUTE_VOS_GENT is not defined yet
+    # (cfr. renaming of INSTITUTE_VOS to INSTITUTE_VOS_GENT in https://github.com/hpcugent/vsc-config/pull/74)
+    from vsc.config.base import INSTITUTE_VOS as INSTITUTE_VOS_GENT
+
 SHARED = 'SHARED'
 
 
@@ -368,7 +376,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                             (VSC_DATA, self.vo.vsc_id, member.account.vsc_id))
             return
 
-        if self.vo.vsc_id in self.vsc.institute_vos.values():
+        if self.vo.vsc_id in INSTITUTE_VOS_GENT.values():
             logging.warning("Not setting VO %s member %s data quota: No VO member quota for this VO",
                             member.account.vsc_id, self.vo.vsc_id)
             return
@@ -402,7 +410,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                             (self.vo.vsc_id, member.account.vsc_id))
             return
 
-        if self.vo.vsc_id in self.vsc.institute_vos.values():
+        if self.vo.vsc_id in INSTITUTE_VOS_GENT.values():
             logging.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
                             member.account.vsc_id, self.vo.vsc_id)
             return
@@ -530,16 +538,16 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
             if storage_name in [VSC_HOME]:
                 continue
 
-            if storage_name in [VSC_DATA] and vo_id not in VSC().institute_vos.values():
+            if storage_name in [VSC_DATA] and vo_id not in INSTITUTE_VOS_GENT.values():
                 vo.create_data_fileset()
                 vo.set_data_quota()
                 update_vo_status(vo, client)
 
-            if storage_name in [VSC_DATA_SHARED] and vo_id not in VSC().institute_vos.values() and vo.data_sharing:
+            if storage_name in [VSC_DATA_SHARED] and vo_id not in INSTITUTE_VOS_GENT.values() and vo.data_sharing:
                 vo.create_data_shared_fileset()
                 vo.set_data_shared_quota()
 
-            if vo_id in (VSC().institute_vos[GENT],):
+            if vo_id == INSTITUTE_VOS_GENT[GENT]:
                 logging.info("Not deploying default VO %s members" % (vo_id,))
                 continue
 
@@ -547,7 +555,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
                 vo.create_scratch_fileset(storage_name)
                 vo.set_scratch_quota(storage_name)
 
-            if vo_id in (VSC().institute_vos.values()) and storage_name in (VSC_HOME, VSC_DATA):
+            if vo_id in INSTITUTE_VOS_GENT.values() and storage_name in (VSC_HOME, VSC_DATA):
                 logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
