@@ -20,7 +20,16 @@ import logging
 from enum import Enum
 
 from vsc.accountpage.wrappers import mkNamedTupleInstance
-from vsc.config.base import INSTITUTE_VOS, ANTWERPEN, BRUSSEL, GENT, LEUVEN
+
+# temporary workaround for INSTITUTE_VOS being renamed to INSTITUTE_VOS_GENT, to avoid fallout...
+try:
+    from vsc.config.base import INSTITUTE_VOS_GENT
+except ImportError:
+    # fallback in case INSTITUTE_VOS_GENT is not defined yet
+    # (cfr. renaming of INSTITUTE_VOS to INSTITUTE_VOS_GENT in https://github.com/hpcugent/vsc-config/pull/74)
+    from vsc.config.base import INSTITUTE_VOS as INSTITUTE_VOS_GENT
+
+from vsc.config.base import ANTWERPEN, BRUSSEL, GENT, LEUVEN
 from vsc.utils.missing import namedtuple_with_defaults
 from vsc.utils.run import asyncloop
 
@@ -249,7 +258,7 @@ def slurm_institute_accounts(slurm_account_info, clusters):
     commands = []
     for cluster in clusters:
         cluster_accounts = [acct.Account for acct in slurm_account_info if acct and acct.Cluster == cluster]
-        for (inst, vo) in INSTITUTE_VOS.items():
+        for (inst, vo) in INSTITUTE_VOS_GENT.items():
             if inst not in cluster_accounts:
                 commands.append(
                     create_add_account_command(account=inst, parent=None, cluster=cluster, organisation=inst)
@@ -272,7 +281,7 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
         cluster_accounts = [acct.Account for acct in slurm_account_info if acct and acct.Cluster == cluster]
 
         for vo in account_page_vos:
-            if vo.vsc_id in INSTITUTE_VOS.values():
+            if vo.vsc_id in INSTITUTE_VOS_GENT.values():
                 continue
 
             if vo.vsc_id not in cluster_accounts:
