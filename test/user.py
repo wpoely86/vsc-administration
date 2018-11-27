@@ -19,15 +19,21 @@ Tests for vsc.administration.user
 @author: Jens Timmerman (Ghent University)
 """
 import mock
+import os
 
 from collections import namedtuple
 
 import vsc.administration.user as user
+import vsc.config.base as config
 
 from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkUserGroup, mkGroup
 from vsc.accountpage.wrappers import mkVscAccountPubkey
-from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY, GENT
+from vsc.config.base import VSC_DATA, VSC_DATA_SHARED, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY, GENT
+from vsc.config.base import VSC_SCRATCH_KYUKON
 from vsc.install.testing import TestCase
+
+# monkey patch location of storage configuration file to included test config
+config.STORAGE_CONFIGURATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filesystem_info.conf')
 
 test_account_1 = {
     u'broken': False,
@@ -365,7 +371,7 @@ class UserDeploymentTest(TestCase):
 
                         self.assertEqual(mock_user_instance.create_data_dir.called, True)
 
-                    if storage_name not in (VSC_HOME, VSC_DATA):
+                    if storage_name in (VSC_SCRATCH_KYUKON,):
                         mock_user_instance.create_home_dir.assert_not_called()
                         mock_user_instance.populate_home_dir.assert_not_called()
                         mock_update_user_status.assert_not_called()
@@ -375,114 +381,36 @@ class UserDeploymentTest(TestCase):
 
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.VscStorage')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_home_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_home_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
     def test_create_home_dir_tier2_user(self,
-                                        mock_create_user_dir,
-                                        mock_create_grouping_fileset,
-                                        mock_grouping_home_path,
-                                        mock_home_path,
-                                        mock_storage,
                                         mock_client,
                                         mock_gpfsoperations,
                                         ):
 
         test_account = mkVscAccount(test_account_1)
-        mock_storage.return_value['VSC_HOME'].filesystem = "vulpixhome"
-
-        mock_create_user_dir.return_value = None
-        mock_create_grouping_fileset.return_value = None
-        mock_home_path.return_value = 'my_home_path'
-        mock_grouping_home_path.return_value = 'my_grouping_home_path'
-
         accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
-        mock_storage.assert_called_with()
-
-        self.assertTrue(mock_storage()['VSC_HOME'].filesystem == "vulpixhome")
-
         accountpageuser.create_home_dir()
 
-        mock_grouping_home_path.assert_called_with()
-        mock_create_grouping_fileset.assert_called_with('vulpixhome', 'my_grouping_home_path')
-        mock_home_path.assert_called_with()
-        mock_create_user_dir.assert_called_with('my_home_path')
-
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.VscStorage')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_data_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_data_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
     def test_create_data_dir_tier2_user(self,
-                                        mock_create_user_dir,
-                                        mock_create_grouping_fileset,
-                                        mock_grouping_data_path,
-                                        mock_data_path,
-                                        mock_storage,
                                         mock_client,
                                         mock_gpfsoperations,
                                         ):
 
         test_account = mkVscAccount(test_account_1)
-        mock_storage.return_value['VSC_DATA'].filesystem = "vulpixdata"
-
-        mock_create_user_dir.return_value = None
-        mock_create_grouping_fileset.return_value = None
-        mock_data_path.return_value = 'my_data_path'
-        mock_grouping_data_path.return_value = 'my_grouping_data_path'
-
         accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
-        mock_storage.assert_called_with()
-
-        self.assertTrue(mock_storage()['VSC_DATA'].filesystem == "vulpixdata")
-
         accountpageuser.create_data_dir()
 
-        mock_grouping_data_path.assert_called_with()
-        mock_create_grouping_fileset.assert_called_with('vulpixdata', 'my_grouping_data_path')
-        mock_data_path.assert_called_with()
-        mock_create_user_dir.assert_called_with('my_data_path')
-
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
-    @mock.patch('vsc.administration.user.VscStorage')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_scratch_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_grouping_scratch_path')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_grouping_fileset')
-    @mock.patch.object(user.VscTier2AccountpageUser, '_create_user_dir')
-    def test_create_data_dir_tier2_user_2(self,
-                                        mock_create_user_dir,
-                                        mock_create_grouping_fileset,
-                                        mock_grouping_scratch_path,
-                                        mock_scratch_path,
-                                        mock_storage,
+    def test_create_scratch_dir_tier2_user(self,
                                         mock_client,
                                         mock_gpfsoperations,
                                         ):
 
         test_account = mkVscAccount(test_account_1)
-        mock_storage.return_value['VSC_SCRATCH_DELCATTY'].filesystem = "scratchdelcatty"
-
-        mock_create_user_dir.return_value = None
-        mock_create_grouping_fileset.return_value = None
-        mock_scratch_path.return_value = 'my_scratch_path'
-        mock_grouping_scratch_path.return_value = 'my_grouping_scratch_path'
-
         accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client, account=test_account, host_institute=GENT)
-        mock_storage.assert_called_with()
-
-        self.assertTrue(mock_storage()['VSC_SCRATCH_DELCATTY'].filesystem == "scratchdelcatty")
-
-        accountpageuser.create_scratch_dir('VSC_SCRATCH_DELCATTY')
-
-        mock_grouping_scratch_path.assert_called_with('VSC_SCRATCH_DELCATTY')
-        mock_create_grouping_fileset.assert_called_with('scratchdelcatty', 'my_grouping_scratch_path')
-        mock_scratch_path.assert_called_with('VSC_SCRATCH_DELCATTY')
-        mock_create_user_dir.assert_called_with('my_scratch_path')
+        accountpageuser.create_scratch_dir('VSC_SCRATCH_KYUKON')
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     def test_process_regular_users_quota(self, mock_client):
@@ -515,7 +443,7 @@ class UserDeploymentTest(TestCase):
                             mock_user_instance.set_home_quota.assert_not_called()
                             mock_user_instance.set_scratch_quota.assert_not_called()
 
-                        if storage_name not in (VSC_HOME, VSC_DATA):
+                        if storage_name in (VSC_SCRATCH_KYUKON,):
                             self.assertEqual(mock_user_instance.set_scratch_quota.called, True)
 
                             mock_user_instance.set_home_quota.assert_not_called()

@@ -30,7 +30,7 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH
+from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, GENT
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -189,7 +189,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
         # and fetching the quota
         institute_quota = [q for q in all_quota if q.storage['institute'] == self.host_institute]
-        fileset_name = self.vsc.user_grouping(self.account.vsc_id)
+        fileset_name = self.vsc.user_grouping_fileset(self.account.vsc_id)
 
         def user_proposition(quota, storage_type):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
@@ -221,19 +221,15 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         This location is the user'path on the pickle_storage specified when creating
         a VscTier2AccountpageUser instance.
         """
-        template = self.storage.path_templates[self.pickle_storage]['user']
-        return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point,
-                            template[0],
-                            template[1](self.account.vsc_id)
-                            )
+        (path, _) = self.storage.path_templates[GENT][self.pickle_storage]['user'](self.account.vsc_id)
+        return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point, path)
 
-    def _create_grouping_fileset(self, filesystem_name, path):
+    def _create_grouping_fileset(self, filesystem_name, path, fileset_name):
         """Create a fileset for a group of 100 user accounts
 
         - creates the fileset if it does not already exist
         """
         self.gpfs.list_filesets()
-        fileset_name = self.vsc.user_grouping(self.account.vsc_id)
         logging.info("Trying to create the grouping fileset %s with link path %s", fileset_name, path)
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
@@ -247,33 +243,27 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         self.gpfs.chmod(0o755, path)
 
+    def _get_mount_path(self, storage_name, mount_point):
+        """Get the mount point for the location we're running"""
+        if mount_point == "login":
+            mount_path = self.storage[storage_name].login_mount_point
+        elif mount_point == "gpfs":
+            mount_path = self.storage[storage_name].gpfs_mount_point
+        else:
+            logging.error("mount_point (%s) is not login or gpfs", mount_point)
+            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
+
+        return mount_path
+
     def _get_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage_name."""
-
-        template = self.storage.path_templates[storage_name]['user']
-        if mount_point == "login":
-            mount_path = self.storage[storage_name].login_mount_point
-        elif mount_point == "gpfs":
-            mount_path = self.storage[storage_name].gpfs_mount_point
-        else:
-            logging.error("mount_point (%s) is not login or gpfs", mount_point)
-            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
-
-        return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
+        (path, _) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+        return os.path.join(self._get_mount_path(storage_name, mount_point), path)
 
     def _get_grouping_path(self, storage_name, mount_point="gpfs"):
-        """Get the path for the user group directory (and associated fileset)."""
-
-        template = self.storage.path_templates[storage_name]['user_grouping']
-        if mount_point == "login":
-            mount_path = self.storage[storage_name].login_mount_point
-        elif mount_point == "gpfs":
-            mount_path = self.storage[storage_name].gpfs_mount_point
-        else:
-            logging.error("mount_point (%s) is not login or gpfs", mount_point)
-            raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
-
-        return os.path.join(mount_path, template[0], template[1](self.account.vsc_id))
+        """Get the path and the fileset for the user group directory (and associated fileset)."""
+        (path, fileset) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+        return (os.path.join(self._get_mount_path(storage_name, mount_point), os.path.dirname(path)), fileset)
 
     def _home_path(self, mount_point="gpfs"):
         """Return the path to the home dir."""
@@ -299,66 +289,46 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """Return the path to the grouping fileset for the users on the given scratch filesystem."""
         return self._get_grouping_path(storage_name, mount_point)
 
-    def create_home_dir(self):
-        """Create all required files in the (future) user's home directory.
-
-        Requires to be run on a system where the appropriate GPFS is mounted.
-        Always set the quota.
+    def _create_user_dir(self, grouping_f, path_f, storage_name):
+        """Create the directories and files for some user location.
+        
+        @type grouping: function that yields the grouping path for the location.
+        @type path: function that yields the actual path for the location.
         """
         try:
-            path = self._grouping_home_path()
-            self._create_grouping_fileset(self.storage[VSC_HOME].filesystem, path)
+            (grouping_path, fileset) = grouping_f()
+            self._create_grouping_fileset(self.storage[storage_name].filesystem, grouping_path, fileset)
 
-            path = self._home_path()
-            self._create_user_dir(path)
+            path = path_f()
+            if self.gpfs.is_symlink(path):
+                logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
+                return
+
+            create_stat_directory(
+                path,
+                0o700,
+                int(self.account.vsc_id_number),
+                int(self.usergroup.vsc_id_number),
+                self.gpfs
+            )
         except Exception:
-            logging.exception("Could not create home dir for user %s", self.account.vsc_id)
+            logging.exception("Could not create dir %s for user %s", path, self.account.vsc_id)
             raise
+
+    def create_home_dir(self):
+        """Create all required files in the (future) user's home directory."""
+        self._create_user_dir(self._grouping_home_path, self._home_path, VSC_HOME)
 
     def create_data_dir(self):
-        """Create the user's directory on the HPC data filesystem.
-
-        Required to be run on a system where the appropriate GPFS is mounted."""
-        try:
-            path = self._grouping_data_path()
-            self._create_grouping_fileset(self.storage[VSC_DATA].filesystem, path)
-
-            path = self._data_path()
-            self._create_user_dir(path)
-        except Exception:
-            logging.exception("Could not create data dir for user %s", self.account.vsc_id)
-            raise
+        """Create the user's directory on the HPC data filesystem."""
+        self._create_user_dir(self._grouping_data_path, self._data_path, VSC_DATA)
 
     def create_scratch_dir(self, storage_name):
-        """Create the user's directory on the given scratch filesystem
-
-        @type storage_name: string
-        @param storage_name: name of the storage system as defined in /etc/filesystem_info.conf
-        """
-        try:
-            if self.storage[storage_name].user_grouping_fileset:
-                path = self._grouping_scratch_path(storage_name)
-                self._create_grouping_fileset(self.storage[storage_name].filesystem, path)
-
-            path = self._scratch_path(storage_name)
-            self._create_user_dir(path)
-        except Exception:
-            logging.exception("Could not create scratch dir for user %s", self.account.vsc_id)
-            raise
-
-    def _create_user_dir(self, path):
-        """Create a user owned directory on the GPFS."""
-        if self.gpfs.is_symlink(path):
-            logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
-            return
-
-        create_stat_directory(
-            path,
-            0o700,
-            int(self.account.vsc_id_number),
-            int(self.usergroup.vsc_id_number),
-            self.gpfs
-        )
+        """Create the user's directory on the given scratch filesystem."""
+        self._create_user_dir(
+            lambda: self._grouping_scratch_path(storage_name),
+            lambda: self._scratch_path(storage_name),
+            storage_name)
 
     def _set_quota(self, storage_name, path, hard):
         """Set the given quota on the target path.
@@ -387,7 +357,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def set_data_quota(self):
         """Set USR quota on the data FS in the user fileset."""
-        path = self._grouping_data_path()
+        (path, _) = self._grouping_data_path()
         hard = self.user_data_quota
         self._set_quota(VSC_DATA, path, hard)
 
@@ -399,7 +369,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             return
 
         if self.storage[storage_name].user_grouping_fileset:
-            path = self._grouping_scratch_path(storage_name)
+            (path, _) = self._grouping_scratch_path(storage_name)
         else:
             # Hack; this should actually become the link path of the fileset
             # that contains the path (the file, not the followed symlink)
