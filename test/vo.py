@@ -25,10 +25,15 @@ from mock import patch
 from collections import namedtuple
 
 import vsc.administration.vo as vo
+import vsc.config.base as config
 
 from vsc.accountpage.wrappers import VscAutogroup
 from vsc.config.base import VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, VSC_DATA_SHARED
 from vsc.install.testing import TestCase
+
+
+# monkey patch location of storage configuration file to included test config
+config.STORAGE_CONFIGURATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filesystem_info.conf')
 
 
 class VoDeploymentTest(TestCase):
@@ -297,14 +302,12 @@ class VoDeploymentTest(TestCase):
         with mock.patch('vsc.administration.vo.mkVscAccount') as mock_mkvscaccount:
             mock_mkvscaccount.side_effect = IndexError("Nope")
 
-            mock_storage = mock.MagicMock()
-            mock_storage[VSC_DATA_SHARED].filesystem = "test_filesystem"
-            mock_storage.path_templates[VSC_DATA_SHARED]['vo'] = ("gent", lambda vo_id: os.path.join("shared", self.vsc.vo_grouping(vo_id), vo_id))
+            s = config.VscStorage()
             mock_gpfs.get_fileset_info.return_value = False
             mock_gpfs.make_dir.return_value = None
             mock_gpfs.make_fileset.return_value = None
 
-            test_vo = vo.VscTier2AccountpageVo(test_vo_id, storage=mock_storage, rest_client=mc)
+            test_vo = vo.VscTier2AccountpageVo(test_vo_id, storage=s, rest_client=mc)
 
             for storage_name in (VSC_DATA_SHARED,):
                 with mock.patch("vsc.administration.vo.VscTier2AccountpageVo.data_sharing", new_callable=mock.PropertyMock) as mock_data_sharing:

@@ -178,9 +178,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
         (path, _) = self.storage.path_templates[storage]['vo'](self.vo.vsc_id)
         if mount_point == "login":
-            mount_path = self.storage[storage].login_mount_point
+            mount_path = self.storage[GENT][storage].login_mount_point
         elif mount_point == "gpfs":
-            mount_path = self.storage[storage].gpfs_mount_point
+            mount_path = self.storage[GENT][storage].gpfs_mount_point
         else:
             logging.error("mount_point (%s)is not login or gpfs" % (mount_point))
             raise Exception()

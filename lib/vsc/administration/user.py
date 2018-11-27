@@ -312,7 +312,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
                 self.gpfs
             )
         except Exception:
-            logging.exception("Could not create home dir for user %s", self.account.vsc_id)
+            logging.exception("Could not create dir %s for user %s", path, self.account.vsc_id)
             raise
 
     def create_home_dir(self):
@@ -326,7 +326,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     def create_scratch_dir(self, storage_name):
         """Create the user's directory on the given scratch filesystem."""
         self._create_user_dir(
-            lambda: self._grouping_data_path(storage_name),
+            lambda: self._grouping_scratch_path(storage_name),
             lambda: self._scratch_path(storage_name),
             storage_name)
 
