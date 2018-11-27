@@ -19,15 +19,20 @@ Tests for vsc.administration.user
 @author: Jens Timmerman (Ghent University)
 """
 import mock
+import os
 
 from collections import namedtuple
 
 import vsc.administration.user as user
+import vsc.config.base as config
 
 from vsc.accountpage.wrappers import mkVscAccount, mkVscHomeOnScratch, mkUserGroup, mkGroup
 from vsc.accountpage.wrappers import mkVscAccountPubkey
 from vsc.config.base import VSC_DATA, VSC_HOME, VSC_SCRATCH_PHANPY, VSC_SCRATCH_DELCATTY, GENT
 from vsc.install.testing import TestCase
+
+# monkey patch location of storage configuration file to included test config
+config.STORAGE_CONFIGURATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'filesystem_info.conf')
 
 test_account_1 = {
     u'broken': False,
