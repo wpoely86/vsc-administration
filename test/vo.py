@@ -21,6 +21,7 @@ import mock
 import os
 
 from mock import patch
+from unittest import main
 
 from collections import namedtuple
 
@@ -324,3 +325,7 @@ class VoDeploymentTest(TestCase):
                         )
 
                         test_vo.create_data_shared_fileset()
+
+
+if __name__ == '__main__':
+    main()
