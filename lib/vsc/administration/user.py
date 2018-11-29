@@ -18,6 +18,7 @@ This file contains the utilities for dealing with users on the VSC.
 
 @author: Stijn De Weirdt (Ghent University)
 @author: Andy Georges (Ghent University)
+@author: Ward Poelmans (Free University of Brussels)
 """
 
 import logging
@@ -30,7 +31,8 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
 from vsc.administration.tools import create_stat_directory
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, GENT
+from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL
+from vsc.config.base import GENT, VO_PREFIX_BY_SITE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
@@ -127,7 +129,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     A user on each of our Tier-2 system using the account page REST API
     to retrieve its information.
     """
-    def __init__(self, user_id, storage=None, pickle_storage='VSC_SCRATCH_KYUKON', rest_client=None,
+    def __init__(self, user_id, storage=None, pickle_storage=None, rest_client=None,
                  account=None, pubkeys=None, host_institute=None, use_user_cache=False):
         """
         Initialisation.
@@ -135,6 +137,18 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """
         super(VscTier2AccountpageUser, self).__init__(user_id, rest_client, account=account,
                                                       pubkeys=pubkeys, use_user_cache=use_user_cache)
+
+        # Move to vsc-config?
+        default_pickle_storage = {
+            GENT: VSC_SCRATCH_KYUKON,
+            BRUSSEL: VSC_SCRATCH_THEIA,
+        }
+
+        if host_institute is None:
+            host_institute = GENT
+
+        if pickle_storage is None:
+            pickle_storage = default_pickle_storage[host_institute]
 
         self.pickle_storage = pickle_storage
         if not storage:
@@ -182,8 +196,6 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         return self._cache['quota']['vo']['scratch']
 
     def _init_quota_cache(self):
-        if self.host_institute is None:
-            logging.warn("_init_quota_cache with host_institute None")
         all_quota = [mkVscUserSizeQuota(q) for q in self.rest_client.account[self.user_id].quota.get()[1]]
         # we no longer set defaults, since we do not want to accidentally revert people to some default
         # that is lower than their actual quota if the accountpage goes down in between retrieving the users
@@ -198,18 +210,17 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         if self.person.institute['site'] == self.host_institute:
             self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
             self._cache['quota']['data'] = [q.hard for q in institute_quota
-                                            if user_proposition(q, 'data')
-                                            and not q.storage['name'].endswith('SHARED')][0]
+                                            if user_proposition(q, 'data') and not
+                                            q.storage['name'].endswith('SHARED')][0]
             self._cache['quota']['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
         else:
             self._cache['quota']['home'] = None
             self._cache['quota']['data'] = None
             self._cache['quota']['scratch'] = None
 
-        fileset_name = 'gvo'
-
         def user_vo_proposition(quota, storage_type):
-            return quota.fileset.startswith(fileset_name) and quota.storage['storage_type'] == storage_type
+            return quota.fileset.startswith(VO_PREFIX_BY_SITE[self.host_institute]) and \
+                quota.storage['storage_type'] == storage_type
 
         self._cache['quota']['vo'] = {}
         self._cache['quota']['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, 'data')]
@@ -221,7 +232,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         This location is the user'path on the pickle_storage specified when creating
         a VscTier2AccountpageUser instance.
         """
-        (path, _) = self.storage.path_templates[GENT][self.pickle_storage]['user'](self.account.vsc_id)
+        (path, _) = self.storage.path_templates[self.host_institute][self.pickle_storage]['user'](self.account.vsc_id)
         return os.path.join(self.storage[self.pickle_storage].gpfs_mount_point, path)
 
     def _create_grouping_fileset(self, filesystem_name, path, fileset_name):
@@ -257,12 +268,12 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def _get_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage_name."""
-        (path, _) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+        (path, _) = self.storage.path_templates[self.host_institute][storage_name]['user'](self.account.vsc_id)
         return os.path.join(self._get_mount_path(storage_name, mount_point), path)
 
     def _get_grouping_path(self, storage_name, mount_point="gpfs"):
         """Get the path and the fileset for the user group directory (and associated fileset)."""
-        (path, fileset) = self.storage.path_templates[GENT][storage_name]['user'](self.account.vsc_id)
+        (path, fileset) = self.storage.path_templates[self.host_institute][storage_name]['user'](self.account.vsc_id)
         return (os.path.join(self._get_mount_path(storage_name, mount_point), os.path.dirname(path)), fileset)
 
     def _home_path(self, mount_point="gpfs"):
@@ -291,7 +302,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def _create_user_dir(self, grouping_f, path_f, storage_name):
         """Create the directories and files for some user location.
-        
+
         @type grouping: function that yields the grouping path for the location.
         @type path: function that yields the actual path for the location.
         """
@@ -402,13 +413,12 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         super(VscTier2AccountpageUser, self).__setattr__(name, value)
 
 
-
 cluster_user_pickle_location_map = {
     'kyukon': VscTier2AccountpageUser,
 }
 
 cluster_user_pickle_store_map = {
-    'kyukon': 'VSC_SCRATCH_KYUKON',
+    'kyukon': VSC_SCRATCH_KYUKON,
 }
 
 
@@ -441,7 +451,7 @@ def update_user_status(user, client):
                                         (user.user_id, account.status))
 
 
-def process_users_quota(options, user_quota, storage_name, client, host_institute=None, use_user_cache=True):
+def process_users_quota(options, user_quota, storage_name, client, host_institute=GENT, use_user_cache=True):
     """
     Process the users' quota for the given storage.
     """
@@ -456,13 +466,13 @@ def process_users_quota(options, user_quota, storage_name, client, host_institut
         user.dry_run = options.dry_run
 
         try:
-            if storage_name in ['VSC_HOME']:
+            if storage_name in VSC_HOME:
                 user.set_home_quota()
 
-            if storage_name in ['VSC_DATA']:
+            if storage_name in VSC_DATA:
                 user.set_data_quota()
 
-            if storage_name in GENT_PRODUCTION_SCRATCH:
+            if storage_name in VSC_PRODUCTION_SCRATCH[host_institute]:
                 user.set_scratch_quota(storage_name)
 
             ok_quota.append(quota)
@@ -473,7 +483,7 @@ def process_users_quota(options, user_quota, storage_name, client, host_institut
     return (ok_quota, error_quota)
 
 
-def process_users(options, account_ids, storage_name, client, host_institute=None, use_user_cache=True):
+def process_users(options, account_ids, storage_name, client, host_institute=GENT, use_user_cache=True):
     """
     Process the users.
 
@@ -499,15 +509,15 @@ def process_users(options, account_ids, storage_name, client, host_institute=Non
         user.dry_run = options.dry_run
 
         try:
-            if storage_name in ['VSC_HOME']:
+            if storage_name in VSC_HOME:
                 user.create_home_dir()
                 user.populate_home_dir()
                 update_user_status(user, client)
 
-            if storage_name in ['VSC_DATA']:
+            if storage_name in VSC_DATA:
                 user.create_data_dir()
 
-            if storage_name in GENT_PRODUCTION_SCRATCH:
+            if storage_name in VSC_PRODUCTION_SCRATCH[host_institute]:
                 user.create_scratch_dir(storage_name)
 
             ok_users.append(user)
