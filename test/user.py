@@ -22,7 +22,6 @@ import mock
 import os
 
 from collections import namedtuple
-from unittest import main
 
 import vsc.administration.user as user
 import vsc.config.base as config
@@ -449,7 +448,3 @@ class UserDeploymentTest(TestCase):
 
                             mock_user_instance.set_home_quota.assert_not_called()
                             mock_user_instance.set_data_quota.assert_not_called()
-
-
-if __name__ == '__main__':
-    main()

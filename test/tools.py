@@ -20,7 +20,6 @@ Tests for vsc.administration.vo
 import mock
 
 from collections import namedtuple
-from unittest import main
 
 from vsc.administration.tools import create_stat_directory
 from vsc.install.testing import TestCase
@@ -137,7 +136,3 @@ class StatDirTest(TestCase):
         mock_os_stat.assert_called_with(test_path)
         self.assertFalse(mock_posix.make_dir.called)
         mock_posix.chmod.assert_called_with(test_permissions, test_path)
-
-
-if __name__ == '__main__':
-    main()

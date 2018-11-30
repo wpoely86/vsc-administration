@@ -21,7 +21,6 @@ Tests for vsc.administration.user
 import mock
 
 from urllib2 import HTTPError
-from unittest import main
 
 import vsc
 
@@ -117,7 +116,3 @@ class LDAPSyncerTest(TestCase):
         ldap_attrs =  {'status': ['active'], 'cn': 'vsc40075', 'institute': ['gent'], 'memberUid': ['vsc40075'],
                        'moderator': ['vsc40075'], 'gidNumber': ['2540075']}
         mock_add_or_update.assert_called_with(VscLdapGroup, test_group.vsc_id, ldap_attrs, True)
-
-
-if __name__ == '__main__':
-    main()

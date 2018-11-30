@@ -20,7 +20,6 @@ Tests for vsc.administration.slurm.*
 import shlex
 
 from collections import namedtuple
-from unittest import main
 
 from vsc.install.testing import TestCase
 
@@ -121,7 +120,3 @@ class SlurmSyncTest(TestCase):
             SlurmUser(User='account2', Def_Acct='vo1', Admin='None', Cluster='banette', Account='vo1', Partition='', Share='1', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
             SlurmUser(User='account3', Def_Acct='vo2', Admin='None', Cluster='banette', Account='vo2', Partition='', Share='1', MaxJobs='', MaxNodes='', MaxCPUs='', MaxSubmit='', MaxWall='', MaxCPUMins='', QOS='normal', Def_QOS=''),
         ]))
-
-
-if __name__ == '__main__':
-    main()
