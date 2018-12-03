@@ -44,11 +44,11 @@ from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
 
-NAGIOS_HEADER = "sync_ugent_users"
+NAGIOS_HEADER = "sync_vsc_users"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
-SYNC_UGENT_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
+SYNC_VSC_USERS_LOGFILE = "/var/log/%s.log" % (NAGIOS_HEADER)
 
 logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
@@ -101,24 +101,24 @@ def main():
 
         logger.info("Last recorded timestamp was %s" % (last_timestamp))
         last_timestamp = convert_to_unix_timestamp(last_timestamp)
+        institute = opts.options.host_institute
 
         (users_ok, users_fail) = ([], [])
         (quota_ok, quota_fail) = ([], [])
         if opts.options.user:
-            ugent_changed_accounts = client.account.institute['gent'].modified[last_timestamp].get()[1]
+            changed_accounts = client.account.institute[institute].modified[last_timestamp].get()[1]
 
-            logger.info("Found %d UGent accounts that have changed in the accountpage since %s" %
-                        (len(ugent_changed_accounts), last_timestamp))
+            logger.info("Found %d %s accounts that have changed in the accountpage since %s" %
+                        (len(changed_accounts), institute, last_timestamp))
 
-            ugent_accounts = [u['vsc_id'] for u in ugent_changed_accounts]
-            ugent_accounts = nub(ugent_accounts)
+            accounts = nub([u['vsc_id'] for u in changed_accounts])
 
             for storage_name in opts.options.storage:
                 (users_ok, users_fail) = process_users(opts.options,
-                                                       ugent_accounts,
+                                                       accounts,
                                                        storage_name,
                                                        client,
-                                                       opts.options.host_institute)
+                                                       institute)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
@@ -131,10 +131,10 @@ def main():
                 logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s",
                             len(storage_changed_quota), storage_name, last_timestamp)
                 (quota_ok, quota_fail) = process_users_quota(opts.options,
-                                                                         storage_changed_quota,
-                                                                         storage_name,
-                                                                         client,
-                                                                         opts.options.host_institute)
+                                                             storage_changed_quota,
+                                                             storage_name,
+                                                             client,
+                                                             institute)
                 stats["%s_quota_sync" % (storage_name,)] = len(quota_ok)
                 stats["%s_quota_sync_fail" % (storage_name,)] = len(quota_fail)
                 stats["%s_quota_sync_fail_warning" % (storage_name,)] = STORAGE_QUOTA_LIMIT_WARNING
@@ -142,25 +142,26 @@ def main():
 
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
-            ugent_changed_vos = client.vo.modified[last_timestamp].get()[1]
-            ugent_changed_vo_quota = client.quota.vo.modified[last_timestamp].get()[1]
+            # FIXME: when api has changed, limit to modified per institute here
+            changed_vos = client.vo.modified[last_timestamp].get()[1]
+            changed_vo_quota = client.quota.vo.modified[last_timestamp].get()[1]
 
-            ugent_vos = sorted(set([v['vsc_id'] for v in ugent_changed_vos] +
-                                   [v['virtual_organisation'] for v in ugent_changed_vo_quota]))
+            vos = sorted(set([v['vsc_id'] for v in changed_vos] +
+                             [v['virtual_organisation'] for v in changed_vo_quota]))
 
-            logger.info("Found %d UGent VOs that have changed in the accountpage since %s" %
-                        (len(ugent_changed_vos), last_timestamp))
-            logger.info("Found %d UGent VOs that have changed quota in the accountpage since %s" %
-                        (len(ugent_changed_vo_quota), last_timestamp))
-            logger.debug("Found the following UGent VOs: {vos}".format(vos=ugent_vos))
+            logger.info("Found %d %s VOs that have changed in the accountpage since %s" %
+                        (len(changed_vos), institute, last_timestamp))
+            logger.info("Found %d %s VOs that have changed quota in the accountpage since %s" %
+                        (len(changed_vo_quota), institute, last_timestamp))
+            logger.debug("Found the following {institute} VOs: {vos}".format(institute=institute, vos=vos))
 
             for storage_name in opts.options.storage:
                 (vos_ok, vos_fail) = process_vos(opts.options,
-                                                 ugent_vos,
+                                                 vos,
                                                  storage_name,
                                                  client,
                                                  last_timestamp,
-                                                 opts.options.host_institute)
+                                                 institute)
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
@@ -175,7 +176,7 @@ def main():
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
-    opts.epilogue("UGent users and VOs synchronised", stats)
+    opts.epilogue("%s users and VOs synchronised" % institute, stats)
 
 
 if __name__ == '__main__':
