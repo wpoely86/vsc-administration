@@ -329,8 +329,10 @@ class VscAccountPageUserTest(TestCase):
         for account in test_accounts:
             mock_client = mock.MagicMock()
             test_account = mkVscAccount(account)
-            accountpageuser = user.VscAccountPageUser(test_account.vsc_id, rest_client=mock_client,
-                                                      account=test_account)
+            accountpageuser = user.VscAccountPageUser(
+                test_account.vsc_id, 
+                rest_client=mock_client,
+                account=test_account)
 
             self.assertEqual(accountpageuser.person, test_account.person)
 
@@ -392,15 +394,21 @@ class VscTier2AccountpageUserTest(TestCase):
             test_account = mkVscAccount(account)
             mock_client.account[test_account.vsc_id].quota.get.return_value = (200, quota)
 
-            accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client,
-                                                           account=test_account, host_institute=site)
+            accountpageuser = user.VscTier2AccountpageUser(
+                test_account.vsc_id, 
+                storage=config.VscStorage(),
+                rest_client=mock_client,
+                account=test_account, 
+                host_institute=site)
 
-            self.assertEqual(accountpageuser.user_home_quota,
-                             [q['hard'] for q in quota if q['storage']['name'] == 'VSC_HOME'
-                              and q['fileset'] == fileset][0])
-            self.assertEqual(accountpageuser.user_data_quota,
-                             [q['hard'] for q in quota if q['storage']['name'] == 'VSC_DATA'
-                              and q['fileset'] == fileset][0])
+            self.assertEqual(
+                accountpageuser.user_home_quota,
+                [q['hard'] for q in quota if q['storage']['name'] == 'VSC_HOME' and q['fileset'] == fileset][0]
+            )
+            self.assertEqual(
+                accountpageuser.user_data_quota,
+                q['hard'] for q in quota if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == fileset][0]
+            )
 
 
 class UserDeploymentTest(TestCase):
@@ -464,8 +472,12 @@ class UserDeploymentTest(TestCase):
 
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
-            accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client,
-                                                           account=test_account, host_institute=site)
+            accountpageuser = user.VscTier2AccountpageUser(
+                test_account.vsc_id, 
+                storage=config.VscStorage(),
+                rest_client=mock_client,
+                account=test_account, 
+                host_institute=site)
             accountpageuser.create_home_dir()
 
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
@@ -476,8 +488,12 @@ class UserDeploymentTest(TestCase):
 
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
-            accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client,
-                                                           account=test_account, host_institute=site)
+            accountpageuser = user.VscTier2AccountpageUser(
+                test_account.vsc_id, 
+                storage=config.VscStorage(),
+                rest_client=mock_client,
+                account=test_account, 
+                host_institute=site)
             accountpageuser.create_data_dir()
 
     @mock.patch('vsc.administration.user.GpfsOperations', autospec=True)
@@ -488,8 +504,12 @@ class UserDeploymentTest(TestCase):
 
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
-            accountpageuser = user.VscTier2AccountpageUser(test_account.vsc_id, rest_client=mock_client,
-                                                           account=test_account, host_institute=site)
+            accountpageuser = user.VscTier2AccountpageUser(
+                test_account.vsc_id, 
+                storage=config.VscStorage(),
+                rest_client=mock_client,
+                account=test_account, 
+                host_institute=site)
             accountpageuser.create_scratch_dir(VSC_PRODUCTION_SCRATCH[site][0])
 
     @mock.patch('vsc.accountpage.client.AccountpageClient', autospec=True)
