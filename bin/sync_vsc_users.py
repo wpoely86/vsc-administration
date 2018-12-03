@@ -167,10 +167,9 @@ def main():
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
                 stats["%s_vos_sync_fail_critical" % (storage_name,)] = STORAGE_VO_LIMIT_CRITICAL
 
-        if not (users_fail or quota_fail or vos_fail):
+        if not (users_fail or quota_fail or vos_fail) and not opts.options.dry_run:
             (_, ldap_timestamp) = convert_timestamp(start_time)
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")

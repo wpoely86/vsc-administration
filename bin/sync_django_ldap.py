@@ -106,8 +106,9 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
-            last = int((datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") -
-                       datetime.datetime(1970, 1, 1)).total_seconds())
+            last = int(
+                (datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") -
+                datetime.datetime(1970, 1, 1)).total_seconds())
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             _log.debug("Altered accounts: %s", altered_accounts)
@@ -138,16 +139,11 @@ def main():
         (_, result) = os.waitpid(parent_pid, 0)
         _log.info("Child exited with exit code %d" % (result,))
 
-        if not result:
-            if not opts.options.start_timestamp:
-                (_, ldap_timestamp) = convert_timestamp(start_time)
-                if not opts.options.dry_run:
-                    write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-            else:
-                _log.info("Not updating the timestamp, since one was provided on the command line")
+        if not result and not opts.options.dry_run:
+            (_, ldap_timestamp) = convert_timestamp(start_time)
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
             opts.epilogue("Synchronised LDAP users to the Django DB", stats)
         else:
-            _log.info("Not updating the timestamp, since it was given on the command line for this run")
             sys.exit(NAGIOS_EXIT_CRITICAL)
 
 

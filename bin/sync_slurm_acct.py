@@ -151,21 +151,17 @@ def main():
         else:
             execute_commands(sacctmgr_commands)
 
+        if not opts.options.dry_run:
+            (_, ldap_timestamp) = convert_timestamp(start_time)
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+            opts.epilogue("Accounts synced to slurm", stats)
+        else:
+            logger.info("Dry run done")
+
     except Exception as err:
         logging.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
-
-    if not opts.options.dry_run:
-        if not opts.options.start_timestamp:
-            (_, ldap_timestamp) = convert_timestamp(start_time)
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
-        else:
-            logging.info("Not updating the timestamp, since one was provided on the command line")
-        opts.epilogue("Accounts synced to slurm", stats)
-    else:
-        logger.info("Dry run done")
 
 
 if __name__ == "__main__":
