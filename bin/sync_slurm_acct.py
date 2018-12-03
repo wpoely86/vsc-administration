@@ -19,6 +19,7 @@ This script synchronises the users and VO's from the HPC account page to the Slu
 The script must result in an idempotent execution, to ensure nothing breaks.
 """
 
+import datetime
 import logging
 import sys
 
@@ -92,15 +93,15 @@ def main():
         try:
             last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
         except Exception:
-            _log.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
+            logging.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
             last_timestamp = "201710230000Z"
-            _log.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
+            logging.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
 
-    _log.info("Using timestamp %s", last_timestamp)
+    logging.info("Using timestamp %s", last_timestamp)
     # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
     # in between the requesting of modified users and writing out the start time
     start_time = datetime.datetime.now(tz=utc) + datetime.timedelta(seconds=-10)
-    _log.info("startime %s", start_time)
+    logging.info("startime %s", start_time)
 
     try:
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
@@ -151,7 +152,7 @@ def main():
             execute_commands(sacctmgr_commands)
 
     except Exception as err:
-        logger.exception("critical exception caught: %s" % (err))
+        logging.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
@@ -161,8 +162,8 @@ def main():
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
         else:
-            _log.info("Not updating the timestamp, since one was provided on the command line")
-         opts.epilogue("Accounts synced to slurm", stats)
+            logging.info("Not updating the timestamp, since one was provided on the command line")
+        opts.epilogue("Accounts synced to slurm", stats)
     else:
         logger.info("Dry run done")
 
