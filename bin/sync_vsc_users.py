@@ -29,20 +29,20 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
 import sys
-
-from datetime import datetime
+import datetime
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
 from vsc.config.base import GENT
-from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
-from vsc.utils.timestamp import convert_to_unix_timestamp
+from vsc.utils.dateandtime import utc
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
+from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.timestamp import convert_to_unix_timestamp
 
 NAGIOS_HEADER = "sync_vsc_users"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
@@ -90,7 +90,7 @@ def main():
     stats = {}
 
     try:
-        now = datetime.utcnow()
+        start_time = datetime.datetime.now(tz=utc) + datetime.timedelta(seconds=-10)
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
 
         try:
@@ -168,7 +168,7 @@ def main():
                 stats["%s_vos_sync_fail_critical" % (storage_name,)] = STORAGE_VO_LIMIT_CRITICAL
 
         if not (users_fail or quota_fail or vos_fail):
-            (_, ldap_timestamp) = convert_timestamp(now)
+            (_, ldap_timestamp) = convert_timestamp(start_time)
             if not opts.options.dry_run:
                 write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
     except Exception as err:

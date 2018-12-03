@@ -27,10 +27,12 @@ from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS
+from vsc.utils.dateandtime import utc
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import RunQA, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
+from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 
 logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
@@ -85,12 +87,23 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
+    last_timestamp = opts.options.start_timestamp
+    if not last_timestamp:
+        try:
+            last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
+        except Exception:
+            _log.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
+            last_timestamp = "201710230000Z"
+            _log.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
+
+    _log.info("Using timestamp %s", last_timestamp)
+    # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
+    # in between the requesting of modified users and writing out the start time
+    start_time = datetime.datetime.now(tz=utc) + datetime.timedelta(seconds=-10)
+    _log.info("startime %s", start_time)
+
     try:
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
-
-        last_timestamp = "201804010000Z"  # the beginning of time
-
-        logging.info("Last recorded timestamp was %s" % (last_timestamp))
 
         slurm_account_info = get_slurm_acct_info(SyncTypes.accounts)
         slurm_user_info = get_slurm_acct_info(SyncTypes.users)
@@ -143,7 +156,13 @@ def main():
         sys.exit(NAGIOS_EXIT_CRITICAL)
 
     if not opts.options.dry_run:
-        opts.epilogue("Accounts synced to slurm", stats)
+        if not opts.options.start_timestamp:
+            (_, ldap_timestamp) = convert_timestamp(start_time)
+            if not opts.options.dry_run:
+                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        else:
+            _log.info("Not updating the timestamp, since one was provided on the command line")
+         opts.epilogue("Accounts synced to slurm", stats)
     else:
         logger.info("Dry run done")
 

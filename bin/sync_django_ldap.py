@@ -32,6 +32,7 @@ from vsc.administration.ldapsync import LdapSyncer, ERROR
 from vsc.ldap.configuration import VscConfiguration
 from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
 from vsc.ldap.utils import LdapQuery
+from vsc.utils.dateandtime import utc
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
@@ -73,7 +74,7 @@ def main():
     _log.info("Using timestamp %s", last_timestamp)
     # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
     # in between the requesting of modified users and writing out the start time
-    start_time = datetime.datetime.now() + datetime.timedelta(seconds=-10)
+    start_time = datetime.datetime.now(tz=utc) + datetime.timedelta(seconds=-10)
     _log.info("startime %s", start_time)
 
     try:
