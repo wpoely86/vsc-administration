@@ -146,20 +146,21 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         if host_institute is None:
             host_institute = GENT
+        self.host_institute = host_institute
 
         if pickle_storage is None:
             pickle_storage = default_pickle_storage[host_institute]
 
         self.pickle_storage = pickle_storage
-        if not storage:
-            self.storage = VscStorage()
-        else:
-            self.storage = storage
+        if storage is None:
+            storage = VscStorage()
+
+        self.institute_path_templates = storage.path_templates[self.host_institute]
+        self.institute_storage = storage[self.host_institute]
 
         self.vsc = VSC()
         self.gpfs = GpfsOperations()  # Only used when needed
         self.posix = PosixOperations()
-        self.host_institute = host_institute
 
     def _init_cache(self, **kwargs):
         super(VscTier2AccountpageUser, self)._init_cache(**kwargs)
@@ -232,8 +233,8 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         This location is the user'path on the pickle_storage specified when creating
         a VscTier2AccountpageUser instance.
         """
-        (path, _) = self.storage.path_templates[self.host_institute][self.pickle_storage]['user'](self.account.vsc_id)
-        return os.path.join(self.storage[self.host_institute][self.pickle_storage].gpfs_mount_point, path)
+        (path, _) = self.institute_path_templates[self.pickle_storage]['user'](self.account.vsc_id)
+        return os.path.join(self.institute_storage[self.pickle_storage].gpfs_mount_point, path)
 
     def _create_grouping_fileset(self, filesystem_name, path, fileset_name):
         """Create a fileset for a group of 100 user accounts
@@ -257,9 +258,9 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     def _get_mount_path(self, storage_name, mount_point):
         """Get the mount point for the location we're running"""
         if mount_point == "login":
-            mount_path = self.storage[self.host_institute][storage_name].login_mount_point
+            mount_path = self.institute_storage[storage_name].login_mount_point
         elif mount_point == "gpfs":
-            mount_path = self.storage[self.host_institute][storage_name].gpfs_mount_point
+            mount_path = self.institute_storage[storage_name].gpfs_mount_point
         else:
             logging.error("mount_point (%s) is not login or gpfs", mount_point)
             raise Exception("mount_point (%s) is not designated as gpfs or login" % (mount_point,))
@@ -268,12 +269,12 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def _get_path(self, storage_name, mount_point="gpfs"):
         """Get the path for the (if any) user directory on the given storage_name."""
-        (path, _) = self.storage.path_templates[self.host_institute][storage_name]['user'](self.account.vsc_id)
+        (path, _) = self.institute_path_templates[storage_name]['user'](self.account.vsc_id)
         return os.path.join(self._get_mount_path(storage_name, mount_point), path)
 
     def _get_grouping_path(self, storage_name, mount_point="gpfs"):
         """Get the path and the fileset for the user group directory (and associated fileset)."""
-        (path, fileset) = self.storage.path_templates[self.host_institute][storage_name]['user'](self.account.vsc_id)
+        (path, fileset) = self.institute_path_templates[storage_name]['user'](self.account.vsc_id)
         return (os.path.join(self._get_mount_path(storage_name, mount_point), os.path.dirname(path)), fileset)
 
     def _home_path(self, mount_point="gpfs"):
@@ -308,7 +309,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         """
         try:
             (grouping_path, fileset) = grouping_f()
-            self._create_grouping_fileset(self.storage[self.host_institute][storage_name].filesystem, grouping_path, fileset)
+            self._create_grouping_fileset(self.institute_storage[storage_name].filesystem, grouping_path, fileset)
 
             path = path_f()
             if self.gpfs.is_symlink(path):
@@ -351,7 +352,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.error("No user quota set for %s", storage_name)
             return
 
-        quota = hard * 1024 * self.storage[self.host_institute][storage_name].data_replication_factor
+        quota = hard * 1024 * self.institute_storage[storage_name].data_replication_factor
         soft = int(self.vsc.quota_soft_fraction * quota)
 
         logging.info("Setting quota for %s on %s to %d", storage_name, path, quota)
@@ -379,7 +380,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             logging.error("No scratch quota information available for %s", storage_name)
             return
 
-        if self.storage[self.host_institute][storage_name].user_grouping_fileset:
+        if self.institute_storage[storage_name].user_grouping_fileset:
             (path, _) = self._grouping_scratch_path(storage_name)
         else:
             # Hack; this should actually become the link path of the fileset
@@ -466,10 +467,10 @@ def process_users_quota(options, user_quota, storage_name, client, host_institut
         user.dry_run = options.dry_run
 
         try:
-            if storage_name in VSC_HOME:
+            if storage_name == VSC_HOME:
                 user.set_home_quota()
 
-            if storage_name in VSC_DATA:
+            if storage_name == VSC_DATA:
                 user.set_data_quota()
 
             if storage_name in VSC_PRODUCTION_SCRATCH[host_institute]:
@@ -509,12 +510,12 @@ def process_users(options, account_ids, storage_name, client, host_institute=GEN
         user.dry_run = options.dry_run
 
         try:
-            if storage_name in VSC_HOME:
+            if storage_name == VSC_HOME:
                 user.create_home_dir()
                 user.populate_home_dir()
                 update_user_status(user, client)
 
-            if storage_name in VSC_DATA:
+            if storage_name == VSC_DATA:
                 user.create_data_dir()
 
             if storage_name in VSC_PRODUCTION_SCRATCH[host_institute]:
