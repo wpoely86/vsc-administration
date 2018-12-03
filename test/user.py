@@ -407,7 +407,7 @@ class VscTier2AccountpageUserTest(TestCase):
             )
             self.assertEqual(
                 accountpageuser.user_data_quota,
-                q['hard'] for q in quota if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == fileset][0]
+                [q['hard'] for q in quota if q['storage']['name'] == 'VSC_DATA' and q['fileset'] == fileset][0]
             )
 
 
