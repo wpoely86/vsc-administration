@@ -31,6 +31,7 @@ from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import RunQA, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
+from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_timestamp_with_default
 
 logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
@@ -85,12 +86,15 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
+    (last_timestamp, start_time) = retrieve_timestamp_with_default(
+        SYNC_TIMESTAMP_FILENAME,
+        start_timestamp=opts.options.start_timestamp,
+        default_timestamp="201710230000Z")
+    logging.info("Using timestamp %s", last_timestamp)
+    logging.info("Using startime %s", start_time)
+
     try:
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
-
-        last_timestamp = "201804010000Z"  # the beginning of time
-
-        logging.info("Last recorded timestamp was %s" % (last_timestamp))
 
         slurm_account_info = get_slurm_acct_info(SyncTypes.accounts)
         slurm_user_info = get_slurm_acct_info(SyncTypes.users)
@@ -137,15 +141,17 @@ def main():
         else:
             execute_commands(sacctmgr_commands)
 
+        if not opts.options.dry_run:
+            (_, ldap_timestamp) = convert_timestamp(start_time)
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+            opts.epilogue("Accounts synced to slurm", stats)
+        else:
+            logger.info("Dry run done")
+
     except Exception as err:
-        logger.exception("critical exception caught: %s" % (err))
+        logging.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
         sys.exit(NAGIOS_EXIT_CRITICAL)
-
-    if not opts.options.dry_run:
-        opts.epilogue("Accounts synced to slurm", stats)
-    else:
-        logger.info("Dry run done")
 
 
 if __name__ == "__main__":

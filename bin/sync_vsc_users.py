@@ -28,21 +28,19 @@ For each (active) user, the following tasks are done:
 The script should result in an idempotent execution, to ensure nothing breaks.
 """
 
+import logging
 import sys
-
-from datetime import datetime
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
 from vsc.config.base import GENT
-from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
-from vsc.utils.timestamp import convert_to_unix_timestamp
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.script_tools import ExtendedSimpleOption
+from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_timestamp_with_default
 
 NAGIOS_HEADER = "sync_vsc_users"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
@@ -89,18 +87,16 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
+    (last_timestamp, start_time) = retrieve_timestamp_with_default(
+        SYNC_TIMESTAMP_FILENAME,
+        start_timestamp=opts.options.start_timestamp,
+        default_timestamp="201710230000Z")
+    logging.info("Using timestamp %s", last_timestamp)
+    logging.info("Using startime %s", start_time)
+
     try:
-        now = datetime.utcnow()
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
 
-        try:
-            last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
-        except Exception:
-            logger.exception("Something broke reading the timestamp from %s" % SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "200901010000Z"
-
-        logger.info("Last recorded timestamp was %s" % (last_timestamp))
-        last_timestamp = convert_to_unix_timestamp(last_timestamp)
         institute = opts.options.host_institute
 
         (users_ok, users_fail) = ([], [])
@@ -108,17 +104,18 @@ def main():
         if opts.options.user:
             changed_accounts = client.account.institute[institute].modified[last_timestamp].get()[1]
 
-            logger.info("Found %d %s accounts that have changed in the accountpage since %s" %
+            logging.info("Found %d %s accounts that have changed in the accountpage since %s" %
                         (len(changed_accounts), institute, last_timestamp))
 
             accounts = nub([u['vsc_id'] for u in changed_accounts])
 
             for storage_name in opts.options.storage:
-                (users_ok, users_fail) = process_users(opts.options,
-                                                       accounts,
-                                                       storage_name,
-                                                       client,
-                                                       institute)
+                (users_ok, users_fail) = process_users(
+                    opts.options,
+                    accounts,
+                    storage_name,
+                    client,
+                    institute)
                 stats["%s_users_sync" % (storage_name,)] = len(users_ok)
                 stats["%s_users_sync_fail" % (storage_name,)] = len(users_fail)
                 stats["%s_users_sync_fail_warning" % (storage_name,)] = STORAGE_USERS_LIMIT_WARNING
@@ -128,13 +125,14 @@ def main():
                 storage_changed_quota = [mkVscUserSizeQuota(q) for q in
                                          client.quota.user.storage[storage_name].modified[last_timestamp].get()[1]]
                 storage_changed_quota = [q for q in storage_changed_quota if q.fileset.startswith('vsc')]
-                logger.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s",
+                logging.info("Found %d accounts that have changed quota on storage %s in the accountpage since %s",
                             len(storage_changed_quota), storage_name, last_timestamp)
-                (quota_ok, quota_fail) = process_users_quota(opts.options,
-                                                             storage_changed_quota,
-                                                             storage_name,
-                                                             client,
-                                                             institute)
+                (quota_ok, quota_fail) = process_users_quota(
+                    opts.options,
+                    storage_changed_quota,
+                    storage_name,
+                    client,
+                    institute)
                 stats["%s_quota_sync" % (storage_name,)] = len(quota_ok)
                 stats["%s_quota_sync_fail" % (storage_name,)] = len(quota_fail)
                 stats["%s_quota_sync_fail_warning" % (storage_name,)] = STORAGE_QUOTA_LIMIT_WARNING
@@ -149,28 +147,28 @@ def main():
             vos = sorted(set([v['vsc_id'] for v in changed_vos] +
                              [v['virtual_organisation'] for v in changed_vo_quota]))
 
-            logger.info("Found %d %s VOs that have changed in the accountpage since %s" %
+            logging.info("Found %d %s VOs that have changed in the accountpage since %s" %
                         (len(changed_vos), institute, last_timestamp))
-            logger.info("Found %d %s VOs that have changed quota in the accountpage since %s" %
+            logging.info("Found %d %s VOs that have changed quota in the accountpage since %s" %
                         (len(changed_vo_quota), institute, last_timestamp))
-            logger.debug("Found the following {institute} VOs: {vos}".format(institute=institute, vos=vos))
+            logging.debug("Found the following {institute} VOs: {vos}".format(institute=institute, vos=vos))
 
             for storage_name in opts.options.storage:
-                (vos_ok, vos_fail) = process_vos(opts.options,
-                                                 vos,
-                                                 storage_name,
-                                                 client,
-                                                 last_timestamp,
-                                                 institute)
+                (vos_ok, vos_fail) = process_vos(
+                    opts.options,
+                    vos,
+                    storage_name,
+                    client,
+                    last_timestamp,
+                    institute)
                 stats["%s_vos_sync" % (storage_name,)] = len(vos_ok)
                 stats["%s_vos_sync_fail" % (storage_name,)] = len(vos_fail)
                 stats["%s_vos_sync_fail_warning" % (storage_name,)] = STORAGE_VO_LIMIT_WARNING
                 stats["%s_vos_sync_fail_critical" % (storage_name,)] = STORAGE_VO_LIMIT_CRITICAL
 
-        if not (users_fail or quota_fail or vos_fail):
-            (_, ldap_timestamp) = convert_timestamp(now)
-            if not opts.options.dry_run:
-                write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
+        if not (users_fail or quota_fail or vos_fail) and not opts.options.dry_run:
+            (_, ldap_timestamp) = convert_timestamp(start_time)
+            write_timestamp(SYNC_TIMESTAMP_FILENAME, ldap_timestamp)
     except Exception as err:
         logger.exception("critical exception caught: %s" % (err))
         opts.critical("Script failed in a horrible way")
