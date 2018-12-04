@@ -30,14 +30,12 @@ The script should result in an idempotent execution, to ensure nothing breaks.
 
 import logging
 import sys
-import datetime
 
 from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVscUserSizeQuota
 from vsc.administration.user import process_users, process_users_quota
 from vsc.administration.vo import process_vos
 from vsc.config.base import GENT
-from vsc.utils.dateandtime import utc
 from vsc.utils import fancylogger
 from vsc.utils.missing import nub
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
