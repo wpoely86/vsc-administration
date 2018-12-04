@@ -38,7 +38,7 @@ PACKAGE = {
         'pytz',
         'python-ldap',
         'vsc-ldap-extension >= 1.3',
-        'vsc-utils >= 1.9.1',
+        'vsc-utils >= 1.10.0',
         'lockfile >= 0.9.1',
         'enum34',
     ],

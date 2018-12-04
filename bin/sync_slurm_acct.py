@@ -19,7 +19,6 @@ This script synchronises the users and VO's from the HPC account page to the Slu
 The script must result in an idempotent execution, to ensure nothing breaks.
 """
 
-import datetime
 import logging
 import sys
 
@@ -28,12 +27,11 @@ from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS
-from vsc.utils.dateandtime import utc
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import RunQA, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
-from vsc.utils.timestamp import convert_timestamp, read_timestamp, write_timestamp
+from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_timestamp_with_default
 
 logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
@@ -88,20 +86,12 @@ def main():
     opts = ExtendedSimpleOption(options)
     stats = {}
 
-    last_timestamp = opts.options.start_timestamp
-    if not last_timestamp:
-        try:
-            last_timestamp = read_timestamp(SYNC_TIMESTAMP_FILENAME)
-        except Exception:
-            logging.warning("Something broke reading the timestamp from %s", SYNC_TIMESTAMP_FILENAME)
-            last_timestamp = "201710230000Z"
-            logging.warning("We will resync from a hardcoded know working sync a while back : %s", last_timestamp)
-
+    (last_timestamp, start_time) = retrieve_timestamp_with_default(
+        SYNC_TIMESTAMP_FILENAME,
+        opts.options.start_timestamp,
+        "201710230000Z")
     logging.info("Using timestamp %s", last_timestamp)
-    # record starttime before starting, and take a 10 sec safety buffer so we don't get gaps where users are approved
-    # in between the requesting of modified users and writing out the start time
-    start_time = datetime.datetime.now(tz=utc) + datetime.timedelta(seconds=-10)
-    logging.info("startime %s", start_time)
+    logging.info("Using startime %s", start_time)
 
     try:
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
