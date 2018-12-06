@@ -29,17 +29,13 @@ from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_acc
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
-from vsc.utils.run import RunQA, RunQAStdout
+from vsc.utils.run import Run, RunQAStdout
 from vsc.utils.script_tools import ExtendedSimpleOption
 from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_timestamp_with_default
 
 logger = fancylogger.getLogger()
 fancylogger.logToScreen(True)
 fancylogger.setLogLevelInfo()
-
-RunQA.LOOP_MAX_MISS_COUNT = 30
-RunQAStdout.LOOP_MAX_MISS_COUNT = 30
-
 
 NAGIOS_HEADER = "sync_slurm_acct"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 60 * 60  # 60 minutes
@@ -55,7 +51,7 @@ def execute_commands(commands):
         logging.info("Running command: %s", command)
 
         # if one fails, we simply fail the script and should get notified
-        (ec, _) = RunQA.run(command, qa={"(N/y):": "y"}, add_newline=False)
+        (ec, _) = Run.run(command)
         if ec != 0:
             raise SacctMgrException("Command failed: {0}".format(command))
 
