@@ -48,8 +48,8 @@ class SlurmSyncTest(TestCase):
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
 
         self.assertEqual([tuple(x) for x in commands], [tuple(x) for x in [
-            shlex.split("/usr/bin/sacctmgr add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster"),
-            shlex.split("/usr/bin/sacctmgr add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster")
+            shlex.split("/usr/bin/sacctmgr -i add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster"),
+            shlex.split("/usr/bin/sacctmgr -i add account gvo00002 Parent=gent Organization=ugent Cluster=mycluster")
         ]])
 
     def test_slurm_user_accounts(self):
@@ -71,12 +71,12 @@ class SlurmSyncTest(TestCase):
         commands = slurm_user_accounts(vo_members, active_accounts, slurm_user_info, ["banette"])
 
         self.assertEqual(set([tuple(x) for x in commands]), set([tuple(x) for x in [
-            shlex.split("/usr/bin/sacctmgr add user user6 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr delete user name=user2 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr add user user3 Account=vo1 DefaultAccount=vo1 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr delete user name=user3 Account=vo2 where Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr add user user4 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
-            shlex.split("/usr/bin/sacctmgr delete user name=user4 Account=vo1 where Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i add user user6 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i delete user name=user2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i add user user3 Account=vo1 DefaultAccount=vo1 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i delete user name=user3 Account=vo2 where Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i add user user4 Account=vo2 DefaultAccount=vo2 Cluster=banette"),
+            shlex.split("/usr/bin/sacctmgr -i delete user name=user4 Account=vo1 where Cluster=banette"),
         ]]))
 
 
