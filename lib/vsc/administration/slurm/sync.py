@@ -155,6 +155,7 @@ def create_add_account_command(account, parent, organisation, cluster):
     """
     CREATE_ACCOUNT_COMMAND = [
         SLURM_SACCT_MGR,
+        "-i",   # commit immediately
         "add", 
         "account", 
         account, 
@@ -186,6 +187,7 @@ def create_add_user_command(user, vo_id, cluster):
     """
     CREATE_USER_COMMAND = [
         SLURM_SACCT_MGR,
+        "-i",   # commit immediately
         "add",
         "user", 
         user,
@@ -211,6 +213,7 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
     add_user_command = create_add_user_command(user, new_vo_id, cluster)
     REMOVE_ASSOCIATION_USER_COMMAND = [
         SLURM_SACCT_MGR,
+        "-i",   # commit immediately
         "delete",
         "user",
         "name={0}".format(user),
@@ -236,6 +239,7 @@ def create_remove_user_command(user, cluster):
     """
     REMOVE_USER_COMMAND = [
         SLURM_SACCT_MGR,
+        "-i",   # commit immediately
         "delete",
         "user",
         "name={user}".format(user=user),
