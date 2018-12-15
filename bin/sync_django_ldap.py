@@ -98,9 +98,7 @@ def main():
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
-            last = int(
-                (datetime.datetime.strptime(last_timestamp, "%Y%m%d%H%M%SZ") -
-                datetime.datetime(1970, 1, 1)).total_seconds())
+            last = last_timestamp
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
 
             logging.debug("Altered accounts: %s", altered_accounts)
