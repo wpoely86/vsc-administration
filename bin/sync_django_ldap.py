@@ -23,7 +23,6 @@ import os
 import pwd
 import sys
 
-import datetime
 from vsc.config.base import VSC_CONF_DEFAULT_FILENAME
 
 from vsc.accountpage.client import AccountpageClient
