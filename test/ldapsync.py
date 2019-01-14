@@ -103,7 +103,7 @@ class LDAPSyncerTest(TestCase):
         ldapsyncer = LdapSyncer(mock_client)
         accounts = ldapsyncer.sync_altered_accounts(1)
         self.assertEqual(accounts, {'error': set([]), 'new': set([]), 'updated': set([test_account.vsc_id])})
-        ldap_attrs = {'status': ['inactive'], 'scratchDirectory': ['/user/scratch/gent/vsc400/vsc40075'], 'dataDirectory': ['/user/data/gent/vsc400/vsc40075'], 'cn': 'vsc40075', 'homeQuota': ['5242880'], 'institute': ['gent'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2540075'], 'researchField': ['Bollocks'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/home/gent/vsc400/vsc40075'], 'mail': ['foobar@ugent.be'], 'scratchQuota': ['1'], 'pubkey': ['pubkey1', 'pubkey2'], 'instituteLogin': ['foobar'], 'uid': ['vsc40075']}
+        ldap_attrs = {'status': ['inactive'], 'scratchDirectory': ['/scratch/brussel/vsc100/vsc10001'], 'dataDirectory': ['/data/brussel/vsc100/vsc10001'], 'cn': 'vsc10004', 'homeQuota': ['5242880'], 'institute': ['brussel'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2510004'], 'researchField': ['Dinges'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/brussel/vsc100/vsc10001'], 'mail': ['foobar@vub.ac.be'], 'scratchQuota': ['1'], 'pubkey': ['pubkey1', 'pubkey2'], 'instituteLogin': ['fooby'], 'uid': ['vsc10004']} 
         mock_add_or_update.assert_called_with(VscLdapUser, test_account.vsc_id, ldap_attrs, True)
 
 
