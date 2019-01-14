@@ -102,6 +102,28 @@ test_account_3 = {
     u'force_active': False,
 }
 
+test_account_4 = {
+    u'broken': False,
+    u'create_timestamp': u'1970-01-01T00:00:00.297Z',
+    u'data_directory': u'/data/brussel/vsc100/vsc10001',
+    u'email': u'foobar@vub.ac.be',
+    u'home_directory': u'/user/brussel/vsc100/vsc10001',
+    u'login_shell': u'/bin/bash',
+    u'person': {
+        u'gecos': u'Foo Bar',
+        u'institute': {u'site': u'brussel'},
+        u'institute_login': u'fooby'
+    },
+    u'research_field': [u'Dinges', u'Pluto'],
+    u'scratch_directory': u'/scratch/brussel/vsc100/vsc10001',
+    u'status': u'forceinactive',
+    u'vsc_id': u'vsc10004',
+    u'vsc_id_number': 2510004,
+    u'expiry_date': u'2030-01-01',
+    u'home_on_scratch': False,
+    u'force_active': False,
+}
+
 test_usergroup_1 = {
     "vsc_id": "vsc40075",
     "vsc_id_number": 2540075,

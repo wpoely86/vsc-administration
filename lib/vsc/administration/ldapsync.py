@@ -135,6 +135,10 @@ class LdapSyncer(object):
             if not public_keys:
                 public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
 
+            LDAP_STATE_MAPPER = {
+                'forceinactive': 'inactive'
+            }
+
             ldap_attributes = {
                 'cn': str(account.vsc_id),
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
@@ -150,7 +154,7 @@ class LdapSyncer(object):
                 'gidNumber': [str(usergroup.vsc_id_number)],
                 'loginShell': [str(account.login_shell)],
                 'researchField': [str(account.research_field[0])],
-                'status': [str(account.status)],
+                'status': [LDAP_STATE_MAPPER.get(str(account.status), str(account.status))],
                 'homeQuota': ["1"],
                 'dataQuota': ["1"],
                 'scratchQuota': ["1"],
