@@ -90,8 +90,7 @@ def main():
 
     (last_timestamp, start_time) = retrieve_timestamp_with_default(
         SYNC_TIMESTAMP_FILENAME,
-        start_timestamp=opts.options.start_timestamp,
-        default_timestamp="201710230000")
+        start_timestamp=opts.options.start_timestamp)
     logging.info("Using timestamp %s", last_timestamp)
     logging.info("Using startime %s", start_time)
 
