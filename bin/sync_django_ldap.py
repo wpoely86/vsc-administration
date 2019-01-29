@@ -52,6 +52,7 @@ def main():
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
         'account_page_url': ('url for the account page', None, 'store', None),
+        'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
         }
     # get access_token from conf file
     ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
@@ -64,7 +65,7 @@ def main():
     (last_timestamp, start_time) = retrieve_timestamp_with_default(
         SYNC_TIMESTAMP_FILENAME,
         start_timestamp=opts.options.start_timestamp,
-        default_timestamp="201710230000Z")
+        default_timestamp="201710230000")
     logging.info("Using timestamp %s", last_timestamp)
     logging.info("Using startime %s", start_time)
 
