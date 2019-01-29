@@ -82,6 +82,7 @@ def main():
         'access_token': ('OAuth2 token to access the account page REST API', None, 'store', None),
         'account_page_url': ('URL of the account page where we can find the REST API', None, 'store', None),
         'host_institute': ('Name of the institute where this script is being run', str, 'store', GENT),
+        'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -89,8 +90,7 @@ def main():
 
     (last_timestamp, start_time) = retrieve_timestamp_with_default(
         SYNC_TIMESTAMP_FILENAME,
-        start_timestamp=opts.options.start_timestamp,
-        default_timestamp="201710230000Z")
+        start_timestamp=opts.options.start_timestamp)
     logging.info("Using timestamp %s", last_timestamp)
     logging.info("Using startime %s", start_time)
 
