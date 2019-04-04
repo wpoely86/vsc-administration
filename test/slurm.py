@@ -37,12 +37,12 @@ class SlurmSyncTest(TestCase):
         """Test that the commands to create accounts are correctly generated."""
 
         vos = [
-            VO(vsc_id="gvo00001", institute={"site": "gent"}),
-            VO(vsc_id="gvo00002", institute={"site": "gent"}),
-            VO(vsc_id="gvo00012", institute={"site": "gent"}),
-            VO(vsc_id="gvo00016", institute={"site": "gent"}),
-            VO(vsc_id="gvo00017", institute={"site": "gent"}),
-            VO(vsc_id="gvo00018", institute={"site": "gent"}),
+            VO(vsc_id="gvo00001", institute={"name": "gent"}),
+            VO(vsc_id="gvo00002", institute={"name": "gent"}),
+            VO(vsc_id="gvo00012", institute={"name": "gent"}),
+            VO(vsc_id="gvo00016", institute={"name": "gent"}),
+            VO(vsc_id="gvo00017", institute={"name": "gent"}),
+            VO(vsc_id="gvo00018", institute={"name": "gent"}),
         ]
 
         commands = slurm_vo_accounts(vos, [], ["mycluster"])
@@ -55,8 +55,8 @@ class SlurmSyncTest(TestCase):
     def test_slurm_user_accounts(self):
         """Test that the commands to create, change and remove users are correctly generated."""
         vo_members = {
-            "vo1": (set(["user1", "user2", "user3"]), VO(vsc_id="vo1", institute={"site": "gent"})),
-            "vo2": (set(["user4", "user5", "user6"]), VO(vsc_id="vo2", institute={"site": "gent"})),
+            "vo1": (set(["user1", "user2", "user3"]), VO(vsc_id="vo1", institute={"name": "gent"})),
+            "vo2": (set(["user4", "user5", "user6"]), VO(vsc_id="vo2", institute={"name": "gent"})),
         }
 
         active_accounts = set(["user1", "user3", "user4", "user5", "user6", "user7"])

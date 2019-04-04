@@ -50,7 +50,7 @@ test_vo_1 = {
     "status": "active",
     "vsc_id_number": 2640010,
     "institute": {
-        "site": "gent"
+        "name": "gent"
     },
     "fairshare": 100,
     "data_path": "/user/data/gent/gvo000/gvo00003",

@@ -112,7 +112,7 @@ def parse_slurm_acct_dump(lines, info_type):
         line = line.rstrip()
         try:
             info = parse_slurm_acct_line(header, line, info_type, user_field_number)
-            # This fails when we get e.g., the users and look at the account lines. 
+            # This fails when we get e.g., the users and look at the account lines.
             # We should them just skip that line instead of raising an exception
             if info:
                 acct_info.add(info)
@@ -156,9 +156,9 @@ def create_add_account_command(account, parent, organisation, cluster):
     CREATE_ACCOUNT_COMMAND = [
         SLURM_SACCT_MGR,
         "-i",   # commit immediately
-        "add", 
-        "account", 
-        account, 
+        "add",
+        "account",
+        account,
         "Parent={0}".format(parent or "root"),
         "Organization={0}".format(SLURM_ORGANISATIONS[organisation]),
         "Cluster={0}".format(cluster),
@@ -189,7 +189,7 @@ def create_add_user_command(user, vo_id, cluster):
         SLURM_SACCT_MGR,
         "-i",   # commit immediately
         "add",
-        "user", 
+        "user",
         user,
         "Account={0}".format(vo_id),
         "DefaultAccount={0}".format(vo_id),
@@ -207,7 +207,7 @@ def create_add_user_command(user, vo_id, cluster):
 
 def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
     """Creates the commands to change a user's account.
-    
+
     @returns: two lists comprising the commands
     """
     add_user_command = create_add_user_command(user, new_vo_id, cluster)
@@ -234,7 +234,7 @@ def create_change_user_command(user, current_vo_id, new_vo_id, cluster):
 
 def create_remove_user_command(user, cluster):
     """Create the command to remove a user.
-    
+
     @returns: list comprising the command
     """
     REMOVE_USER_COMMAND = [
@@ -291,9 +291,9 @@ def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters):
             if vo.vsc_id not in cluster_accounts:
                 commands.append(create_add_account_command(
                     account=vo.vsc_id,
-                    parent=vo.institute['site'],
+                    parent=vo.institute['name'],
                     cluster=cluster,
-                    organisation=vo.institute['site']
+                    organisation=vo.institute['name']
                 ))
 
     return commands
@@ -313,7 +313,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
         active_vo_members |= members & active_accounts
 
         for m in members:
-            reverse_vo_mapping[m] = (vo.vsc_id, vo.institute["site"])
+            reverse_vo_mapping[m] = (vo.vsc_id, vo.institute['name'])
 
     for cluster in clusters:
         cluster_users_acct = [
@@ -333,7 +333,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
 
             # these are users not yet in the Slurm DB for this cluster
             new_users |= set([
-                (user, vo.vsc_id, vo.institute["site"])
+                (user, vo.vsc_id, vo.institute['name'])
                 for user in (members & active_accounts) - cluster_users
             ])
 

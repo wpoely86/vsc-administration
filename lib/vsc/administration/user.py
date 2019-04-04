@@ -122,7 +122,7 @@ class VscAccountPageUser(object):
         """
         Get the first letter of the institute the user belongs to.
         """
-        return self.person.institute['site'][0]
+        return self.person.institute['name'][0]
 
 
 class VscTier2AccountpageUser(VscAccountPageUser):
@@ -209,7 +209,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             return quota.fileset == fileset_name and quota.storage['storage_type'] == storage_type
 
         # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
-        if self.person.institute['site'] == self.host_institute:
+        if self.person.institute['name'] == self.host_institute:
             self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
             self._cache['quota']['data'] = [q.hard for q in institute_quota
                                             if user_proposition(q, 'data') and not

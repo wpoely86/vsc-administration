@@ -63,7 +63,7 @@ class VoDeploymentTest(TestCase):
                 u'login_shell': u'/bin/bash',
                 u'person': {
                     u'gecos': u'Andy Georges',
-                    u'institute': {u'site': u'gent'},
+                    u'institute': {u'name': u'gent'},
                     u'institute_login': u'ageorges'
                 },
                 u'research_field': [u'Computer systems, architectures, networks', u'nwo'],
@@ -133,7 +133,7 @@ class VoDeploymentTest(TestCase):
                 u'login_shell': u'/bin/bash',
                 u'person': {
                     u'gecos': u'Andy Georges',
-                    u'institute': {u'site': u'leuven'},
+                    u'institute': {u'name': u'leuven'},
                     u'institute_login': u'ageorges'
                 },
                 u'research_field': [u'Computer systems, architectures, networks', u'nwo'],
@@ -201,7 +201,7 @@ class VoDeploymentTest(TestCase):
                 u'login_shell': u'/bin/bash',
                 u'person': {
                     u'gecos': u'Andy Georges',
-                    u'institute': {u'site': u'leuven'},
+                    u'institute': {u'name': u'leuven'},
                     u'institute_login': u'ageorges'
                 },
                 u'research_field': [u'Computer systems, architectures, networks', u'nwo'],

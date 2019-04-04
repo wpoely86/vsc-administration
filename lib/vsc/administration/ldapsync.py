@@ -144,7 +144,7 @@ class LdapSyncer(object):
                 'uidNumber': ["%s" % (account.vsc_id_number,)],
                 'gecos': [gecos],
                 'mail': [str(account.email)],
-                'institute': [str(account.person.institute['site'])],
+                'institute': [str(account.person.institute['name'])],
                 'instituteLogin': [str(account.person.institute_login)],
                 'uid': [str(account.vsc_id)],
                 'homeDirectory': [str(account.home_directory)],
@@ -199,7 +199,7 @@ class LdapSyncer(object):
                     raise
             ldap_attributes = {
                 'cn': str(group.vsc_id),
-                'institute': [str(group.institute['site'])],
+                'institute': [str(group.institute['name'])],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': [str(m) for m in group.moderators],
                 'memberUid': [str(a) for a in group.members],
