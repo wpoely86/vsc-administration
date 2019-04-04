@@ -114,7 +114,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
                          whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
                                             "Could not get quotata from accountpage for VO %s" % self.vo.vsc_id)[1]
                         ]
-            self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['site']]
+            self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['name']]
         return self._institute_quota_cache
 
     def _get_institute_data_quota(self):

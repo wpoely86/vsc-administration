@@ -44,7 +44,7 @@ test_account_1 = {
     u'login_shell': u'/bin/bash',
     u'person': {
         u'gecos': u'Foo Bar',
-        u'institute': {u'site': u'gent'},
+        u'institute': {u'name': u'gent'},
         u'institute_login': u'foobar'
     },
     u'research_field': [u'Bollocks', u'Pluto'],
@@ -67,7 +67,7 @@ test_account_2 = {
     u'login_shell': u'/bin/bash',
     u'person': {
         u'gecos': u'Foo Bar',
-        u'institute': {u'site': u'gent'},
+        u'institute': {u'name': u'gent'},
         u'institute_login': u'x_admin'
     },
     u'research_field': [u'Bollocks', u'Pluto'],
@@ -89,7 +89,7 @@ test_account_3 = {
     u'login_shell': u'/bin/bash',
     u'person': {
         u'gecos': u'Foo Bar',
-        u'institute': {u'site': u'brussel'},
+        u'institute': {u'name': u'brussel'},
         u'institute_login': u'fooby'
     },
     u'research_field': [u'Dinges', u'Pluto'],
@@ -111,7 +111,7 @@ test_account_4 = {
     u'login_shell': u'/bin/bash',
     u'person': {
         u'gecos': u'Foo Bar',
-        u'institute': {u'site': u'brussel'},
+        u'institute': {u'name': u'brussel'},
         u'institute_login': u'fooby'
     },
     u'research_field': [u'Dinges', u'Pluto'],
@@ -129,7 +129,7 @@ test_usergroup_1 = {
     "vsc_id_number": 2540075,
     "status": "active",
     "institute": {
-        "site": "gent"
+        "name": "gent"
     },
     "members": [
         "vsc40075"
@@ -145,7 +145,7 @@ test_admin_group_1 = {
     "status": "active",
     "vsc_id_number": 2540003,
     "institute": {
-        "site": "gent"
+        "name": "gent"
     },
     "members": [],
     "moderators": [],
@@ -188,7 +188,7 @@ test_hos_1 = [
             "person": {
                 "gecos": "Andy Georges",
                 "institute": {
-                    "site": "gent"
+                    "name": "gent"
                 },
                 "institute_login": "ageorges",
             },

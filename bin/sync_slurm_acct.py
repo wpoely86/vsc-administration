@@ -18,6 +18,7 @@ This script synchronises the users and VO's from the HPC account page to the Slu
 
 The script must result in an idempotent execution, to ensure nothing breaks.
 """
+from __future__ import print_function
 
 import logging
 import sys
