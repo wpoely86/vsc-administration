@@ -21,7 +21,7 @@ Original Perl code by Stijn De Weirdt
 """
 
 import logging
-import os
+from os import stat as os_stat
 import stat
 
 from vsc.utils import fancylogger
@@ -54,10 +54,9 @@ def create_stat_directory(path, permissions, uid, gid, posix, override_permissio
     Create a new directory if it does not exist and set permissions, ownership. Otherwise,
     check the permissions and ownership and change if needed.
     """
-
     created = False
     try:
-        statinfo = os.stat(path)
+        statinfo = os_stat(path)
         logging.debug("Path %s found.", path)
     except OSError:
         created = posix.make_dir(path)

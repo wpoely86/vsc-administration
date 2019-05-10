@@ -29,7 +29,7 @@ class StatDirTest(TestCase):
     """
     Tests for the VO code.
     """
-    @mock.patch('os.stat')
+    @mock.patch('vsc.administration.tools.os_stat')
     @mock.patch('vsc.filesystem.posix')
     def test_create_stat_dir_new(self, mock_posix, mock_os_stat):
         """
@@ -51,7 +51,7 @@ class StatDirTest(TestCase):
         mock_posix.chmod.assert_called_with(test_permissions, test_path)
         mock_posix.chown.assert_called_with(test_uid, test_gid, test_path)
 
-    @mock.patch('os.stat')
+    @mock.patch('vsc.administration.tools.os_stat')
     @mock.patch('vsc.filesystem.posix')
     def test_create_stat_dir_existing_no_override_same_id(self, mock_posix, mock_os_stat):
         """
@@ -72,7 +72,7 @@ class StatDirTest(TestCase):
         self.assertFalse(mock_posix.make_dir.called)
         self.assertFalse(mock_posix.chmod.called)
 
-    @mock.patch('os.stat')
+    @mock.patch('vsc.administration.tools.os_stat')
     @mock.patch('vsc.filesystem.posix')
     def test_create_stat_dir_existing_no_override_diff_uid(self, mock_posix, mock_os_stat):
         """
@@ -93,7 +93,7 @@ class StatDirTest(TestCase):
         self.assertFalse(mock_posix.make_dir.called)
         mock_posix.chown.assert_called_with(test_uid, test_gid, test_path)
 
-    @mock.patch('os.stat')
+    @mock.patch('vsc.administration.tools.os_stat')
     @mock.patch('vsc.filesystem.posix')
     def test_create_stat_dir_existing_no_override_diff_gid(self, mock_posix, mock_os_stat):
         """
@@ -114,7 +114,7 @@ class StatDirTest(TestCase):
         self.assertFalse(mock_posix.make_dir.called)
         mock_posix.chown.assert_called_with(test_uid, test_gid, test_path)
 
-    @mock.patch('os.stat')
+    @mock.patch('vsc.administration.tools.os_stat')
     @mock.patch('stat.S_IMODE')
     @mock.patch('vsc.filesystem.posix')
     def test_create_stat_dir_existing_override(self, mock_posix, mock_stat_s_imode, mock_os_stat):

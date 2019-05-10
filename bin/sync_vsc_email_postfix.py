@@ -23,6 +23,7 @@ import logging
 from vsc.accountpage.sync import Sync
 
 
+
 class VscPostfixSync(Sync):
     CLI_OPTIONS = {
         'postfix_canonical_map': ('Location of the postfix canonical map', None, 'store', '/etc/postfix/vsc_canonical'),
@@ -44,21 +45,20 @@ class VscPostfixSync(Sync):
             return
 
         active_emails = dict([("%s@vscentrum.be" % a.vsc_id, a.email) for a in active_accounts])
-        inactive_emails = set([("%s@vscentrum.be" % a.vsc_id, a.email) for a in inactive_accounts])
+        inactive_emails = set(["%s@vscentrum.be" % a.vsc_id for a in inactive_accounts])
 
         logging.debug("active emails: %s" % active_emails)
         logging.debug("inactive emails: %s" % inactive_emails)
 
         address_map = dict()
-        address_set = set()
         try:
             with open(self.options.postfix_canonical_map, 'r') as cm:
-                address_set = set([tuple(l.split()) for l in cm.readlines() if l])
+                address_map = dict(
+                    [tuple(l) for l in [l.split() for l in cm.readlines()] if l and l[0] not in inactive_emails]
+                )
         except IOError as err:
             logging.warning("No canonical map at %s: %s", self.options.postfix_canonical_map, err)
 
-        address_set -= inactive_emails
-        address_map = dict(address_set)
         address_map.update(active_emails)
 
         txt = "\n".join(["%s %s" % kv for kv in address_map.items()])
