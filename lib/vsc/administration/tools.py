@@ -24,10 +24,6 @@ import logging
 from os import stat as os_stat
 import stat
 
-from vsc.utils import fancylogger
-from vsc.utils.mail import VscMail
-
-
 TIER1_GRACE_GROUP_SUFFIX = "t1_mukgraceusers"
 TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
 UGENT_SMTP_ADDRESS = "smtp.ugent.be"
@@ -44,10 +40,6 @@ this email which will open a ticket in our helpdesk system for you.
 Kind regards,
 -- The UGent HPC team
 """
-
-logger = fancylogger.getLogger(__name__)
-mailer = VscMail()
-
 
 def create_stat_directory(path, permissions, uid, gid, posix, override_permissions=True):
     """

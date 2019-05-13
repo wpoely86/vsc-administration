@@ -70,7 +70,7 @@ class VscPostfixSync(Sync):
         else:
             with open(self.options.postfix_canonical_map, 'w') as cm:
                 cm.write(txt)
-                logging.info("File %s written. %d entries." % self.options.postfix_canonical_map, len(address_map))
+                logging.info("File %s written. %d entries.", self.options.postfix_canonical_map, len(address_map))
 
 
 if __name__ == '__main__':
