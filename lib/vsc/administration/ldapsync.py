@@ -197,9 +197,13 @@ class LdapSyncer(object):
                 # if a 404 occured, the group is not an VO, so we skip this. Otherwise something else went wrong.
                 if err.code != 404:
                     raise
+            group_moderators = [str(m) for m in group.moderators]
+            institute_name = str(group.institute['name'])
+            if not group_moderators:
+                group_moderators = [VSC_CONFIG.backup_group_mods[str(group.institute['name'])]]
             ldap_attributes = {
                 'cn': str(group.vsc_id),
-                'institute': [str(group.institute['name'])],
+                'institute': [institute_name],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': [str(m) for m in group.moderators],
                 'memberUid': [str(a) for a in group.members],
