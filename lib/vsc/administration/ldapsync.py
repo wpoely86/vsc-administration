@@ -205,7 +205,7 @@ class LdapSyncer(object):
                 'cn': str(group.vsc_id),
                 'institute': [institute_name],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
-                'moderator': [str(m) for m in group.moderators],
+                'moderator': group_moderators,
                 'memberUid': [str(a) for a in group.members],
                 'status': [str(group.status)],
             }
