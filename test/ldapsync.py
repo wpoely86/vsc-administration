@@ -175,7 +175,7 @@ class LDAPSyncerTest(TestCase):
         ldap_attrs = {
             'status': ['inactive'],
             'cn': 'gtestgroup',
-            'institute': 'gent',
+            'institute': ['gent'],
             'memberUid': ['vsc40075'],
             'moderator': ['vsc40003'],
             'gidNumber': ['2640011'],
