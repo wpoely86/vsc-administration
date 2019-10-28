@@ -200,7 +200,7 @@ class LdapSyncer(object):
             group_moderators = [str(m) for m in group.moderators]
             institute_name = str(group.institute['name'])
             if not group_moderators:
-                group_moderators = [VSC_CONFIG.backup_group_mods[group.institute['name']]]
+                group_moderators = [str(VSC_CONFIG.backup_group_mods[group.institute['name']])]
                 logging.info("Using backup moderator %s for group %s", group_moderators, group.vsc_id)
             ldap_attributes = {
                 'cn': str(group.vsc_id),
