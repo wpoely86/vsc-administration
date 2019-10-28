@@ -64,6 +64,22 @@ test_vo_1 = {
     ]
 }
 
+test_group_1 = {
+    "vsc_id": "gtestgroup",
+    "status": "inactive",
+    "vsc_id_number": 2640011,
+    "institute": {
+        "name": "gent"
+    },
+    "description": "a test group",
+    "members": [
+        "vsc40075",
+    ],
+    "moderators": [
+    ]
+}
+
+
 
 class LDAPSyncerTest(TestCase):
     """
@@ -103,7 +119,7 @@ class LDAPSyncerTest(TestCase):
         ldapsyncer = LdapSyncer(mock_client)
         accounts = ldapsyncer.sync_altered_accounts(1)
         self.assertEqual(accounts, {'error': set([]), 'new': set([]), 'updated': set([test_account.vsc_id])})
-        ldap_attrs = {'status': ['inactive'], 'scratchDirectory': ['/scratch/brussel/vsc100/vsc10001'], 'dataDirectory': ['/data/brussel/vsc100/vsc10001'], 'cn': 'vsc10004', 'homeQuota': ['5242880'], 'institute': ['brussel'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2510004'], 'researchField': ['Dinges'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/brussel/vsc100/vsc10001'], 'mail': ['foobar@vub.ac.be'], 'scratchQuota': ['1'], 'pubkey': ['pubkey1', 'pubkey2'], 'instituteLogin': ['fooby'], 'uid': ['vsc10004']} 
+        ldap_attrs = {'status': ['inactive'], 'scratchDirectory': ['/scratch/brussel/vsc100/vsc10001'], 'dataDirectory': ['/data/brussel/vsc100/vsc10001'], 'cn': 'vsc10004', 'homeQuota': ['5242880'], 'institute': ['brussel'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2510004'], 'researchField': ['Dinges'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/brussel/vsc100/vsc10001'], 'mail': ['foobar@vub.ac.be'], 'scratchQuota': ['1'], 'pubkey': ['pubkey1', 'pubkey2'], 'instituteLogin': ['fooby'], 'uid': ['vsc10004']}
         mock_add_or_update.assert_called_with(VscLdapUser, test_account.vsc_id, ldap_attrs, True)
 
 
@@ -135,3 +151,34 @@ class LDAPSyncerTest(TestCase):
         ldap_attrs =  {'status': ['active'], 'cn': 'vsc40075', 'institute': ['gent'], 'memberUid': ['vsc40075'],
                        'moderator': ['vsc40075'], 'gidNumber': ['2540075']}
         mock_add_or_update.assert_called_with(VscLdapGroup, test_group.vsc_id, ldap_attrs, True)
+
+    @mock.patch.object(vsc.administration.ldapsync.LdapSyncer, 'add_or_update')
+    def test_sync_group_without_moderators(self, mock_add_or_update):
+        """Test the synchronisation of the group without active mods."""
+        mock_client = mock.MagicMock()
+        test_group = mkGroup(test_group_1)
+        mock_client.allgroups.modified[1].get.return_value = (200, [test_group_1])
+        mock_client.vo[test_group.vsc_id].get.side_effect = HTTPError(
+            None,
+            404,
+            'not found',
+            None,
+            None
+        )
+
+        mock_add_or_update.return_value = UPDATED
+
+        ldapsyncer = LdapSyncer(mock_client)
+        groups = ldapsyncer.sync_altered_groups(1)
+        self.assertEqual(groups, {'error': set([]), 'new': set([]), 'updated': set([test_group.vsc_id])})
+
+        ldap_attrs = {
+            'status': ['inactive'],
+            'cn': 'gtestgroup',
+            'institute': ['gent'],
+            'memberUid': ['vsc40075'],
+            'moderator': ['vsc40003'],
+            'gidNumber': ['2640011'],
+        }
+        mock_add_or_update.assert_called_with(VscLdapGroup, test_group.vsc_id, ldap_attrs, True)
+
