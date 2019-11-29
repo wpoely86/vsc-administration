@@ -24,7 +24,7 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '1.10.0',
+    'version': '1.10.1',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
@@ -36,7 +36,7 @@ PACKAGE = {
         'vsc-accountpage-clients >= 1.2.0',
         'vsc-base >= 2.8.3',
         'vsc-config >= 2.6.0',
-        'vsc-filesystems >= 0.19',
+        'vsc-filesystems >= 0.40.0',
         'vsc-ldap >= 1.1',
         'pytz',
         'python-ldap',
