@@ -111,8 +111,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         if not self._institute_quota_cache:
             all_quota = [mkVscVoSizeQuota(q) for q in
                          whenHTTPErrorRaise(self.rest_client.vo[self.vo.vsc_id].quota.get,
-                                            "Could not get quotata from accountpage for VO %s" % self.vo.vsc_id)[1]
-                        ]
+                                            "Could not get quotata from accountpage for VO %s" % self.vo.vsc_id)[1]]
             self._institute_quota_cache = [q for q in all_quota if q.storage['institute'] == self.vo.institute['name']]
         return self._institute_quota_cache
 
@@ -440,8 +439,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             0o700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
-            override_permissions=False  # we should not override permissions on an existing dir where users may have changed them
-        )
+            # we should not override permissions on an existing dir where users may have changed them
+            override_permissions=False)
 
     def create_member_data_dir(self, member):
         """Create a directory on data in the VO fileset that is owned
@@ -502,7 +501,7 @@ def update_vo_status(vo, client):
     payload = {"status": ACTIVE}
     try:
         response = client.vo[vo.vo_id].patch(body=payload)
-    except HTTPError, err:
+    except HTTPError as err:
         logging.error("VO %s status was not changed", vo.vo_id)
         raise VoStatusUpdateError("Vo %s status was not changed - received HTTP code %d" % err.code)
     else:
