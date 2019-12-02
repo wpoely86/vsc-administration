@@ -30,7 +30,6 @@ from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
-from vsc.administration.tools import create_stat_directory
 from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL
 from vsc.config.base import GENT, VO_PREFIX_BY_SITE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
@@ -317,12 +316,11 @@ class VscTier2AccountpageUser(VscAccountPageUser):
                 logging.warning("Trying to make a user dir, but a symlink already exists at %s", path)
                 return
 
-            create_stat_directory(
+            self.gpfs.create_stat_directory(
                 path,
                 0o700,
                 int(self.account.vsc_id_number),
                 int(self.usergroup.vsc_id_number),
-                self.gpfs
             )
         except Exception:
             logging.exception("Could not create dir %s for user %s", path_f(), self.account.vsc_id)

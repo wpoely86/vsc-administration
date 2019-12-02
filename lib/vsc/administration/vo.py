@@ -29,7 +29,6 @@ import pwd
 from urllib2 import HTTPError
 
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount, mkVscAutogroup
-from vsc.administration.tools import create_stat_directory
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
 from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRATCH_KEY
@@ -436,13 +435,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
-        create_stat_directory(
+        self.gpfs.create_stat_directory(
             target,
             0o700,
             int(member.account.vsc_id_number),
             int(member.usergroup.vsc_id_number),
-            self.gpfs,
-            False  # we should not override permissions on an existing dir where users may have changed them
+            override_permissions=False  # we should not override permissions on an existing dir where users may have changed them
         )
 
     def create_member_data_dir(self, member):
