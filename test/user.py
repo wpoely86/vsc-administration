@@ -45,7 +45,8 @@ test_account_1 = {
     u'person': {
         u'gecos': u'Foo Bar',
         u'institute': {u'name': u'gent'},
-        u'institute_login': u'foobar'
+        u'institute_login': u'foobar',
+        u'institute_affiliation': u'staff',
     },
     u'research_field': [u'Bollocks', u'Pluto'],
     u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
@@ -55,7 +56,6 @@ test_account_1 = {
     u'expiry_date': u'2032-01-01',
     u'home_on_scratch': False,
     u'force_active': False,
-
 }
 
 test_account_2 = {
@@ -68,7 +68,8 @@ test_account_2 = {
     u'person': {
         u'gecos': u'Foo Bar',
         u'institute': {u'name': u'gent'},
-        u'institute_login': u'x_admin'
+        u'institute_login': u'x_admin',
+        u'institute_affiliation': u'staff',
     },
     u'research_field': [u'Bollocks', u'Pluto'],
     u'scratch_directory': u'/user/scratch/gent/vsc400/vsc40075',
@@ -90,7 +91,8 @@ test_account_3 = {
     u'person': {
         u'gecos': u'Foo Bar',
         u'institute': {u'name': u'brussel'},
-        u'institute_login': u'fooby'
+        u'institute_login': u'fooby',
+        u'institute_affiliation': u'staff',
     },
     u'research_field': [u'Dinges', u'Pluto'],
     u'scratch_directory': u'/scratch/brussel/vsc100/vsc10001',
@@ -112,7 +114,8 @@ test_account_4 = {
     u'person': {
         u'gecos': u'Foo Bar',
         u'institute': {u'name': u'brussel'},
-        u'institute_login': u'fooby'
+        u'institute_login': u'fooby',
+        u'institute_affiliation': u'staff',
     },
     u'research_field': [u'Dinges', u'Pluto'],
     u'scratch_directory': u'/scratch/brussel/vsc100/vsc10001',
