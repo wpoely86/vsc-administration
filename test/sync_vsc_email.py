@@ -81,9 +81,9 @@ class TestVscPostfixSync(TestCase):
         newmap = [
             "vsc40001@vscentrum.be huppel@bar.com",
             "vsc40002@vscentrum.be foo2@bar.com",
-            "",
         ]
 
         vps.do(False)
         with open(cmfn, 'r') as c:
-            self.assertEqual(c.read(), "\n".join(newmap))
+            testmap = sorted([x.strip() for x in c.readlines()])
+            self.assertEqual(testmap, newmap)
