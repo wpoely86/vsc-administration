@@ -430,11 +430,6 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             logging.error("No VO %s scratch quota set for member %s on %s",
                           self.vo.vsc_id, member.account.vsc_id, storage_name)
 
-    def _set_member_symlink(self, member, origin, target, fake_target):
-        """Create a symlink for this user from origin to target"""
-        logging.info("Trying to create a symlink for %s from %s to %s [%s]. Deprecated. Not doing anything.",
-                     member.user_id, origin, fake_target, target)
-
     def _create_member_dir(self, member, target):
         """Create a member-owned directory in the VO fileset."""
         self.gpfs.create_stat_directory(
@@ -456,18 +451,6 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         by the member with name $VSC_SCRATCH_VO/<vscid>."""
         target = os.path.join(self._scratch_path(storage_name), member.user_id)
         self._create_member_dir(member, target)
-
-    def set_member_data_symlink(self, member):
-        """(Re-)creates the symlink that points from $VSC_DATA to $VSC_DATA_VO/<vscid>."""
-        logging.warning("Trying to set a symlink for a VO member %s. Deprecated. Not doing anything", member)
-
-    def set_member_scratch_symlink(self, storage_name, member):
-        """(Re-)creates the symlink that points from $VSC_SCRATCH to $VSC_SCRATCH_VO/<vscid>.
-
-        @deprecated. We should not create new symlinks.
-        """
-        logging.warning("Trying to set a symlink for a VO member %s on %s. Deprecated. Not doing anything",
-                        member, storage_name)
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
