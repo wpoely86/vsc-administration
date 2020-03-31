@@ -18,7 +18,7 @@ This file contains the utilities for dealing with users on the VSC.
 
 @author: Stijn De Weirdt (Ghent University)
 @author: Andy Georges (Ghent University)
-@author: Ward Poelmans (Free University of Brussels)
+@author: Ward Poelmans (Vrije Universiteit Brussel)
 """
 
 import logging
@@ -30,12 +30,14 @@ from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL
-from vsc.config.base import GENT, VO_PREFIX_BY_SITE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA
-from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
+from vsc.config.base import (
+    VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL,
+    GENT, VO_PREFIX_BY_SITE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA,
+    NEW, MODIFIED, MODIFY, ACTIVE, HOME_KEY, DATA_KEY, SCRATCH_KEY,
+    STORAGE_SHARED_SUFFIX,
+)
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-
 
 
 # Cache for user instances
@@ -209,11 +211,11 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
         if self.person.institute['name'] == self.host_institute:
-            self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
+            self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, HOME_KEY)][0]
             self._cache['quota']['data'] = [q.hard for q in institute_quota
-                                            if user_proposition(q, 'data') and not
-                                            q.storage['name'].endswith('SHARED')][0]
-            self._cache['quota']['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+                                            if user_proposition(q, DATA_KEY) and not
+                                            q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)][0]
+            self._cache['quota']['scratch'] = filter(lambda q: user_proposition(q, SCRATCH_KEY), institute_quota)
         else:
             self._cache['quota']['home'] = None
             self._cache['quota']['data'] = None
@@ -224,8 +226,8 @@ class VscTier2AccountpageUser(VscAccountPageUser):
                 quota.storage['storage_type'] == storage_type
 
         self._cache['quota']['vo'] = {}
-        self._cache['quota']['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, 'data')]
-        self._cache['quota']['vo']['scratch'] = [q for q in institute_quota if user_vo_proposition(q, 'scratch')]
+        self._cache['quota']['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, DATA_KEY)]
+        self._cache['quota']['vo']['scratch'] = [q for q in institute_quota if user_vo_proposition(q, SCRATCH_KEY)]
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.

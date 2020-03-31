@@ -19,6 +19,7 @@ Original Perl code by Stijn De Weirdt
 
 @author: Stijn De Weirdt (Ghent University)
 @author: Andy Georges (Ghent University)
+@author: Ward Poelmans (Vrije Universiteit Brussel)
 """
 
 import copy
@@ -33,12 +34,10 @@ from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateErr
 from vsc.config.base import (
     VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, NEW, MODIFIED, MODIFY, ACTIVE,
     GENT, DATA_KEY, SCRATCH_KEY, DEFAULT_VOS_ALL, VSC_PRODUCTION_SCRATCH, INSTITUTE_VOS_BY_SITE,
-    VO_SHARED_PREFIX_BY_SITE, VO_PREFIX_BY_SITE
+    VO_SHARED_PREFIX_BY_SITE, VO_PREFIX_BY_SITE, STORAGE_SHARED_SUFFIX
 )
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
-
-SHARED = 'SHARED'
 
 
 class VoStatusUpdateError(Exception):
@@ -120,10 +119,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         return [q for q in self._institute_quota if q.storage['storage_type'] == DATA_KEY]
 
     def _get_institute_non_shared_data_quota(self):
-        return [q.hard for q in self._get_institute_data_quota() if not q.storage['name'].endswith(SHARED)]
+        return [q.hard for q in self._get_institute_data_quota()
+                if not q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)]
 
     def _get_institute_shared_data_quota(self):
-        return [q.hard for q in self._get_institute_data_quota() if q.storage['name'].endswith(SHARED)]
+        return [q.hard for q in self._get_institute_data_quota()
+                if q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)]
 
     @property
     def vo_data_quota(self):
@@ -386,7 +387,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             # users having belonged to multiple VOs have multiple quota on VSC_DATA, so we
             # only need to deploy the quota for the VO the user currently belongs to.
             quota = [q for q in member.vo_data_quota
-                     if q.fileset == self.vo.vsc_id and not q.storage['name'].endswith(SHARED)]
+                     if q.fileset == self.vo.vsc_id and not q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)]
             if len(quota) > 1:
                 logging.exception("Cannot set data quota for member %s with multiple quota instances %s",
                                   member, quota)
