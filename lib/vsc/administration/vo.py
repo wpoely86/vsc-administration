@@ -531,7 +531,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
 
     for vo_id in sorted(vo_ids):
 
-        vo = VscTier2AccountpageVo(vo_id, rest_client=client)
+        vo = VscTier2AccountpageVo(vo_id, rest_client=client, host_institute=host_institute)
         vo.dry_run = options.dry_run
 
         try:
