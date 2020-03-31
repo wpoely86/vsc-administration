@@ -194,6 +194,7 @@ test_hos_1 = [
                     "name": "gent"
                 },
                 "institute_login": "ageorges",
+                "institute_affiliation": "staff",
             },
             u'home_on_scratch': False,
             u'force_active': False,
