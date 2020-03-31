@@ -21,15 +21,7 @@ from enum import Enum
 
 from vsc.accountpage.wrappers import mkNamedTupleInstance
 
-# temporary workaround for INSTITUTE_VOS being renamed to INSTITUTE_VOS_GENT, to avoid fallout...
-try:
-    from vsc.config.base import INSTITUTE_VOS_GENT
-except ImportError:
-    # fallback in case INSTITUTE_VOS_GENT is not defined yet
-    # (cfr. renaming of INSTITUTE_VOS to INSTITUTE_VOS_GENT in https://github.com/hpcugent/vsc-config/pull/74)
-    from vsc.config.base import INSTITUTE_VOS as INSTITUTE_VOS_GENT
-
-from vsc.config.base import ANTWERPEN, BRUSSEL, GENT, LEUVEN
+from vsc.config.base import ANTWERPEN, BRUSSEL, GENT, LEUVEN, INSTITUTE_VOS_GENT
 from vsc.utils.missing import namedtuple_with_defaults
 from vsc.utils.run import asyncloop
 
@@ -116,7 +108,7 @@ def parse_slurm_acct_dump(lines, info_type):
             # We should them just skip that line instead of raising an exception
             if info:
                 acct_info.add(info)
-        except Exception, err:
+        except Exception as err:
             logging.exception("Slurm acct sync: could not process line %s [%s]", line, err)
             raise
 
@@ -354,7 +346,7 @@ def slurm_user_accounts(vo_members, active_accounts, slurm_user_info, clusters, 
                     for user in changed_users:
                         try:
                             moved_users.add((user, reverse_vo_mapping[user]))
-                        except KeyError, err:
+                        except KeyError as err:
                             logging.warning("Dry run, cannot find up user %s in reverse VO map",
                                             user)
 

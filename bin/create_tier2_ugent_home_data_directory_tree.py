@@ -20,7 +20,7 @@ Sets up the basic structure on the UGent home and data storage
 """
 
 import os
-from ConfigParser import SafeConfigParser
+from vsc.utils.py2vs3 import configparser
 
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.config.base import VscStorage
@@ -69,7 +69,7 @@ def main():
 
     storage_settings = VscStorage()
 
-    local_storage_conf = SafeConfigParser()
+    local_storage_conf = configparser.SafeConfigParser()
     local_storage_conf.read(QUOTA_CONF_FILE)
 
     gpfs = GpfsOperations()

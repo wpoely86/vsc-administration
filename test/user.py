@@ -18,10 +18,11 @@ Tests for vsc.administration.user
 @author: Andy Georges (Ghent University)
 @author: Jens Timmerman (Ghent University)
 """
-import mock
 import os
 
 from collections import namedtuple
+
+import mock
 
 import vsc.administration.user as user
 import vsc.config.base as config
@@ -211,65 +212,65 @@ test_quota_1 = [
     {u'fileset': u'gvo00002',
      u'hard': 5111808000,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_SCRATCH_DELCATTY',
-        u'storage_type': u'scratch'
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_DELCATTY',
+         u'storage_type': u'scratch'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'gvo00002',
      u'hard': 2044723200,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_SCRATCH_PHANPY',
-        u'storage_type': u'scratch'
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_PHANPY',
+         u'storage_type': u'scratch'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'gvo00002',
      u'hard': 1835008000,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_DATA',
-        u'storage_type': u'data'
+         u'institute': u'gent',
+         u'name': u'VSC_DATA',
+         u'storage_type': u'data'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'project_gpilot',
      u'hard': 10737418240,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_SCRATCH_MUK',
-        u'storage_type': u'scratch'
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_MUK',
+         u'storage_type': u'scratch'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'vsc40075',
      u'hard': 308224000,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_SCRATCH_MUK',
-        u'storage_type': u'scratch'
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_MUK',
+         u'storage_type': u'scratch'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'vsc400',
      u'hard': 26214400,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_DATA',
-        u'storage_type': u'data'
+         u'institute': u'gent',
+         u'name': u'VSC_DATA',
+         u'storage_type': u'data'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'vsc400',
      u'hard': 3145728,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_HOME',
-        u'storage_type': u'home'
+         u'institute': u'gent',
+         u'name': u'VSC_HOME',
+         u'storage_type': u'home'
      },
      u'user': u'vsc40075'},
     {u'fileset': u'vsc400',
      u'hard': 26214400,
      u'storage': {
-        u'institute': u'gent',
-        u'name': u'VSC_SCRATCH_DELCATTY',
-        u'storage_type': u'scratch'},
+         u'institute': u'gent',
+         u'name': u'VSC_SCRATCH_DELCATTY',
+         u'storage_type': u'scratch'},
      u'user': u'vsc40075'},
     {u'fileset': u'vsc400',
      u'hard': 1024,
@@ -356,7 +357,7 @@ class VscAccountPageUserTest(TestCase):
             mock_client = mock.MagicMock()
             test_account = mkVscAccount(account)
             accountpageuser = user.VscAccountPageUser(
-                test_account.vsc_id, 
+                test_account.vsc_id,
                 rest_client=mock_client,
                 account=test_account)
 
@@ -421,10 +422,10 @@ class VscTier2AccountpageUserTest(TestCase):
             mock_client.account[test_account.vsc_id].quota.get.return_value = (200, quota)
 
             accountpageuser = user.VscTier2AccountpageUser(
-                test_account.vsc_id, 
+                test_account.vsc_id,
                 storage=config.VscStorage(),
                 rest_client=mock_client,
-                account=test_account, 
+                account=test_account,
                 host_institute=site)
 
             self.assertEqual(
@@ -499,10 +500,10 @@ class UserDeploymentTest(TestCase):
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
             accountpageuser = user.VscTier2AccountpageUser(
-                test_account.vsc_id, 
+                test_account.vsc_id,
                 storage=config.VscStorage(),
                 rest_client=mock_client,
-                account=test_account, 
+                account=test_account,
                 host_institute=site)
             accountpageuser.create_home_dir()
 
@@ -515,10 +516,10 @@ class UserDeploymentTest(TestCase):
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
             accountpageuser = user.VscTier2AccountpageUser(
-                test_account.vsc_id, 
+                test_account.vsc_id,
                 storage=config.VscStorage(),
                 rest_client=mock_client,
-                account=test_account, 
+                account=test_account,
                 host_institute=site)
             accountpageuser.create_data_dir()
 
@@ -531,10 +532,10 @@ class UserDeploymentTest(TestCase):
         for account, site in test_accounts:
             test_account = mkVscAccount(account)
             accountpageuser = user.VscTier2AccountpageUser(
-                test_account.vsc_id, 
+                test_account.vsc_id,
                 storage=config.VscStorage(),
                 rest_client=mock_client,
-                account=test_account, 
+                account=test_account,
                 host_institute=site)
             accountpageuser.create_scratch_dir(VSC_PRODUCTION_SCRATCH[site][0])
 

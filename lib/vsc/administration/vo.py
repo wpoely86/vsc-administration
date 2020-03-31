@@ -26,22 +26,14 @@ import logging
 import os
 import pwd
 
-from urllib2 import HTTPError
+from vsc.utils.py2vs3 import HTTPError
 
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount, mkVscAutogroup
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, GENT_PRODUCTION_SCRATCH
-from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRATCH_KEY
+from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE, GENT, DATA_KEY, SCRATCH_KEY, INSTITUTE_VOS_GENT
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
-
-# temporary workaround for INSTITUTE_VOS being renamed to INSTITUTE_VOS_GENT, to avoid fallout...
-try:
-    from vsc.config.base import INSTITUTE_VOS_GENT
-except ImportError:
-    # fallback in case INSTITUTE_VOS_GENT is not defined yet
-    # (cfr. renaming of INSTITUTE_VOS to INSTITUTE_VOS_GENT in https://github.com/hpcugent/vsc-config/pull/74)
-    from vsc.config.base import INSTITUTE_VOS as INSTITUTE_VOS_GENT
 
 SHARED = 'SHARED'
 
