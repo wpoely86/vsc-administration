@@ -1,6 +1,6 @@
 # -*- coding: latin-1 -*-
 #
-# Copyright 2012-2019 Ghent University
+# Copyright 2012-2020 Ghent University
 #
 # This file is part of vsc-administration,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -354,7 +354,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         quota = hard * 1024 * self.institute_storage[storage_name].data_replication_factor
         soft = int(self.vsc.quota_soft_fraction * quota)
 
-        logging.info("Setting quota for %s on %s to %d", storage_name, path, quota)
+        logging.info("Setting quota for %s - %s on %s to %d", self.account.vsc_id, storage_name, path, quota)
 
         # LDAP information is expressed in KiB, GPFS wants bytes.
         self.gpfs.set_user_quota(soft, int(self.account.vsc_id_number), path, quota)
