@@ -39,6 +39,7 @@ PACKAGE = {
         'vsc-filesystems >= 1.0.1',
         'pytz',
         'python-ldap',
+        'vsc-ldap >= 2.0.0',
         'vsc-ldap-extension >= 2.0.0',
         'vsc-utils >= 2.0.0',
         'lockfile >= 0.9.1',
