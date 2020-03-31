@@ -67,7 +67,7 @@ def set_up_filesystem(
         log.info("Fileset %s created and linked at %s", fileset_name, fileset_path)
 
     # create directories up to vsc42000
-    for group in xrange(0, 21):
+    for group in range(0, 21):
 
         group_path = os.path.join(fileset_path, "vsc4%02d" % group)
         if not os.path.exists(group_path):
@@ -79,7 +79,7 @@ def set_up_filesystem(
             except (IOError, OSError) as err:
                 log.error("Problem creating dir %s [%s]", group_path, err)
 
-        for user in xrange(0, 100):
+        for user in range(0, 100):
             user_name = "vsc4%02d%02d" % (group, user)
             user_id = 2540000 + group * 100 + user
             user_path = os.path.join(group_path, user_name)
@@ -101,7 +101,7 @@ def set_up_filesystem(
             os.mkdir(vo_group_path)
             os.chmod(vo_group_path, 0o755)
 
-        for vo in xrange(1, 100):
+        for vo in range(1, 100):
 
             vo_name = "gvo%05d" % (vo,)
             try:

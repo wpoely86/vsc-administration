@@ -24,7 +24,7 @@ This file contains the utilities for dealing with users on the VSC.
 import logging
 import os
 
-from urllib2 import HTTPError
+from vsc.utils.py2vs3 import HTTPError
 
 from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch

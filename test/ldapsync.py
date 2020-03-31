@@ -20,7 +20,7 @@ Tests for vsc.administration.user
 """
 import mock
 
-from urllib2 import HTTPError
+from vsc.utils.py2vs3 import HTTPError
 
 import vsc
 
