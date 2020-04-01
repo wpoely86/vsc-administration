@@ -215,7 +215,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             self._cache['quota']['data'] = [q.hard for q in institute_quota
                                             if user_proposition(q, DATA_KEY) and not
                                             q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)][0]
-            self._cache['quota']['scratch'] = filter(lambda q: user_proposition(q, SCRATCH_KEY), institute_quota)
+            self._cache['quota']['scratch'] = [q for q in institute_quota if user_proposition(q, SCRATCH_KEY)]
         else:
             self._cache['quota']['home'] = None
             self._cache['quota']['data'] = None
@@ -376,7 +376,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def set_scratch_quota(self, storage_name):
         """Set USR quota on the scratch FS in the user fileset."""
-        quota = filter(lambda q: q.storage['name'] in (storage_name,), self.user_scratch_quota)
+        quota = [q for q in self.user_scratch_quota if q.storage['name'] in (storage_name,)]
         if not quota:
             logging.error("No scratch quota information available for %s", storage_name)
             return
