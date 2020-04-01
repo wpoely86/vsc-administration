@@ -331,10 +331,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
-        if self.vo_scratch_quota:
-            quota = [q for q in self.vo_scratch_quota if q.storage['name'] in (storage_name,)]
-        else:
-            quota = None
+        quota = [q for q in self.vo_scratch_quota if q.storage['name'] in (storage_name,)]
 
         if not quota:
             logging.error("No VO %s scratch quota information available for %s", self.vo.vsc_id, storage_name)
