@@ -332,7 +332,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
         if self.vo_scratch_quota:
-            quota = filter(lambda q: q.storage['name'] in (storage_name,), self.vo_scratch_quota)
+            quota = [q for q in self.vo_scratch_quota if q.storage['name'] in (storage_name,)]
         else:
             quota = None
 
@@ -418,8 +418,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             return
 
         if member.vo_scratch_quota:
-            quota = filter(lambda q: q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,),
-                           member.vo_scratch_quota)
+            quota = [q for q in member.vo_scratch_quota
+                     if q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,)]
             if quota:
                 logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s",
                              self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name)
