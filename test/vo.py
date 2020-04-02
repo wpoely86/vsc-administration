@@ -480,7 +480,6 @@ class VoDeploymentTest(TestCase):
         # VSC_SCRATCH test
         mock_gpfs.reset_mock()
         mock_posix.reset_mock()
-        print(VSC_PRODUCTION_SCRATCH)
         ok, errors = vo.process_vos(
             options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
         )
@@ -643,7 +642,6 @@ class VoDeploymentTest(TestCase):
         # VSC_SCRATCH should also not do anything
         mock_gpfs.reset_mock()
         mock_posix.reset_mock()
-        print(VSC_PRODUCTION_SCRATCH)
         ok, errors = vo.process_vos(
             options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
         )
@@ -815,7 +813,6 @@ class VoDeploymentTest(TestCase):
         # VSC_SCRATCH: this should allocate space
         mock_gpfs.reset_mock()
         mock_posix.reset_mock()
-        print(VSC_PRODUCTION_SCRATCH)
         ok, errors = vo.process_vos(
             options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
         )
