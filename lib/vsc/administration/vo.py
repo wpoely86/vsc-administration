@@ -78,15 +78,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     A VO is a special kind of group, identified mainly by its name.
     """
 
-    def __init__(self, vo_id, storage=None, rest_client=None, host_institute=None):
+    def __init__(self, vo_id, storage=None, rest_client=None, host_institute=GENT):
         """Initialise"""
         super(VscTier2AccountpageVo, self).__init__(vo_id, rest_client)
 
         self.vo_id = vo_id
         self.vsc = VSC()
-
-        if host_institute is None:
-            host_institute = GENT
         self.host_institute = host_institute
 
         if not storage:

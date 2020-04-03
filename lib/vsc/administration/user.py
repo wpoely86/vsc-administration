@@ -132,7 +132,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     to retrieve its information.
     """
     def __init__(self, user_id, storage=None, pickle_storage=None, rest_client=None,
-                 account=None, pubkeys=None, host_institute=None, use_user_cache=False):
+                 account=None, pubkeys=None, host_institute=GENT, use_user_cache=False):
         """
         Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
@@ -146,8 +146,6 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             BRUSSEL: VSC_SCRATCH_THEIA,
         }
 
-        if host_institute is None:
-            host_institute = GENT
         self.host_institute = host_institute
 
         if pickle_storage is None:
