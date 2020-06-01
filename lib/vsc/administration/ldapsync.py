@@ -121,7 +121,16 @@ class LdapSyncer(object):
                 logging.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
             logging.debug('fetching public key')
 
-            public_keys = [str(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)]
+            public_keys = []
+            for something in self.client.get_public_keys(account.vsc_id):
+                logging.debug("Got pubkey %s for account %s", something.pubkey, account.vsc_id)
+                try:
+                    pk = str(something.pubkey)
+                except UnicodeEncodeError:
+                    pk = something.pubkey.encode('ascii', 'ignore')
+                    logging.warning("Converting unicode to ascii for pubkey resulting in %s", pk)
+                public_keys.append(pk)
+
             if not public_keys:
                 public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
 
