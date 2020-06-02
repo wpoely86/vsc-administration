@@ -30,7 +30,7 @@ from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscAccount, mkGroup
 from vsc.administration.ldapsync import LdapSyncer, UPDATED
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
 
-from .user import test_account_1, test_account_4, test_usergroup_1, test_pubkeys_1
+from .user import test_account_1, test_account_4, test_usergroup_1, test_pubkeys_1, test_unicode_pubkeys
 
 test_quota = [
     {
@@ -102,6 +102,24 @@ class LDAPSyncerTest(TestCase):
         accounts = ldapsyncer.sync_altered_accounts(1)
         self.assertEqual(accounts, {'error': set([]), 'new': set([]), 'updated': set([test_account.vsc_id])})
         ldap_attrs = {'status': ['active'], 'scratchDirectory': ['/user/scratch/gent/vsc400/vsc40075'], 'dataDirectory': ['/user/data/gent/vsc400/vsc40075'], 'cn': 'vsc40075', 'homeQuota': ['5242880'], 'institute': ['gent'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2540075'], 'researchField': ['Bollocks'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/home/gent/vsc400/vsc40075'], 'mail': ['foobar@ugent.be'], 'scratchQuota': ['1'], 'pubkey': ['pubkey1', 'pubkey2'], 'instituteLogin': ['foobar'], 'uid': ['vsc40075']}
+        mock_add_or_update.assert_called_with(VscLdapUser, test_account.vsc_id, ldap_attrs, True)
+
+    @mock.patch.object(vsc.administration.ldapsync.LdapSyncer, 'add_or_update')
+    def test_sync_altered_accounts_unicode_pubkey(self, mock_add_or_update):
+        """Test the sync_altered accounts function with a pubkey containing unicode"""
+        mock_client = mock.MagicMock()
+        test_account = mkVscAccount(test_account_1)
+        mock_client.account[test_account.vsc_id] = mock.MagicMock()
+        mock_client.account.modified[1].get.return_value = (200, [test_account_1])
+        mock_client.account[test_account.vsc_id].usergroup.get.return_value = (200, test_usergroup_1)
+        mock_client.get_public_keys.return_value = [mkVscAccountPubkey(p) for p in test_unicode_pubkeys]
+        mock_client.account[test_account.vsc_id].quota.get.return_value = (200, test_quota)
+
+        mock_add_or_update.return_value = UPDATED
+        ldapsyncer = LdapSyncer(mock_client)
+        accounts = ldapsyncer.sync_altered_accounts(1)
+        self.assertEqual(accounts, {'error': set([]), 'new': set([]), 'updated': set([test_account.vsc_id])})
+        ldap_attrs = {'status': ['active'], 'scratchDirectory': ['/user/scratch/gent/vsc400/vsc40075'], 'dataDirectory': ['/user/data/gent/vsc400/vsc40075'], 'cn': 'vsc40075', 'homeQuota': ['5242880'], 'institute': ['gent'], 'loginShell': ['/bin/bash'], 'uidNumber': ['2540075'], 'researchField': ['Bollocks'], 'gidNumber': ['2540075'], 'gecos': ['Foo Bar'], 'dataQuota': ['1'], 'homeDirectory': ['/user/home/gent/vsc400/vsc40075'], 'mail': ['foobar@ugent.be'], 'scratchQuota': ['1'], 'pubkey': ['some pubkey huppelde@daar.com'], 'instituteLogin': ['foobar'], 'uid': ['vsc40075']}
         mock_add_or_update.assert_called_with(VscLdapUser, test_account.vsc_id, ldap_attrs, True)
 
     @mock.patch.object(vsc.administration.ldapsync.LdapSyncer, 'add_or_update')
