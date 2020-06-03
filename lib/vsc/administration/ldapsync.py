@@ -123,12 +123,12 @@ class LdapSyncer(object):
 
             public_keys = []
             for pubkey in self.client.get_public_keys(account.vsc_id):
-                try:
-                    pk = str(pubkey.pubkey)
-                except UnicodeEncodeError:
-                    logging.debug("Got pubkey %s for account %s", pubkey.pubkey, account.vsc_id)
-                    pk = pubkey.pubkey.encode('ascii', 'ignore')
-                    logging.warning("Converting unicode to ascii for pubkey resulting in %s", pk)
+                #try:
+                #    pk = str(pubkey.pubkey)
+                #except UnicodeEncodeError:
+                #    logging.debug("Got pubkey %s for account %s", pubkey.pubkey, account.vsc_id)
+                pk = pubkey.pubkey.encode('ascii', 'ignore')
+                #    logging.warning("Converting unicode to ascii for pubkey resulting in %s", pk)
                 public_keys.append(pk)
 
             if not public_keys:
