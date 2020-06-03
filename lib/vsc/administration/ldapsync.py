@@ -29,8 +29,8 @@ from ldap import LDAPError
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
 from vsc.config.base import VSC, INSTITUTE_VOS_GENT
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
-
 from vsc.ldap.filters import CnFilter
+from vsc.utils.py2vs3 import ensure_ascii_string
 
 ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING = "THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
 
@@ -114,22 +114,10 @@ class LdapSyncer(object):
             except HTTPError:
                 logging.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
-            try:
-                gecos = str(account.person.gecos)
-            except UnicodeEncodeError:
-                gecos = account.person.gecos.encode('ascii', 'ignore')
-                logging.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
-            logging.debug('fetching public key')
+            gecos = ensure_ascii_string(account.person.gecos)
 
-            public_keys = []
-            for pubkey in self.client.get_public_keys(account.vsc_id):
-                #try:
-                #    pk = str(pubkey.pubkey)
-                #except UnicodeEncodeError:
-                #    logging.debug("Got pubkey %s for account %s", pubkey.pubkey, account.vsc_id)
-                pk = pubkey.pubkey.encode('ascii', 'ignore')
-                #    logging.warning("Converting unicode to ascii for pubkey resulting in %s", pk)
-                public_keys.append(pk)
+            logging.debug('fetching public key')
+            public_keys = [ensure_ascii_string(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)]
 
             if not public_keys:
                 public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
