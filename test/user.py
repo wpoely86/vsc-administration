@@ -171,7 +171,7 @@ test_pubkeys_1 = [
 
 test_unicode_pubkeys = [
     {
-        "pubkey": "some pubkey \u201chuppelde@daar.com\u201d",
+        "pubkey": u"some pubkey \u201chuppelde@daar.com\u201d",
         "deleted": False,
         "vsc_id": "vsc40075"
     }
