@@ -29,8 +29,8 @@ from ldap import LDAPError
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
 from vsc.config.base import VSC, INSTITUTE_VOS_GENT
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
-
 from vsc.ldap.filters import CnFilter
+from vsc.administration.tools import process_public_keys
 
 ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING = "THIS ACCOUNT HAS NO VALID PUBLIC KEYS"
 
@@ -121,7 +121,7 @@ class LdapSyncer(object):
                 logging.warning("Converting unicode to ascii for gecos resulting in %s", gecos)
             logging.debug('fetching public key')
 
-            public_keys = [str(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)]
+            public_keys = process_public_keys([str(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)])
             if not public_keys:
                 public_keys = [ACCOUNT_WITHOUT_PUBLIC_KEYS_MAGIC_STRING]
 

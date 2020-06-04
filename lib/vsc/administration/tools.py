@@ -20,6 +20,7 @@ Original Perl code by Stijn De Weirdt
 @author: Andy Georges (Ghent University)
 """
 import logging
+import re
 
 TIER1_GRACE_GROUP_SUFFIX = "t1_mukgraceusers"
 TIER1_HELPDESK_ADDRESS = "tier1@ugent.be"
@@ -45,3 +46,21 @@ def create_stat_directory(path, permissions, uid, gid, posix, override_permissio
     """
     logging.warning("The create_stat_directory function has moved to vsc.filesystems")
     return posix.create_stat_directory(path, permissions, uid, gid, override_permissions=override_permissions)
+
+
+def process_public_keys(public_keys):
+    """
+    Strip off the comment for a public key
+    @param public_keys list of ssh keys from the accountpage
+    @return list with public keys
+    """
+    ldap_public_keys = []
+    ssh_key = re.compile(r'^([^\s]+\s)?(?P<key>ssh-[^\s]+ [^\s]+)(\s.*)?$')
+    for key in public_keys:
+        find_key = ssh_key.search(key)
+        if find_key:
+            ldap_public_keys.append(find_key.group('key'))
+        else:
+            ldap_public_keys.append(key)
+
+    return ldap_public_keys
