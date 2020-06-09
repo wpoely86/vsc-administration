@@ -26,7 +26,6 @@ import os
 
 from vsc.utils.py2vs3 import HTTPError
 
-from vsc.utils import fancylogger
 from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
@@ -38,7 +37,8 @@ from vsc.config.base import (
 )
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
-
+from vsc.utils import fancylogger
+from vsc.utils.py2vs3 import ensure_ascii_string
 
 # Cache for user instances
 _users_cache = {
@@ -397,7 +397,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
         self.gpfs.populate_home_dir(int(self.account.vsc_id_number),
                                     int(self.usergroup.vsc_id_number),
                                     path,
-                                    [p.pubkey for p in self.pubkeys])
+                                    [ensure_ascii_string(p.pubkey) for p in self.pubkeys])
 
     def __setattr__(self, name, value):
         """Override the setting of an attribute:
