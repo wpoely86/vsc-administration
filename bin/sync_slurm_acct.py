@@ -27,7 +27,10 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
-from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS, GENT_PILOT_COMPUTE_CLUSTERS
+from vsc.config.base import (
+    GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS,
+    GENT_PILOT_COMPUTE_CLUSTERS, GENT, VSC_ALL_COMPUTE_CLUSTERS
+)
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import Run
@@ -71,9 +74,10 @@ def main():
             "store",
             "https://apivsc.ugent.be/django",
         ),
+        'host_institute': ('Name of the institute where this script is being run', str, 'store', GENT),
         "clusters": (
             "Cluster(s) (comma-separated) to sync for. "
-            "Overrides GENT_SLURM_COMPUTE_CLUSTERS that are in production.",
+            "Overrides <institute>_SLURM_COMPUTE_CLUSTERS that are in production.",
             str,
             "store",
             None,
@@ -102,14 +106,18 @@ def main():
         if opts.options.clusters is not None:
             clusters = opts.options.clusters.split(",")
         else:
-            clusters = [c for c in GENT_SLURM_COMPUTE_CLUSTERS
-                if c in GENT_PRODUCTION_COMPUTE_CLUSTERS + GENT_PILOT_COMPUTE_CLUSTERS
-            ]
+            # FIXME: clean this up in vsc-config
+            if opts.options.host_institute == GENT:
+                clusters = [c for c in GENT_SLURM_COMPUTE_CLUSTERS
+                    if c in GENT_PRODUCTION_COMPUTE_CLUSTERS + GENT_PILOT_COMPUTE_CLUSTERS
+                ]
+            else:
+                clusters = VSC_ALL_COMPUTE_CLUSTERS[opts.options.host_institute]
 
         sacctmgr_commands = []
 
         # make sure the institutes and the default accounts (VOs) are there for each cluster
-        sacctmgr_commands += slurm_institute_accounts(slurm_account_info, clusters)
+        sacctmgr_commands += slurm_institute_accounts(slurm_account_info, clusters, host_institute=opts.options.host_institute)
 
         # All users belong to a VO, so fetching the VOs is necessary/
         account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
@@ -121,7 +129,7 @@ def main():
         account_page_members = dict([(vo.vsc_id, (set(vo.members), vo)) for vo in account_page_vos])
 
         # process all regular VOs
-        sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters)
+        sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters, host_institute=opts.options.host_institute)
 
         # process VO members
         sacctmgr_commands += slurm_user_accounts(
