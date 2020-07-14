@@ -33,7 +33,7 @@ PACKAGE = {
         'vsc-install >= 0.15.3',
     ],
     'install_requires': [
-        'vsc-accountpage-clients >= 2.0.0',
+        'vsc-accountpage-clients',
         'vsc-base >= 3.0.3',
         'vsc-config >= 3.0.0',
         'vsc-filesystems >= 1.0.1',
