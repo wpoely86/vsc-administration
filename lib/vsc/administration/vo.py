@@ -33,8 +33,8 @@ from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount, mkVsc
 from vsc.administration.user import VscTier2AccountpageUser, UserStatusUpdateError
 from vsc.config.base import (
     VSC, VscStorage, VSC_HOME, VSC_DATA, VSC_DATA_SHARED, NEW, MODIFIED, MODIFY, ACTIVE,
-    GENT, DATA_KEY, SCRATCH_KEY, DEFAULT_VOS_ALL, VSC_PRODUCTION_SCRATCH, INSTITUTE_VOS_BY_SITE,
-    VO_SHARED_PREFIX_BY_SITE, VO_PREFIX_BY_SITE, STORAGE_SHARED_SUFFIX
+    GENT, DATA_KEY, SCRATCH_KEY, DEFAULT_VOS_ALL, VSC_PRODUCTION_SCRATCH, INSTITUTE_VOS_BY_INSTITUTE,
+    VO_SHARED_PREFIX_BY_INSTITUTE, VO_PREFIX_BY_INSTITUTE, STORAGE_SHARED_SUFFIX
 )
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
@@ -157,8 +157,8 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             return None
 
         if not self._sharing_group_cache:
-            group_name = self.vo.vsc_id.replace(VO_PREFIX_BY_SITE[self.vo.institute['name']],
-                                                VO_SHARED_PREFIX_BY_SITE[self.vo.institute['name']])
+            group_name = self.vo.vsc_id.replace(VO_PREFIX_BY_INSTITUTE[self.vo.institute['name']],
+                                                VO_SHARED_PREFIX_BY_INSTITUTE[self.vo.institute['name']])
             self._sharing_group_cache = mkVscAutogroup(
                 whenHTTPErrorRaise(self.rest_client.autogroup[group_name].get,
                                    "Could not get autogroup %s details" % group_name)[1])
@@ -322,11 +322,15 @@ class VscTier2AccountpageVo(VscAccountPageVo):
     def set_data_shared_quota(self):
         """Set FILESET quota on the data FS for the VO fileset."""
         if self.vo_data_shared_quota:
-            self._set_quota(VSC_DATA_SHARED,
-                            self._data_shared_path(),
-                            int(self.vo_data_shared_quota),
-                            fileset_name=self.vo.vsc_id.replace(VO_PREFIX_BY_SITE[self.vo.institute['name']],
-                                                                VO_SHARED_PREFIX_BY_SITE[self.vo.institute['name']]))
+            self._set_quota(
+                VSC_DATA_SHARED,
+                self._data_shared_path(),
+                int(self.vo_data_shared_quota),
+                fileset_name=self.vo.vsc_id.replace(
+                    VO_PREFIX_BY_INSTITUTE[self.vo.institute["name"]],
+                    VO_SHARED_PREFIX_BY_INSTITUTE[self.vo.institute["name"]],
+                ),
+            )
 
     def set_scratch_quota(self, storage_name):
         """Set FILESET quota on the scratch FS for the VO fileset."""
@@ -527,7 +531,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
                 vo.create_data_shared_fileset()
                 vo.set_data_shared_quota()
 
-            if vo_id == INSTITUTE_VOS_BY_SITE[host_institute][host_institute]:
+            if vo_id == INSTITUTE_VOS_BY_INSTITUTE[host_institute][host_institute]:
                 log.info("Not deploying default VO %s members", vo_id)
                 continue
 
