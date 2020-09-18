@@ -141,10 +141,8 @@ def main():
         (vos_ok, vos_fail) = ([], [])
         if opts.options.vo:
             # FIXME: when api has changed, limit to modified per institute here
-            changed_vos = client.vo.modified[last_timestamp].get()[1]
-            # change to: changed_vos = client.vo[institute].modified[last_timestamp].get()[1]
-            changed_vo_quota = client.quota.vo.modified[last_timestamp].get()[1]
-            # change to: changed_vo_quota = client.quota.vo[institute].modified[last_timestamp].get()[1]
+            changed_vos = client.vo.institute[institute].modified[last_timestamp].get()[1]
+            changed_vo_quota = client.quota.vo.institute[institute].modified[last_timestamp].get()[1]
 
             vos = sorted(set([v['vsc_id'] for v in changed_vos] +
                              [v['virtual_organisation'] for v in changed_vo_quota]))
