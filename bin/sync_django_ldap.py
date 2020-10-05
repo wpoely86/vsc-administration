@@ -39,6 +39,7 @@ from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_tim
 NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
+CHILD_USERS = ['ldap', 'apache']
 
 logger = fancylogger.getLogger()
 fancylogger.setLogLevelInfo()
@@ -82,18 +83,25 @@ def main():
         try:
             global logger
             logger = fancylogger.getLogger(NAGIOS_HEADER)
+
             # drop privileges in the child
-            try:
-                apache_uid = pwd.getpwnam('apache').pw_uid
-                apache_gid = grp.getgrnam('apache').gr_gid
+            child_dropped = False
+            for child_user in CHILD_USERS:
+                try:
+                    child_uid = pwd.getpwnam(child_user).pw_uid
+                    child_gid = grp.getgrnam(child_user).gr_gid
+                    os.setgroups([])
+                    os.setgid(child_gid)
+                    os.setuid(child_uid)
+                except (KeyError, OSError):
+                    logger.debug("Could not drop privileges to user: %s", child_user)
+                else:
+                    child_dropped = True
+                    logging.info("Now running as user %s (uid: %s)", child_user, os.geteuid())
+                    break
 
-                os.setgroups([])
-                os.setgid(apache_gid)
-                os.setuid(apache_uid)
-
-                logging.info("Now running as %s" % (os.geteuid(),))
-            except OSError:
-                logger.raiseException("Could not drop privileges")
+            if not child_dropped:
+                logger.raiseException("Could not drop privileges to any user: %s;" % ', '.join(CHILD_USERS))
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
