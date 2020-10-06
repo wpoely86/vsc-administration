@@ -39,7 +39,7 @@ from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_tim
 NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
-CHILD_USERS = ['ldap', 'apache']
+NONROOT_USERLIST = ['ldap', 'apache']
 
 logger = fancylogger.getLogger()
 fancylogger.setLogLevelInfo()
@@ -52,8 +52,9 @@ def main():
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
-        'account_page_url': ('url for the account page', None, 'store', None),
+        'account_page_url': ('URL of the account page', None, 'store', None),
         'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
+        'user': ('System user to run the sync', str, 'store', None),
         }
     # get access_token from conf file
     ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
@@ -79,6 +80,12 @@ def main():
         logging.exception("Oops")
         parent_pid = 1
 
+    # Set user of child processes
+    if opts.options.user is not None:
+        child_userlist = [opts.options.user]
+    else:
+        child_userlist = NONROOT_USERLIST
+
     if parent_pid == 0:
         try:
             global logger
@@ -86,7 +93,7 @@ def main():
 
             # drop privileges in the child
             child_dropped = False
-            for child_user in CHILD_USERS:
+            for child_user in child_userlist:
                 try:
                     child_uid = pwd.getpwnam(child_user).pw_uid
                     child_gid = grp.getgrnam(child_user).gr_gid
@@ -101,7 +108,7 @@ def main():
                     break
 
             if not child_dropped:
-                logger.raiseException("Could not drop privileges to any user: %s;" % ', '.join(CHILD_USERS))
+                logger.raiseException("Could not drop privileges to any user: %s;" % ', '.join(child_userlist))
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
             syncer = LdapSyncer(client)
