@@ -110,7 +110,7 @@ def main():
             if not child_dropped:
                 logger.raiseException("Could not drop privileges to any user: %s;" % ', '.join(child_userlist))
 
-            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
+            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api')
             syncer = LdapSyncer(client)
             last = last_timestamp
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
