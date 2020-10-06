@@ -186,9 +186,13 @@ class LdapSyncer(object):
                 'institute': [institute_name],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': group_moderators,
-                'memberUid': [str(a) for a in group.members],
                 'status': [str(group.status)],
             }
+
+            # Only set memberUid if there are actually active members in the group
+            # LDAP addition of records with empty memberUid will fail
+            if group.members:
+                ldap_attributes['memberUid'] = [str(a) for a in group.members]
 
             # VO attributes
             try:
