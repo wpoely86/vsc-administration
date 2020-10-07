@@ -27,7 +27,7 @@ from datetime import datetime
 from ldap import LDAPError
 
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
-from vsc.config.base import VSC, INSTITUTE_VOS_GENT, INSTITUTE_VOS_BRUSSEL
+from vsc.config.base import VSC, DEFAULT_VOS_ALL
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
 from vsc.ldap.filters import CnFilter
 from vsc.utils.py2vs3 import ensure_ascii_string
@@ -208,7 +208,7 @@ class LdapSyncer(object):
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
                 # Set institute moderator for main VOs
-                if vo.vsc_id in INSTITUTE_VOS_GENT.values() + INSTITUTE_VOS_BRUSSEL.values():
+                if vo.vsc_id in DEFAULT_VOS_ALL.values():
                     ldap_attributes['moderator'] = VSC_CONFIG.vo_group_mods[group.institute['name']]
                     logging.info("Using VO moderator %s for VO %s", ldap_attributes['moderator'], group.vsc_id)
 
