@@ -39,7 +39,7 @@ from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_tim
 NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
-NONROOT_USERLIST = ['ldap', 'apache']
+NONROOT_DEFAULT_USER = 'apache'
 
 logger = fancylogger.getLogger()
 fancylogger.setLogLevelInfo()
@@ -54,7 +54,7 @@ def main():
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
         'account_page_url': ('URL of the account page', None, 'store', None),
         'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
-        'user': ('System user to run the sync', str, 'store', None),
+        'user': ('System user to run the sync', str, 'store', NONROOT_DEFAULT_USER),
         }
     # get access_token from conf file
     ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
@@ -80,35 +80,23 @@ def main():
         logging.exception("Oops")
         parent_pid = 1
 
-    # Set user of child processes
-    if opts.options.user is not None:
-        child_userlist = [opts.options.user]
-    else:
-        child_userlist = NONROOT_USERLIST
-
     if parent_pid == 0:
         try:
             global logger
             logger = fancylogger.getLogger(NAGIOS_HEADER)
 
             # drop privileges in the child
-            child_dropped = False
-            for child_user in child_userlist:
-                try:
-                    child_uid = pwd.getpwnam(child_user).pw_uid
-                    child_gid = grp.getgrnam(child_user).gr_gid
-                    os.setgroups([])
-                    os.setgid(child_gid)
-                    os.setuid(child_uid)
-                except (KeyError, OSError):
-                    logger.debug("Could not drop privileges to user: %s", child_user)
-                else:
-                    child_dropped = True
-                    logging.info("Now running as user %s (uid: %s)", child_user, os.geteuid())
-                    break
-
-            if not child_dropped:
-                logger.raiseException("Could not drop privileges to any user: %s;" % ', '.join(child_userlist))
+            try:
+                child_user = opts.options.user
+                child_uid = pwd.getpwnam(child_user).pw_uid
+                child_gid = grp.getgrnam(child_user).gr_gid
+                os.setgroups([])
+                os.setgid(child_gid)
+                os.setuid(child_uid)
+            except (KeyError, OSError):
+                logger.raiseException("Could not drop privileges to user '%s':" % child_user)
+            else:
+                logging.info("Now running as user %s (uid: %s)", child_user, os.geteuid())
 
             client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api')
             syncer = LdapSyncer(client)
