@@ -16,6 +16,7 @@
 Tests for vsc.administration.vo
 
 @author: Andy Georges (Ghent University)
+@author: Ward Poelmans (Vrije Universiteit Brussel)
 """
 import os
 
@@ -28,7 +29,10 @@ import vsc.administration.vo as vo
 import vsc.config.base as config
 
 from vsc.accountpage.wrappers import VscAutogroup
-from vsc.config.base import VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, VSC_DATA_SHARED
+from vsc.config.base import (
+    VSC_DATA, VSC_HOME, GENT_PRODUCTION_SCRATCH, VSC_DATA_SHARED,
+    VSC_PRODUCTION_SCRATCH, BRUSSEL
+)
 from vsc.install.testing import TestCase
 
 
@@ -236,7 +240,6 @@ class VoDeploymentTest(TestCase):
                                                     mock_s_m_d_quota.assert_not_called()
                                                     mock_cr_m_d_dir.assert_not_called()
 
-
     @patch('vsc.accountpage.client.AccountpageClient', autospec=True)
     @patch('vsc.administration.vo.VscStorage', autospec=True)
     def test_process_gent_institute_vo_data_share(self, mock_storage, mock_client):
@@ -322,3 +325,509 @@ class VoDeploymentTest(TestCase):
                     )
 
                     test_vo.create_data_shared_fileset()
+
+    @patch("vsc.accountpage.client.AccountpageClient", autospec=True)
+    @patch("vsc.administration.vo.GpfsOperations", autospec=True)
+    @patch("vsc.administration.vo.PosixOperations", autospec=True)
+    def test_process_brussel_vo(self, mock_posix, mock_gpfs, mock_client):
+        """Test to see deploying a Brussel VO works fine"""
+        test_vo_id = "bvo00005"
+        date = "203112310000"
+
+        Options = namedtuple("Options", ["dry_run"])
+        options = Options(dry_run=False)
+
+        # first mock all the calls to the accountpage
+        mc = mock_client.return_value
+        mc.account = mock.MagicMock()
+        mc.vo = mock.MagicMock()
+        account_1 = {
+            "vsc_id": "vsc10001",
+            "status": "active",
+            "isactive": True,
+            "force_active": False,
+            "expiry_date": None,
+            "grace_until": None,
+            "vsc_id_number": 2510001,
+            "home_directory": "/user/brussel/100/vsc10001",
+            "data_directory": "/data/brussel/100/vsc10001",
+            "scratch_directory": "/scratch/brussel/100/vsc10001",
+            "login_shell": "/bin/bash",
+            "broken": False,
+            "email": "ward.poelmans@vub.ac.be",
+            "research_field": ["Physics", "nwo"],
+            "create_timestamp": "2018-11-13T14:27:53.394000Z",
+            "person": {
+                "gecos": "Ward Poelmans",
+                "institute": {"name": "brussel"},
+                "institute_login": "wapoelma",
+                "institute_affiliation": "staff",
+                "realeppn": "wapoelma@vub.ac.be",
+            },
+            "home_on_scratch": False,
+        }
+        mc.account[account_1["vsc_id"]].get.return_value = (200, account_1)
+        mc.vo[test_vo_id].member.modified[date].get.return_value = (200, [account_1])
+        mc.vo[test_vo_id].get.return_value = (
+            200,
+            {
+                "vsc_id": "bvo00005",
+                "status": "active",
+                "vsc_id_number": 2610010,
+                "institute": {"name": "brussel"},
+                "fairshare": 100,
+                "data_path": "/data/brussel/vo/000/bvo00005",
+                "scratch_path": "/scratch/brussel/vo/000/bvo00005",
+                "description": "hpcvub",
+                "members": ["vsc10001", "vsc10003"],
+                "moderators": ["vsc10001"],
+            },
+        )
+        mc.vo[test_vo_id].quota.get.return_value = (
+            200,
+            [
+                {
+                    "virtual_organisation": "bvo00005",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "bvo00005",
+                    "hard": 104857600,
+                },
+                {
+                    "virtual_organisation": "bvo00005",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00005",
+                    "hard": 104857600,
+                },
+            ],
+        )
+        mc.account[account_1["vsc_id"]].quota.get.return_value = (
+            200,
+            [
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "brussel", "name": "VSC_HOME", "storage_type": "home"},
+                    "fileset": "vsc100",
+                    "hard": 12582912,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "vsc100",
+                    "hard": 26214400,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "vsc100",
+                    "hard": 26214400,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "gent", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "gvo00016",
+                    "hard": 131072000,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_DELCATTY", "storage_type": "scratch"},
+                    "fileset": "gvo00016",
+                    "hard": 131072000,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "bvo00005",
+                    "hard": 52428800,
+                },
+                {
+                    "user": "vsc10001",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00005",
+                    "hard": 52428800,
+                },
+            ],
+        )
+
+        # This shouldn't do anything
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_HOME, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        # VSC_DATA test
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_DATA, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {"bvo00005": ["vsc10001"]})
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+        mock_gpfs.return_value.list_filesets.assert_called()
+        mock_gpfs.return_value.get_fileset_info.assert_called_with("theiadata", "bvo00005")
+        mock_gpfs.return_value.chmod.assert_called_with(504, "/theia/data/brussel/vo/000/bvo00005")
+        mock_gpfs.return_value.chown.assert_called_with(2510001, 2610010, "/theia/data/brussel/vo/000/bvo00005")
+        mock_gpfs.return_value.set_fileset_quota.assert_called_with(
+            204010946560, "/theia/data/brussel/vo/000/bvo00005", "bvo00005", 214748364800
+        )
+        mock_gpfs.return_value.set_fileset_grace.assert_called_with("/theia/data/brussel/vo/000/bvo00005", 604800)
+        mock_gpfs.return_value.set_user_quota.assert_called_with(
+            hard=107374182400, obj="/theia/data/brussel/vo/000/bvo00005", soft=102005473280, user=2510001
+        )
+        mock_gpfs.return_value.create_stat_directory.assert_called_with(
+            "/theia/data/brussel/vo/000/bvo00005/vsc10001", 448, 2510001, 1, override_permissions=False
+        )
+
+        # VSC_SCRATCH test
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(
+            options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
+        )
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {"bvo00005": ["vsc10001"]})
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+        mock_gpfs.return_value.list_filesets.assert_called_with()
+        mock_gpfs.return_value.get_fileset_info.assert_called_with("theiascratch", "bvo00005")
+        mock_gpfs.return_value.chmod.assert_called_with(504, "/theia/scratch/brussel/vo/000/bvo00005")
+        mock_gpfs.return_value.chown.assert_called_with(2510001, 2610010, "/theia/scratch/brussel/vo/000/bvo00005")
+        mock_gpfs.return_value.set_fileset_quota.assert_called_with(
+            102005473280, "/theia/scratch/brussel/vo/000/bvo00005", "bvo00005", 107374182400
+        )
+        mock_gpfs.return_value.set_fileset_grace.assert_called_with("/theia/scratch/brussel/vo/000/bvo00005", 604800)
+        mock_gpfs.return_value.set_user_quota.assert_called_with(
+            hard=53687091200, obj="/theia/scratch/brussel/vo/000/bvo00005", soft=51002736640, user=2510001
+        )
+        mock_gpfs.return_value.create_stat_directory.assert_called_with(
+            "/theia/scratch/brussel/vo/000/bvo00005/vsc10001", 448, 2510001, 1, override_permissions=False
+        )
+
+    @patch("vsc.accountpage.client.AccountpageClient", autospec=True)
+    @patch("vsc.administration.vo.GpfsOperations", autospec=True)
+    @patch("vsc.administration.vo.PosixOperations", autospec=True)
+    def test_process_brussel_default_vo(self, mock_posix, mock_gpfs, mock_client):
+        """Test for a vsc1 account in the default Brussel VO"""
+        test_vo_id = "bvo00001"
+        date = "203012310000"
+
+        Options = namedtuple("Options", ["dry_run"])
+        options = Options(dry_run=False)
+
+        # first mock all the calls to the accountpage
+        mc = mock_client.return_value
+        mc.account = mock.MagicMock()
+        mc.vo = mock.MagicMock()
+        account_1 = {
+            "vsc_id": "vsc10002",
+            "status": "active",
+            "isactive": True,
+            "force_active": False,
+            "expiry_date": None,
+            "grace_until": None,
+            "vsc_id_number": 2510002,
+            "home_directory": "/user/brussel/100/vsc10002",
+            "data_directory": "/data/brussel/100/vsc10002",
+            "scratch_directory": "/scratch/brussel/100/vsc10002",
+            "login_shell": "/bin/bash",
+            "broken": False,
+            "email": "samuel.moors@vub.ac.be",
+            "research_field": ["Chemistry", "nwo"],
+            "create_timestamp": "2020-02-24T13:39:27.219855Z",
+            "person": {
+                "gecos": "Samuel Moors",
+                "institute": {"name": "brussel"},
+                "institute_login": "smoors",
+                "institute_affiliation": "staff",
+                "realeppn": "smoors@vub.ac.be",
+            },
+            "home_on_scratch": False,
+        }
+        mc.account[account_1["vsc_id"]].get.return_value = (200, account_1)
+        mc.vo[test_vo_id].member.modified[date].get.return_value = (200, [account_1])
+        mc.vo[test_vo_id].get.return_value = (
+            200,
+            {
+                "vsc_id": "bvo00001",
+                "status": "active",
+                "vsc_id_number": 2610006,
+                "institute": {"name": "brussel"},
+                "fairshare": 100,
+                "data_path": "/data/brussel/vo/000/bvo00001",
+                "scratch_path": "/scratch/brussel/vo/000/bvo00001",
+                "description": "default brussel VO at brussel",
+                "members": ["vsc10002", "vsc10004"],
+                "moderators": [],
+            },
+        )
+        mc.vo[test_vo_id].quota.get.return_value = (
+            200,
+            [
+                {
+                    "virtual_organisation": "bvo00001",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "bvo00001",
+                    "hard": 104857600,
+                },
+                {
+                    "virtual_organisation": "bvo00001",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00001",
+                    "hard": 104857600,
+                },
+            ],
+        )
+        mc.account[account_1["vsc_id"]].quota.get.return_value = (
+            200,
+            [
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "gent", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "gvo00016",
+                    "hard": 131072000,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_DELCATTY", "storage_type": "scratch"},
+                    "fileset": "gvo00016",
+                    "hard": 131072000,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "bvo00001",
+                    "hard": 52428800,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00001",
+                    "hard": 52428800,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "brussel", "name": "VSC_HOME", "storage_type": "home"},
+                    "fileset": "vsc100",
+                    "hard": 12582912,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "brussel", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "vsc100",
+                    "hard": 104857600,
+                },
+                {
+                    "user": "vsc10002",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "vsc100",
+                    "hard": 104857600,
+                },
+            ],
+        )
+
+        # This shouldn't do anything
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_HOME, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        # VSC_DATA should also not do anything
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_DATA, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        # VSC_SCRATCH should also not do anything
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(
+            options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
+        )
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+    @patch("vsc.accountpage.client.AccountpageClient", autospec=True)
+    @patch("vsc.administration.vo.GpfsOperations", autospec=True)
+    @patch("vsc.administration.vo.PosixOperations", autospec=True)
+    def test_process_brussel_default_vo_gent_user(self, mock_posix, mock_gpfs, mock_client):
+        """Test for a vsc4 account in the default Brussel VO"""
+        test_vo_id = "bvo00003"
+        date = "203012310000"
+
+        Options = namedtuple("Options", ["dry_run"])
+        options = Options(dry_run=False)
+
+        # first mock all the calls to the accountpage
+        mc = mock_client.return_value
+        mc.account = mock.MagicMock()
+        mc.vo = mock.MagicMock()
+        account_1 = {
+            "vsc_id": "vsc40002",
+            "status": "active",
+            "isactive": True,
+            "force_active": False,
+            "expiry_date": None,
+            "grace_until": None,
+            "vsc_id_number": 2540002,
+            "home_directory": "/user/gent/400/vsc40002",
+            "data_directory": "/data/gent/400/vsc40002",
+            "scratch_directory": "/scratch/gent/400/vsc40002",
+            "login_shell": "/bin/bash",
+            "broken": False,
+            "email": "Stijn.DeWeirdt@UGent.be",
+            "research_field": ["unknown", "unknown"],
+            "create_timestamp": "2014-04-23T09:11:21.168000Z",
+            "person": {
+                "gecos": "Stijn Deweirdt",
+                "institute": {"name": "gent"},
+                "institute_login": "stdweird",
+                "institute_affiliation": "unknown",
+                "realeppn": "stdweird@UGent.be",
+            },
+            "home_on_scratch": False,
+        }
+
+        mc.account[account_1["vsc_id"]].get.return_value = (200, account_1)
+        mc.vo[test_vo_id].member.modified[date].get.return_value = (200, [account_1])
+        mc.vo[test_vo_id].get.return_value = (
+            200,
+            {
+                "vsc_id": "bvo00003",
+                "status": "active",
+                "vsc_id_number": 2610008,
+                "institute": {"name": "brussel"},
+                "fairshare": 100,
+                "data_path": "/data/brussel/vo/000/bvo00003",
+                "scratch_path": "/scratch/brussel/vo/000/bvo00003",
+                "description": "default gent VO at brussel",
+                "members": [
+                    "vsc40001",
+                    "vsc40002",
+                    "vsc40016",
+                    "vsc40023",
+                    "vsc40075",
+                    "vsc40485",
+                    "vsc41041",
+                    "vsc41420",
+                ],
+                "moderators": [],
+            },
+        )
+        mc.vo[test_vo_id].quota.get.return_value = (
+            200,
+            [
+                {
+                    "virtual_organisation": "bvo00003",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00003",
+                    "hard": 104857600,
+                }
+            ],
+        )
+        mc.account[account_1["vsc_id"]].quota.get.return_value = (
+            200,
+            [
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_DELCATTY", "storage_type": "scratch"},
+                    "fileset": "vsc400",
+                    "hard": 262144000,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "vsc400",
+                    "hard": 26214400,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_GENGAR", "storage_type": "scratch"},
+                    "fileset": "vsc400",
+                    "hard": 26214400,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_GULPIN", "storage_type": "scratch"},
+                    "fileset": "vsc400",
+                    "hard": 26214400,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_HOME", "storage_type": "home"},
+                    "fileset": "vsc400",
+                    "hard": 6291456,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_DELCATTY", "storage_type": "scratch"},
+                    "fileset": "gvo00001",
+                    "hard": 262144000,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_DATA", "storage_type": "data"},
+                    "fileset": "gvo00001",
+                    "hard": 52428800,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_GENGAR", "storage_type": "scratch"},
+                    "fileset": "gvo00001",
+                    "hard": 104857600,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "gent", "name": "VSC_SCRATCH_GULPIN", "storage_type": "scratch"},
+                    "fileset": "gvo00001",
+                    "hard": 104857600,
+                },
+                {
+                    "user": "vsc40001",
+                    "storage": {"institute": "brussel", "name": "VSC_SCRATCH_THEIA", "storage_type": "scratch"},
+                    "fileset": "bvo00003",
+                    "hard": 52428800,
+                },
+            ],
+        )
+
+        # This shouldn't do anything
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_HOME, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        # VSC_DATA should also not do anything
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(options, [test_vo_id], VSC_DATA, mc, date, host_institute=BRUSSEL)
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {})
+        self.assertEqual(mock_gpfs.mock_calls, [mock.call()])
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        # VSC_SCRATCH: this should allocate space
+        mock_gpfs.reset_mock()
+        mock_posix.reset_mock()
+        ok, errors = vo.process_vos(
+            options, [test_vo_id], VSC_PRODUCTION_SCRATCH[BRUSSEL][0], mc, date, host_institute=BRUSSEL
+        )
+        self.assertEqual(errors, {})
+        self.assertEqual(ok, {'bvo00003': ['vsc40002']})
+        self.assertEqual(mock_posix.mock_calls, [mock.call()])
+
+        mock_gpfs.return_value.list_filesets.assert_called_with()
+        mock_gpfs.return_value.get_fileset_info.assert_called_with("theiascratch", "bvo00003")
+        mock_gpfs.return_value.chmod.assert_called_with(504, "/theia/scratch/brussel/vo/000/bvo00003")
+        mock_gpfs.return_value.chown.assert_called_with(99, 2610008, "/theia/scratch/brussel/vo/000/bvo00003")
+        mock_gpfs.return_value.set_fileset_quota.assert_called_with(
+            102005473280, "/theia/scratch/brussel/vo/000/bvo00003", "bvo00003", 107374182400
+        )
+        mock_gpfs.return_value.set_fileset_grace.assert_called_with("/theia/scratch/brussel/vo/000/bvo00003", 604800)
+        mock_gpfs.return_value.create_stat_directory.assert_called_with(
+            "/theia/scratch/brussel/vo/000/bvo00003/vsc40002", 448, 2540002, 1, override_permissions=False
+        )

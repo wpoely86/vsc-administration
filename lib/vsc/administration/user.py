@@ -18,7 +18,7 @@ This file contains the utilities for dealing with users on the VSC.
 
 @author: Stijn De Weirdt (Ghent University)
 @author: Andy Georges (Ghent University)
-@author: Ward Poelmans (Free University of Brussels)
+@author: Ward Poelmans (Vrije Universiteit Brussel)
 """
 
 import logging
@@ -29,14 +29,16 @@ from vsc.utils.py2vs3 import HTTPError
 from vsc.accountpage.wrappers import mkVscAccountPubkey, mkVscHomeOnScratch
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup
 from vsc.accountpage.wrappers import mkGroup, mkVscUserSizeQuota
-from vsc.config.base import VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL
-from vsc.config.base import GENT, VO_PREFIX_BY_SITE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA
-from vsc.config.base import NEW, MODIFIED, MODIFY, ACTIVE
+from vsc.config.base import (
+    VSC, VscStorage, VSC_DATA, VSC_HOME, VSC_PRODUCTION_SCRATCH, BRUSSEL,
+    GENT, VO_PREFIX_BY_INSTITUTE, VSC_SCRATCH_KYUKON, VSC_SCRATCH_THEIA,
+    NEW, MODIFIED, MODIFY, ACTIVE, HOME_KEY, DATA_KEY, SCRATCH_KEY,
+    STORAGE_SHARED_SUFFIX,
+)
 from vsc.filesystem.gpfs import GpfsOperations
 from vsc.filesystem.posix import PosixOperations
 from vsc.utils import fancylogger
 from vsc.utils.py2vs3 import ensure_ascii_string
-
 
 # Cache for user instances
 _users_cache = {
@@ -130,7 +132,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
     to retrieve its information.
     """
     def __init__(self, user_id, storage=None, pickle_storage=None, rest_client=None,
-                 account=None, pubkeys=None, host_institute=None, use_user_cache=False):
+                 account=None, pubkeys=None, host_institute=GENT, use_user_cache=False):
         """
         Initialisation.
         @type vsc_user_id: string representing the user's VSC ID (vsc[0-9]{5})
@@ -144,8 +146,6 @@ class VscTier2AccountpageUser(VscAccountPageUser):
             BRUSSEL: VSC_SCRATCH_THEIA,
         }
 
-        if host_institute is None:
-            host_institute = GENT
         self.host_institute = host_institute
 
         if pickle_storage is None:
@@ -209,23 +209,23 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
         if self.person.institute['name'] == self.host_institute:
-            self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, 'home')][0]
+            self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, HOME_KEY)][0]
             self._cache['quota']['data'] = [q.hard for q in institute_quota
-                                            if user_proposition(q, 'data') and not
-                                            q.storage['name'].endswith('SHARED')][0]
-            self._cache['quota']['scratch'] = filter(lambda q: user_proposition(q, 'scratch'), institute_quota)
+                                            if user_proposition(q, DATA_KEY) and not
+                                            q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)][0]
+            self._cache['quota']['scratch'] = [q for q in institute_quota if user_proposition(q, SCRATCH_KEY)]
         else:
             self._cache['quota']['home'] = None
             self._cache['quota']['data'] = None
             self._cache['quota']['scratch'] = None
 
         def user_vo_proposition(quota, storage_type):
-            return quota.fileset.startswith(VO_PREFIX_BY_SITE[self.host_institute]) and \
+            return quota.fileset.startswith(VO_PREFIX_BY_INSTITUTE[self.host_institute]) and \
                 quota.storage['storage_type'] == storage_type
 
         self._cache['quota']['vo'] = {}
-        self._cache['quota']['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, 'data')]
-        self._cache['quota']['vo']['scratch'] = [q for q in institute_quota if user_vo_proposition(q, 'scratch')]
+        self._cache['quota']['vo']['data'] = [q for q in institute_quota if user_vo_proposition(q, DATA_KEY)]
+        self._cache['quota']['vo']['scratch'] = [q for q in institute_quota if user_vo_proposition(q, SCRATCH_KEY)]
 
     def pickle_path(self):
         """Provide the location where to store pickle files for this user.
@@ -374,7 +374,7 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
     def set_scratch_quota(self, storage_name):
         """Set USR quota on the scratch FS in the user fileset."""
-        quota = filter(lambda q: q.storage['name'] in (storage_name,), self.user_scratch_quota)
+        quota = [q for q in self.user_scratch_quota if q.storage['name'] in (storage_name,)]
         if not quota:
             logging.error("No scratch quota information available for %s", storage_name)
             return
