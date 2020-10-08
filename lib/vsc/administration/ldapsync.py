@@ -200,7 +200,7 @@ class LdapSyncer(object):
             except HTTPError as err:
                 # if a 404 occured, the group is not an VO, so we skip this. Otherwise something else went wrong.
                 if err.code != 404:
-                    logger.raiseException("Retrieval of group VO failed for unexpected reasons")
+                    logging.raiseException("Retrieval of group VO failed for unexpected reasons")
             else:
                 # Group is a VO
                 ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
