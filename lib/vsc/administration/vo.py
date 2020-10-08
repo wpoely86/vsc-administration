@@ -23,10 +23,10 @@ Original Perl code by Stijn De Weirdt
 """
 
 import copy
+import logging
 import os
 import pwd
 
-from vsc.utils import fancylogger
 from vsc.utils.py2vs3 import HTTPError
 
 from vsc.accountpage.wrappers import mkVo, mkVscVoSizeQuota, mkVscAccount, mkVscAutogroup
@@ -39,8 +39,6 @@ from vsc.config.base import (
 from vsc.filesystem.gpfs import GpfsOperations, GpfsOperationError, PosixOperations
 from vsc.utils.missing import Monoid, MonoidDict
 
-log = fancylogger.getLogger(__name__)
-
 
 class VoStatusUpdateError(Exception):
     pass
@@ -50,7 +48,7 @@ def whenHTTPErrorRaise(f, msg, **kwargs):
     try:
         return f(**kwargs)
     except HTTPError as err:
-        log.error("%s: %s", msg, err)
+        logging.error("%s: %s", msg, err)
         raise
 
 
@@ -182,7 +180,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         elif mount_point == "gpfs":
             mount_path = self.storage[self.host_institute][storage].gpfs_mount_point
         else:
-            log.error("mount_point (%s)is not login or gpfs", mount_point)
+            logging.error("mount_point (%s)is not login or gpfs", mount_point)
             raise Exception()
 
         return os.path.join(mount_path, path)
@@ -223,7 +221,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             fileset_group_owner_id = self.vo.vsc_id_number
 
         if not self.gpfs.get_fileset_info(filesystem_name, fileset_name):
-            log.info("Creating new fileset on %s with name %s and path %s",
+            logging.info("Creating new fileset on %s with name %s and path %s",
                          filesystem_name, fileset_name, path)
             base_dir_hierarchy = os.path.dirname(path)
             self.gpfs.make_dir(base_dir_hierarchy)
@@ -234,7 +232,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             else:
                 self.gpfs.make_fileset(path, fileset_name, parent_fileset)
         else:
-            log.info("Fileset %s already exists for VO %s ... not creating again.",
+            logging.info("Fileset %s already exists for VO %s ... not creating again.",
                          fileset_name, self.vo.vsc_id)
 
         self.gpfs.chmod(0o770, path)
@@ -242,10 +240,10 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         try:
             moderator = mkVscAccount(self.rest_client.account[self.vo.moderators[0]].get()[1])
         except HTTPError:
-            log.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
+            logging.exception("Cannot obtain moderator information from account page, setting ownership to nobody")
             self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, fileset_group_owner_id, path)
         except IndexError:
-            log.error("There is no moderator available for VO %s", self.vo.vsc_id)
+            logging.error("There is no moderator available for VO %s", self.vo.vsc_id)
             self.gpfs.chown(pwd.getpwnam('nobody').pw_uid, fileset_group_owner_id, path)
         else:
             self.gpfs.chown(moderator.vsc_id_number, fileset_group_owner_id, path)
@@ -256,9 +254,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         try:
             fs = self.storage[self.host_institute][VSC_DATA].filesystem
         except AttributeError:
-            log.exception("Trying to access non-existent attribute 'filesystem' in the data storage instance")
+            logging.exception("Trying to access non-existent attribute 'filesystem' in the data storage instance")
         except KeyError:
-            log.exception("Trying to access non-existent field %s in the data storage dictionary", VSC_DATA)
+            logging.exception("Trying to access non-existent field %s in the data storage dictionary", VSC_DATA)
         self._create_fileset(fs, path)
 
     def create_data_shared_fileset(self):
@@ -268,9 +266,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         try:
             fs = self.storage[self.host_institute][VSC_DATA_SHARED].filesystem
         except AttributeError:
-            log.exception("%s attribute 'filesystem' in the shared data storage instance", msg)
+            logging.exception("%s attribute 'filesystem' in the shared data storage instance", msg)
         except KeyError:
-            log.exception("%s field %s in the shared data storage dictionary", msg, VSC_DATA_SHARED)
+            logging.exception("%s field %s in the shared data storage dictionary", msg, VSC_DATA_SHARED)
         self._create_fileset(fs, path,
                              fileset_name=self.sharing_group.vsc_id,
                              group_owner_id=self.sharing_group.vsc_id_number)
@@ -285,9 +283,9 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             else:
                 self._create_fileset(self.storage[self.host_institute][storage_name].filesystem, path, 'root')
         except AttributeError:
-            log.exception("%s attribute 'filesystem' in the scratch storage instance", msg)
+            logging.exception("%s attribute 'filesystem' in the scratch storage instance", msg)
         except KeyError:
-            log.exception("%s field %s in the scratch storage dictionary", msg, storage_name)
+            logging.exception("%s field %s in the scratch storage dictionary", msg, storage_name)
 
     def _create_vo_dir(self, path):
         """Create a user owned directory on the GPFS."""
@@ -309,7 +307,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             self.gpfs.set_fileset_quota(soft, path, fileset_name, hard)
             self.gpfs.set_fileset_grace(path, self.vsc.vo_storage_grace_time)  # 7 days
         except GpfsOperationError:
-            log.exception("Unable to set quota on path %s", path)
+            logging.exception("Unable to set quota on path %s", path)
             raise
 
     def set_data_quota(self):
@@ -337,17 +335,17 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         quota = [q for q in self.vo_scratch_quota if q.storage['name'] in (storage_name,)]
 
         if not quota:
-            log.error("No VO %s scratch quota information available for %s", self.vo.vsc_id, storage_name)
-            log.info("Setting default VO %s scratch quota on storage %s to %d",
+            logging.error("No VO %s scratch quota information available for %s", self.vo.vsc_id, storage_name)
+            logging.info("Setting default VO %s scratch quota on storage %s to %d",
                          self.vo.vsc_id, storage_name, self.storage[storage_name].quota_vo)
             self._set_quota(storage_name, self._scratch_path(storage_name), self.storage[storage_name].quota_vo)
             return
         elif len(quota) > 1:
-            log.exception("Cannot set scratch quota for %s with multiple quota instances %s",
+            logging.exception("Cannot set scratch quota for %s with multiple quota instances %s",
                               storage_name, quota)
             raise
 
-        log.info("Setting VO %s quota on storage %s to %d", self.vo.vsc_id, storage_name, quota[0].hard)
+        logging.info("Setting VO %s quota on storage %s to %d", self.vo.vsc_id, storage_name, quota[0].hard)
         self._set_quota(storage_name, self._scratch_path(storage_name), quota[0].hard)
 
     def _set_member_quota(self, storage_name, path, member, quota):
@@ -362,7 +360,7 @@ class VscTier2AccountpageVo(VscAccountPageVo):
 
             self.gpfs.set_user_quota(soft=soft, user=int(member.account.vsc_id_number), obj=path, hard=hard)
         except GpfsOperationError:
-            log.exception("Unable to set USR quota for member %s on path %s", member.account.vsc_id, path)
+            logging.exception("Unable to set USR quota for member %s on path %s", member.account.vsc_id, path)
             raise
 
     def set_member_data_quota(self, member):
@@ -374,12 +372,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         FIXME: This should probably be some variable in a config setting instance
         """
         if not self.vo_data_quota:
-            log.warning("Not setting VO %s member %s data quota: no VO data quota info available",
+            logging.warning("Not setting VO %s member %s data quota: no VO data quota info available",
                             self.vo.vsc_id, member.account.vsc_id)
             return
 
         if self.vo.vsc_id in DEFAULT_VOS_ALL:
-            log.warning("Not setting VO %s member %s data quota: No VO member quota for this VO",
+            logging.warning("Not setting VO %s member %s data quota: No VO member quota for this VO",
                             member.account.vsc_id, self.vo.vsc_id)
             return
 
@@ -389,15 +387,15 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             quota = [q for q in member.vo_data_quota
                      if q.fileset == self.vo.vsc_id and not q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)]
             if len(quota) > 1:
-                log.exception("Cannot set data quota for member %s with multiple quota instances %s",
+                logging.exception("Cannot set data quota for member %s with multiple quota instances %s",
                                   member, quota)
                 raise
             else:
-                log.info("Setting the data quota for VO %s member %s to %d KiB",
+                logging.info("Setting the data quota for VO %s member %s to %d KiB",
                              self.vo.vsc_id, member.account.vsc_id, quota[0].hard)
                 self._set_member_quota(VSC_DATA, self._data_path(), member, quota[0].hard)
         else:
-            log.error("No VO %s data quota set for member %s", self.vo.vsc_id, member.account.vsc_id)
+            logging.error("No VO %s data quota set for member %s", self.vo.vsc_id, member.account.vsc_id)
 
     def set_member_scratch_quota(self, storage_name, member):
         """Set the quota on the scratch FS for the member in the VO fileset.
@@ -408,12 +406,12 @@ class VscTier2AccountpageVo(VscAccountPageVo):
         FIXME: This should probably be some variable in a config setting instance
         """
         if not self.vo_scratch_quota:
-            log.warning("Not setting VO %s member %s scratch quota: no VO quota info available",
+            logging.warning("Not setting VO %s member %s scratch quota: no VO quota info available",
                             self.vo.vsc_id, member.account.vsc_id)
             return
 
         if self.vo.vsc_id in DEFAULT_VOS_ALL:
-            log.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
+            logging.warning("Not setting VO %s member %s scratch quota: No VO member quota for this VO",
                             member.account.vsc_id, self.vo.vsc_id)
             return
 
@@ -421,14 +419,14 @@ class VscTier2AccountpageVo(VscAccountPageVo):
             quota = [q for q in member.vo_scratch_quota
                      if q.storage['name'] in (storage_name,) and q.fileset in (self.vo_id,)]
             if quota:
-                log.info("Setting the scratch quota for VO %s member %s to %d GiB on %s",
+                logging.info("Setting the scratch quota for VO %s member %s to %d GiB on %s",
                              self.vo.vsc_id, member.account.vsc_id, quota[0].hard / 1024 / 1024, storage_name)
                 self._set_member_quota(storage_name, self._scratch_path(storage_name), member, quota[0].hard)
             else:
-                log.error("No VO %s scratch quota for member %s on %s after filter (all %s)",
+                logging.error("No VO %s scratch quota for member %s on %s after filter (all %s)",
                               self.vo.vsc_id, member.account.vsc_id, storage_name, member.vo_scratch_quota)
         else:
-            log.error("No VO %s scratch quota set for member %s on %s",
+            logging.error("No VO %s scratch quota set for member %s on %s",
                           self.vo.vsc_id, member.account.vsc_id, storage_name)
 
     def _create_member_dir(self, member, target):
@@ -478,25 +476,25 @@ def update_vo_status(vo):
     - otherwise, the VO already was active in the past, and we simply have an idempotent script.
     """
     if vo.dry_run:
-        log.info("VO %s has status %s. Dry-run so not changing anything", vo.vo_id, vo.vo.status)
+        logging.info("VO %s has status %s. Dry-run so not changing anything", vo.vo_id, vo.vo.status)
         return
 
     if vo.vo.status not in (NEW, MODIFIED, MODIFY):
-        log.info("VO %s has status %s, not changing", vo.vo_id, vo.vo.status)
+        logging.info("VO %s has status %s, not changing", vo.vo_id, vo.vo.status)
         return
 
     payload = {"status": ACTIVE}
     try:
         response = vo.rest_client.vo[vo.vo_id].patch(body=payload)
     except HTTPError as err:
-        log.error("VO %s status was not changed", vo.vo_id)
+        logging.error("VO %s status was not changed", vo.vo_id)
         raise VoStatusUpdateError("Vo %s status was not changed - received HTTP code %d" % err.code)
     else:
         virtual_organisation = mkVo(response)
         if virtual_organisation.status == ACTIVE:
-            log.info("VO %s status changed to %s", vo.vo_id, ACTIVE)
+            logging.info("VO %s status changed to %s", vo.vo_id, ACTIVE)
         else:
-            log.error("VO %s status was not changed", vo.vo_id)
+            logging.error("VO %s status was not changed", vo.vo_id)
             raise UserStatusUpdateError("VO %s status was not changed, still at %s" %
                                         (vo.vo_id, virtual_organisation.status))
 
@@ -532,7 +530,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
                 vo.set_data_shared_quota()
 
             if vo_id == INSTITUTE_VOS_BY_INSTITUTE[host_institute][host_institute]:
-                log.info("Not deploying default VO %s members", vo_id)
+                logging.info("Not deploying default VO %s members", vo_id)
                 continue
 
             if storage_name in VSC_PRODUCTION_SCRATCH[host_institute]:
@@ -540,7 +538,7 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
                 vo.set_scratch_quota(storage_name)
 
             if vo_id in DEFAULT_VOS_ALL and storage_name in (VSC_HOME, VSC_DATA):
-                log.info("Not deploying default VO %s members on %s", vo_id, storage_name)
+                logging.info("Not deploying default VO %s members on %s", vo_id, storage_name)
                 continue
 
             modified_member_list = client.vo[vo.vo_id].member.modified[datestamp].get()
@@ -563,11 +561,11 @@ def process_vos(options, vo_ids, storage_name, client, datestamp, host_institute
 
                     ok_vos[vo.vo_id] = [member.account.vsc_id]
                 except Exception:
-                    log.exception("Failure at setting up the member %s of VO %s on %s",
+                    logging.exception("Failure at setting up the member %s of VO %s on %s",
                                       member.account.vsc_id, vo.vo_id, storage_name)
                     error_vos[vo.vo_id] = [member.account.vsc_id]
         except Exception:
-            log.exception("Something went wrong setting up the VO %s on the storage %s", vo.vo_id, storage_name)
+            logging.exception("Something went wrong setting up the VO %s on the storage %s", vo.vo_id, storage_name)
             error_vos[vo.vo_id] = vo.members
 
     return (ok_vos, error_vos)
