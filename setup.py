@@ -35,7 +35,7 @@ PACKAGE = {
     'install_requires': [
         'vsc-accountpage-clients >= 2.0.0',
         'vsc-base >= 3.0.6',
-        'vsc-config >= 3.0.0',
+        'vsc-config >= 3.3.3',
         'vsc-filesystems >= 1.0.1',
         'pytz',
         'python-ldap',
