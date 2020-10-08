@@ -208,13 +208,13 @@ class LdapSyncer(object):
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
                 # Set institute moderator for main VOs
-                if vo.vsc_id in DEFAULT_VOS_ALL.values():
-                    ldap_attributes['moderator'] = VSC_CONFIG.vo_group_mods[group.institute['name']]
+                if vo.vsc_id in DEFAULT_VOS_ALL:
+                    ldap_attributes['moderator'] = [VSC_CONFIG.vo_group_mods[group.institute['name']]]
                     logging.info("Using VO moderator %s for VO %s", ldap_attributes['moderator'], group.vsc_id)
 
             if not ldap_attributes['moderator']:
                 ldap_attributes['moderator'] = [str(VSC_CONFIG.backup_group_mods[group.institute['name']])]
-                logging.info("Using backup moderator %s for group %s", group_moderators, group.vsc_id)
+                logging.info("Using backup moderator %s for group %s", ldap_attributes['moderator'], group.vsc_id)
 
             logging.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 
