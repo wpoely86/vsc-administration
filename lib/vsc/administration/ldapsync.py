@@ -189,8 +189,10 @@ class LdapSyncer(object):
                 'status': [str(group.status)],
             }
 
-            # Only set memberUid if there are actually active members in the group
-            # LDAP addition of records with empty memberUid will fail
+            # Only set memberUid if there are actually any members in the group
+            # Addition of new group records in LDAP will fail with empty memberUid
+            # Existing LDAP records of groups that become empty will lose memberUid
+            # ldap.modlist.modifyModlist (vsc-ldap) will delete any attributes that are missing in the new record
             if group.members:
                 ldap_attributes['memberUid'] = [str(a) for a in group.members]
 
