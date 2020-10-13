@@ -27,7 +27,7 @@ from datetime import datetime
 from ldap import LDAPError
 
 from vsc.accountpage.wrappers import mkVscAccount, mkUserGroup, mkGroup, mkVo
-from vsc.config.base import VSC, INSTITUTE_VOS_GENT
+from vsc.config.base import VSC, DEFAULT_VOS_ALL
 from vsc.ldap.entities import VscLdapUser, VscLdapGroup
 from vsc.ldap.filters import CnFilter
 from vsc.utils.py2vs3 import ensure_ascii_string
@@ -177,34 +177,46 @@ class LdapSyncer(object):
         }
 
         for group in changed_groups:
-            vo = False
-            try:
-                vo = mkVo(self.client.vo[group.vsc_id].get()[1])
-            except HTTPError as err:
-                # if a 404 occured, the group is not an VO, so we skip this. Otherwise something else went wrong.
-                if err.code != 404:
-                    raise
+            # General group attributes
             group_moderators = [str(m) for m in group.moderators]
             institute_name = str(group.institute['name'])
-            if not group_moderators:
-                group_moderators = [str(VSC_CONFIG.backup_group_mods[group.institute['name']])]
-                logging.info("Using backup moderator %s for group %s", group_moderators, group.vsc_id)
+
             ldap_attributes = {
                 'cn': str(group.vsc_id),
                 'institute': [institute_name],
                 'gidNumber': ["%d" % (group.vsc_id_number,)],
                 'moderator': group_moderators,
-                'memberUid': [str(a) for a in group.members],
                 'status': [str(group.status)],
             }
-            if vo:
+
+            # Only set memberUid if there are actually any members in the group
+            # Addition of new group records in LDAP will fail with empty memberUid
+            # Existing LDAP records of groups that become empty will lose memberUid
+            # ldap.modlist.modifyModlist (vsc-ldap) will delete any attributes that are missing in the new record
+            if group.members:
+                ldap_attributes['memberUid'] = [str(a) for a in group.members]
+
+            # VO attributes
+            try:
+                vo = mkVo(self.client.vo[group.vsc_id].get()[1])
+            except HTTPError as err:
+                # if a 404 occured, the group is not an VO, so we skip this. Otherwise something else went wrong.
+                if err.code != 404:
+                    logging.raiseException("Retrieval of group VO failed for unexpected reasons")
+            else:
+                # Group is a VO
                 ldap_attributes['fairshare'] = ["%d" % (vo.fairshare,)]
                 ldap_attributes['description'] = [str(vo.description)]
                 ldap_attributes['dataDirectory'] = [str(vo.data_path)]
                 ldap_attributes['scratchDirectory'] = [str(vo.scratch_path)]
-                # vsc40024 is moderator for all institute vo's
-                if vo.vsc_id in INSTITUTE_VOS_GENT.values():
-                    ldap_attributes['moderator'] = ['vsc40024']
+                # Set institute moderator for main VOs
+                if vo.vsc_id in DEFAULT_VOS_ALL:
+                    ldap_attributes['moderator'] = [VSC_CONFIG.vo_group_mods[group.institute['name']]]
+                    logging.info("Using VO moderator %s for VO %s", ldap_attributes['moderator'], group.vsc_id)
+
+            if not ldap_attributes['moderator']:
+                ldap_attributes['moderator'] = [str(VSC_CONFIG.backup_group_mods[group.institute['name']])]
+                logging.info("Using backup moderator %s for group %s", ldap_attributes['moderator'], group.vsc_id)
 
             logging.debug("Proposed changes for group %s: %s", group.vsc_id, ldap_attributes)
 

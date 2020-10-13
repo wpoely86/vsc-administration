@@ -39,6 +39,7 @@ from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_tim
 NAGIOS_HEADER = "sync_django_to_ldap"
 NAGIOS_CHECK_INTERVAL_THRESHOLD = 15 * 60  # 15 minutes
 SYNC_TIMESTAMP_FILENAME = "/var/cache/%s.timestamp" % (NAGIOS_HEADER)
+NONROOT_DEFAULT_USER = 'apache'
 
 logger = fancylogger.getLogger()
 fancylogger.setLogLevelInfo()
@@ -51,8 +52,9 @@ def main():
         'nagios-check-interval-threshold': NAGIOS_CHECK_INTERVAL_THRESHOLD,
         'start-timestamp': ("The timestamp form which to start, otherwise use the cached value", None, "store", None),
         'access_token': ('OAuth2 token identifying the user with the accountpage', None, 'store', None),
-        'account_page_url': ('url for the account page', None, 'store', None),
+        'account_page_url': ('URL of the account page', None, 'store', None),
         'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
+        'user': ('System user to run the sync', str, 'store', NONROOT_DEFAULT_USER),
         }
     # get access_token from conf file
     ExtendedSimpleOption.CONFIGFILES_INIT = ['/etc/account_page.conf']
@@ -82,20 +84,21 @@ def main():
         try:
             global logger
             logger = fancylogger.getLogger(NAGIOS_HEADER)
+
             # drop privileges in the child
             try:
-                apache_uid = pwd.getpwnam('apache').pw_uid
-                apache_gid = grp.getgrnam('apache').gr_gid
-
+                child_user = opts.options.user
+                child_uid = pwd.getpwnam(child_user).pw_uid
+                child_gid = grp.getgrnam(child_user).gr_gid
                 os.setgroups([])
-                os.setgid(apache_gid)
-                os.setuid(apache_uid)
+                os.setgid(child_gid)
+                os.setuid(child_uid)
+            except (KeyError, OSError):
+                logger.raiseException("Could not drop privileges to user '%s':" % child_user)
+            else:
+                logging.info("Now running as user %s (uid: %s)", child_user, os.geteuid())
 
-                logging.info("Now running as %s" % (os.geteuid(),))
-            except OSError:
-                logger.raiseException("Could not drop privileges")
-
-            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api/')
+            client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + '/api')
             syncer = LdapSyncer(client)
             last = last_timestamp
             altered_accounts = syncer.sync_altered_accounts(last, opts.options.dry_run)
