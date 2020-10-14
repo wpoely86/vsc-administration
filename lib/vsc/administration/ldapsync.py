@@ -124,7 +124,8 @@ class LdapSyncer(object):
             except HTTPError:
                 logging.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
-            gecos = ensure_ascii_string(account.person.gecos)
+            # we avoid storing the real name belong to the account in the ldap
+            gecos = str(account.vsc_id)
 
             logging.debug('fetching public key')
             public_keys = [ensure_ascii_string(x.pubkey) for x in self.client.get_public_keys(account.vsc_id)]
