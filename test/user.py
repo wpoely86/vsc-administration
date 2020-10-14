@@ -108,9 +108,9 @@ test_account_3 = {
 test_account_4 = {
     u'broken': False,
     u'create_timestamp': u'1970-01-01T00:00:00.297Z',
-    u'data_directory': u'/data/brussel/vsc100/vsc10001',
+    u'data_directory': u'/data/brussel/vsc100/vsc10004',
     u'email': u'foobar@vub.ac.be',
-    u'home_directory': u'/user/brussel/vsc100/vsc10001',
+    u'home_directory': u'/user/brussel/vsc100/vsc10004',
     u'login_shell': u'/bin/bash',
     u'person': {
         u'gecos': u'Foo Bar',
@@ -119,7 +119,7 @@ test_account_4 = {
         u'institute_affiliation': u'staff',
     },
     u'research_field': [u'Dinges', u'Pluto'],
-    u'scratch_directory': u'/scratch/brussel/vsc100/vsc10001',
+    u'scratch_directory': u'/scratch/brussel/vsc100/vsc10004',
     u'status': u'forceinactive',
     u'vsc_id': u'vsc10004',
     u'vsc_id_number': 2510004,
