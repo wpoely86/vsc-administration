@@ -27,8 +27,15 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
-# from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS, GENT_PILOT_COMPUTE_CLUSTERS
-from vsc.config.base import VSC_SLURM_SYNC_CLUSTERS
+from vsc.config.base import (
+    GENT_SLURM_COMPUTE_CLUSTERS,
+    GENT_PRODUCTION_COMPUTE_CLUSTERS,
+    GENT_PILOT_COMPUTE_CLUSTERS,
+    GENT,
+    VSC_ALL_COMPUTE_CLUSTERS,
+    INSTITUTE_VOS_BRUSSEL,
+    ACTIVE,
+)
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import Run
@@ -72,10 +79,10 @@ def main():
             "store",
             "https://apivsc.ugent.be/django",
         ),
-        'host_institute': ('Name of the institute where this script is being run', str, 'store', GENT),
+        "host_institute": ("Name of the institute where this script is being run", str, "store", GENT),
         "clusters": (
             "Cluster(s) (comma-separated) to sync for. "
-            "Overrides <host_institute>_SLURM_COMPUTE_CLUSTERS that are in production.",
+            "Overrides <institute>_SLURM_COMPUTE_CLUSTERS that are in production.",
             str,
             "store",
             None,
@@ -95,8 +102,6 @@ def main():
     try:
         client = AccountpageClient(token=opts.options.access_token, url=opts.options.account_page_url + "/api/")
 
-        host_institute = opts.options.host_institute
-
         slurm_account_info = get_slurm_acct_info(SyncTypes.accounts)
         slurm_user_info = get_slurm_acct_info(SyncTypes.users)
 
@@ -106,31 +111,60 @@ def main():
         if opts.options.clusters is not None:
             clusters = opts.options.clusters.split(",")
         else:
-            clusters = VSC_SLURM_SYNC_CLUSTERS[host_institute]
+            # FIXME: clean this up in vsc-config
+            if opts.options.host_institute == GENT:
+                clusters = [
+                    c
+                    for c in GENT_SLURM_COMPUTE_CLUSTERS
+                    if c in GENT_PRODUCTION_COMPUTE_CLUSTERS + GENT_PILOT_COMPUTE_CLUSTERS
+                ]
+            else:
+                clusters = VSC_ALL_COMPUTE_CLUSTERS[opts.options.host_institute]
+
         sacctmgr_commands = []
 
         # make sure the institutes and the default accounts (VOs) are there for each cluster
-        sacctmgr_commands += slurm_institute_accounts(slurm_account_info, clusters, host_institute)
+        sacctmgr_commands += slurm_institute_accounts(
+            slurm_account_info, clusters, host_institute=opts.options.host_institute
+        )
 
         # All users belong to a VO, so fetching the VOs is necessary/
-        account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
+        # as we don't yet have VOs for the VUB, we 'fake' the default VOs.
+        account_page_vos = []
+        active_accounts = set()
+        for institute in INSTITUTE_VOS_BRUSSEL:
+            vo_members = client.account.institute[institute].get()[1]
+            vo = {
+                'vsc_id': INSTITUTE_VOS_BRUSSEL[institute],
+                'status': ACTIVE,
+                'vsc_id_number': 1,
+                'institute': {'name': institute},
+                'fairshare': 100,
+                'data_path': '',
+                'scratch_path': '',
+                'description': '',
+                'members': [a['vsc_id'] for a in vo_members],
+                'moderators': [],
+            }
+            account_page_vos.append(mkVo(vo))
+            active_accounts |= set([a["vsc_id"] for a in vo_members if a["isactive"]])
+
+        #account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
 
         # The VOs do not track active state of users, so we need to fetch all accounts as well
-        active_accounts = set([a["vsc_id"] for a in client.account.get()[1] if a["isactive"]])
+        #active_accounts = set([a["vsc_id"] for a in client.account.get()[1] if a["isactive"]])
 
         # dictionary mapping the VO vsc_id on a tuple with the VO members and the VO itself
         account_page_members = dict([(vo.vsc_id, (set(vo.members), vo)) for vo in account_page_vos])
 
-        # process all regular VOs
-        sacctmgr_commands += slurm_vo_accounts(account_page_vos, slurm_account_info, clusters, host_institute)
+        # process all regular VOs, currently does nothing for us (VUB)
+        #sacctmgr_commands += slurm_vo_accounts(
+        #    account_page_vos, slurm_account_info, clusters, host_institute=opts.options.host_institute
+        #)
 
         # process VO members
         sacctmgr_commands += slurm_user_accounts(
-            account_page_members,
-            active_accounts,
-            slurm_user_info,
-            clusters,
-            opts.options.dry_run
+            account_page_members, active_accounts, slurm_user_info, clusters, opts.options.dry_run
         )
 
         logging.info("Executing %d commands", len(sacctmgr_commands))

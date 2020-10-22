@@ -45,7 +45,7 @@ class SlurmSyncTest(TestCase):
             VO(vsc_id="gvo00018", institute={"name": "gent"}),
         ]
 
-        commands = slurm_vo_accounts(vos, [], ["mycluster"])
+        commands = slurm_vo_accounts(vos, [], ["mycluster"], 'gent')
 
         self.assertEqual([tuple(x) for x in commands], [tuple(x) for x in [
             shlex.split("/usr/bin/sacctmgr -i add account gvo00001 Parent=gent Organization=ugent Cluster=mycluster"),
