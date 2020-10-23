@@ -27,8 +27,7 @@ from vsc.accountpage.client import AccountpageClient
 from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
-# from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS, GENT_PILOT_COMPUTE_CLUSTERS
-from vsc.config.base import VSC_SLURM_SYNC_CLUSTERS
+from vsc.config.base import GENT, VSC_SLURM_SYNC_CLUSTERS
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import Run
