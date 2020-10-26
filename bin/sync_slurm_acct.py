@@ -30,7 +30,7 @@ from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_acc
 from vsc.config.base import GENT, VSC_SLURM_SYNC_CLUSTERS
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
-from vsc.utils.run import Run
+from vsc.utils.run import RunNoShell
 from vsc.utils.script_tools import ExtendedSimpleOption
 from vsc.utils.timestamp import convert_timestamp, write_timestamp, retrieve_timestamp_with_default
 
@@ -52,7 +52,7 @@ def execute_commands(commands):
         logging.info("Running command: %s", command)
 
         # if one fails, we simply fail the script and should get notified
-        (ec, _) = Run.run(command)
+        (ec, _) = RunNoShell.run(command)
         if ec != 0:
             raise SacctMgrException("Command failed: {0}".format(command))
 
