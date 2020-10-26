@@ -209,10 +209,11 @@ class VscTier2AccountpageUser(VscAccountPageUser):
 
         # Non-UGent users who have quota in Gent, e.g., in a VO, should not have these set
         if self.person.institute['name'] == self.host_institute:
-            self._cache['quota']['home'] = [q.hard for q in institute_quota if user_proposition(q, HOME_KEY)][0]
-            self._cache['quota']['data'] = [q.hard for q in institute_quota
+            self._cache['quota']['home'] = next(iter([q.hard for q in institute_quota
+                                                      if user_proposition(q, HOME_KEY)]), None)
+            self._cache['quota']['data'] = next(iter([q.hard for q in institute_quota
                                             if user_proposition(q, DATA_KEY) and not
-                                            q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)][0]
+                                            q.storage['name'].endswith(STORAGE_SHARED_SUFFIX)]), None)
             self._cache['quota']['scratch'] = [q for q in institute_quota if user_proposition(q, SCRATCH_KEY)]
         else:
             self._cache['quota']['home'] = None
