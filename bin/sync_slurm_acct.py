@@ -28,6 +28,7 @@ from vsc.accountpage.wrappers import mkVo
 from vsc.administration.slurm.sync import get_slurm_acct_info, SyncTypes, SacctMgrException
 from vsc.administration.slurm.sync import slurm_institute_accounts, slurm_vo_accounts, slurm_user_accounts
 from vsc.config.base import GENT_SLURM_COMPUTE_CLUSTERS, GENT_PRODUCTION_COMPUTE_CLUSTERS, GENT_PILOT_COMPUTE_CLUSTERS
+from vsc.config.base import GENT
 from vsc.utils import fancylogger
 from vsc.utils.nagios import NAGIOS_EXIT_CRITICAL
 from vsc.utils.run import Run
@@ -79,6 +80,7 @@ def main():
             None,
         ),
         'start_timestamp': ('Timestamp to start the sync from', str, 'store', None),
+        'institute': ('The name of the local institute for which to sync', str, 'store', GENT),
     }
 
     opts = ExtendedSimpleOption(options)
@@ -112,7 +114,7 @@ def main():
         sacctmgr_commands += slurm_institute_accounts(slurm_account_info, clusters)
 
         # All users belong to a VO, so fetching the VOs is necessary/
-        account_page_vos = [mkVo(v) for v in client.vo.get()[1]]
+        account_page_vos = [mkVo(v) for v in client.vo.institute[opts.options.institute].get()[1]]
 
         # The VOs do not track active state of users, so we need to fetch all accounts as well
         active_accounts = set([a["vsc_id"] for a in client.account.get()[1] if a["isactive"]])
