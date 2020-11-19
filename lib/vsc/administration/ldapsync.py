@@ -110,7 +110,11 @@ class LdapSyncer(object):
 
         for account in sync_accounts:
             try:
-                usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
+                if account.person.institute_login in ('x_admin', 'admin', 'voadmin'):
+                    # TODO to be removed when magic site admin usergroups are purged from code
+                    usergroup = mkGroup((self.client.group[account.vsc_id].get())[1])
+                else:
+                    usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
             except HTTPError:
                 logging.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue

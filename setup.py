@@ -24,7 +24,7 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '2.4.0',
+    'version': '2.4.1',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
