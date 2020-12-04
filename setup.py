@@ -24,11 +24,11 @@ from vsc.install import shared_setup
 from vsc.install.shared_setup import ag, jt
 
 PACKAGE = {
-    'version': '2.4.1',
+    'version': '2.4.2',
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
-    'makesetupcfg': False,  # use setup.cfg provided to get pytz instead of python-pytz
+    'makesetupcfg': False,
     'setup_requires': [
         'vsc-install >= 0.15.3',
     ],
@@ -37,7 +37,6 @@ PACKAGE = {
         'vsc-base >= 3.0.6',
         'vsc-config >= 3.3.3',
         'vsc-filesystems >= 1.0.1',
-        'pytz',
         'python-ldap',
         'vsc-ldap >= 2.0.0',
         'vsc-ldap-extension >= 2.0.0',

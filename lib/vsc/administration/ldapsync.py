@@ -21,7 +21,13 @@ import logging
 
 from vsc.utils.py2vs3 import HTTPError
 
-import pytz as timezone
+try:
+    from datetime import timezone
+    tz_utc = timezone.utc
+except ImportError:
+    from vsc.utils.dateandtime import UTC
+    tz_utc = UTC()
+
 from datetime import datetime
 
 from ldap import LDAPError
@@ -52,7 +58,7 @@ class LdapSyncer(object):
         (typically AccountpageClient)
         """
         self.client = client
-        self.now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        self.now = datetime.utcnow().replace(tzinfo=tz_utc)
 
     def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
         """
