@@ -28,7 +28,6 @@ PACKAGE = {
     'author': [ag, jt],
     'maintainer': [ag, jt],
     'tests_require': ['mock'],
-    'makesetupcfg': False,
     'setup_requires': [
         'vsc-install >= 0.15.3',
     ],
