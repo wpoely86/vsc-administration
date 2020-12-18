@@ -246,7 +246,7 @@ def create_remove_user_command(user, cluster):
     return REMOVE_USER_COMMAND
 
 
-def slurm_institute_accounts(slurm_account_info, clusters, host_institute=GENT):
+def slurm_institute_accounts(slurm_account_info, clusters, host_institute):
     """Check for the presence of the institutes and their default VOs in the slurm account list.
 
     @returns: list of sacctmgr commands to add the accounts to the clusters if needed
@@ -267,7 +267,7 @@ def slurm_institute_accounts(slurm_account_info, clusters, host_institute=GENT):
     return commands
 
 
-def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters, host_institute=GENT):
+def slurm_vo_accounts(account_page_vos, slurm_account_info, clusters, host_institute):
     """Check for the presence of the new/changed VOs in the slurm account list.
 
     @returns: list of sacctmgr commands to add the accounts for VOs if needed
