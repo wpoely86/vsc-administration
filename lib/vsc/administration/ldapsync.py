@@ -21,7 +21,13 @@ import logging
 
 from vsc.utils.py2vs3 import HTTPError
 
-import pytz as timezone
+try:
+    from datetime import timezone
+    tz_utc = timezone.utc
+except ImportError:
+    from vsc.utils.dateandtime import UTC
+    tz_utc = UTC()
+
 from datetime import datetime
 
 from ldap import LDAPError
@@ -52,7 +58,7 @@ class LdapSyncer(object):
         (typically AccountpageClient)
         """
         self.client = client
-        self.now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        self.now = datetime.utcnow().replace(tzinfo=tz_utc)
 
     def add_or_update(self, VscLdapKlass, cn, ldap_attributes, dry_run):
         """
@@ -110,7 +116,11 @@ class LdapSyncer(object):
 
         for account in sync_accounts:
             try:
-                usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
+                if account.person.institute_login in ('x_admin', 'admin', 'voadmin'):
+                    # TODO to be removed when magic site admin usergroups are purged from code
+                    usergroup = mkGroup((self.client.group[account.vsc_id].get())[1])
+                else:
+                    usergroup = mkUserGroup(self.client.account[account.vsc_id].usergroup.get()[1])
             except HTTPError:
                 logging.error("No corresponding UserGroup for user %s" % (account.vsc_id,))
                 continue
